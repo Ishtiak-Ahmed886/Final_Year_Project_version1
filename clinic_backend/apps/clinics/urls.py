@@ -1,0 +1,16 @@
+from django.urls import path
+from .views import (
+    DepartmentListCreateView,
+    ClinicListCreateView,
+    ClinicDetailView,
+    ClinicAddDepartmentView,
+)
+
+app_name = 'clinics'
+
+urlpatterns = [
+    path('departments/', DepartmentListCreateView.as_view(), name='department_list_create'),
+    path('', ClinicListCreateView.as_view(), name='clinic_list_create'),
+    path('<uuid:pk>/', ClinicDetailView.as_view(), name='clinic_detail'),
+    path('<uuid:pk>/departments/', ClinicAddDepartmentView.as_view(), name='clinic_add_department'),
+]
