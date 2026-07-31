@@ -1,9 +1,10 @@
-import { Outlet, NavLink } from "react-router";
+import { NavLink } from "react-router";
 import { useAuth } from "../../Provider/AuthProvider";
-import { LayoutDashboard, Calendar, Stethoscope, Building2 } from "lucide-react";
+import { LayoutDashboard, Calendar, Stethoscope, Building2, ShieldCheck, UserCheck } from "lucide-react";
 import PatientDashboard from "./PatientDashboard";
 import DoctorDashboard from "./DoctorDashboard";
-import AdminDashboard from "./AdminDashboard";
+import ClinicAdminDashboard from "./ClinicAdminDashboard";
+import SuperAdminDashboard from "./SuperAdminDashboard";
 
 export default function DashboardLayout() {
   const { user } = useAuth();
@@ -13,12 +14,26 @@ export default function DashboardLayout() {
     switch (user.role) {
       case "DOCTOR":
         return <DoctorDashboard />;
-      case "ADMIN":
       case "CLINIC_ADMIN":
-        return <AdminDashboard />;
+        return <ClinicAdminDashboard />;
+      case "ADMIN":
+        return <SuperAdminDashboard />;
       case "PATIENT":
       default:
         return <PatientDashboard />;
+    }
+  };
+
+  const getRoleBadge = (role) => {
+    switch (role) {
+      case "ADMIN":
+        return <span className="badge badge-error badge-sm mt-1">Super Admin</span>;
+      case "CLINIC_ADMIN":
+        return <span className="badge badge-primary badge-sm mt-1">Clinic Admin</span>;
+      case "DOCTOR":
+        return <span className="badge badge-secondary badge-sm mt-1">Doctor</span>;
+      default:
+        return <span className="badge badge-accent badge-sm mt-1">Patient</span>;
     }
   };
 
@@ -35,7 +50,7 @@ export default function DashboardLayout() {
               <div className="font-bold text-base-content leading-tight">
                 {user?.first_name} {user?.last_name}
               </div>
-              <div className="badge badge-primary badge-sm mt-1">{user?.role}</div>
+              {getRoleBadge(user?.role)}
             </div>
           </div>
 
@@ -75,6 +90,7 @@ export default function DashboardLayout() {
             >
               <Building2 size={18} /> Clinics Directory
             </NavLink>
+            
             <NavLink
               to="/doctors"
               className="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-base-content/70 hover:bg-base-200 transition-colors"

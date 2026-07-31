@@ -71,5 +71,35 @@ class AppointmentCompleteView(generics.GenericAPIView):
         except Appointment.DoesNotExist:
             return Response({'detail': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+        user = request.user
+
+        # Role-based authorization:
+        # - DOCTOR: must be the assigned doctor (matched via user-linked doctor profile email)
+        # - CLINIC_ADMIN: must own the clinic for this appointment
+        # - ADMIN: can complete any appointment
+        if user.role == 'DOCTOR':
+            # Check via linked doctor profile or email match
+            assigned_doctor = appointment.doctor
+            is_assigned = (
+                (hasattr(user, 'doctor_profile') and user.doctor_profile == assigned_doctor)
+                or (assigned_doctor.email and assigned_doctor.email == user.email)
+            )
+            if not is_assigned:
+                return Response(
+                    {'detail': 'You are not the assigned doctor for this appointment.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user.role == 'CLINIC_ADMIN':
+            if appointment.clinic.owner != user:
+                return Response(
+                    {'detail': 'You do not own the clinic for this appointment.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user.role != 'ADMIN':
+            return Response(
+                {'detail': 'Only the assigned doctor, clinic admin, or system admin can complete an appointment.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         appointment = complete_appointment(appointment=appointment)
         return Response(AppointmentSerializer(appointment).data, status=status.HTTP_200_OK)

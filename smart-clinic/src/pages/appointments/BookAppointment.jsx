@@ -1,7 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router";
 import apiClient from "../../api/axios";
-import { CalendarCheck, Building2, Stethoscope, Clock, FileText, CheckCircle2, AlertCircle, ArrowLeft, DollarSign } from "lucide-react";
+import {
+  CalendarCheck, Building2, Stethoscope, Clock, FileText,
+  CheckCircle2, AlertCircle, ArrowLeft, DollarSign,
+  MapPin, Navigation, Loader, Star, ChevronRight
+} from "lucide-react";
 
 export default function BookAppointment() {
   const [searchParams] = useSearchParams();
@@ -11,6 +15,7 @@ export default function BookAppointment() {
   const preselectedDoctor = searchParams.get("doctor") || "";
 
   const [clinics, setClinics] = useState([]);
+  const [nearbyClinics, setNearbyClinics] = useState([]);
   const [doctors, setDoctors] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -26,71 +31,89 @@ export default function BookAppointment() {
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [geoError, setGeoError] = useState("");
 
-  // Available time slots
   const timeSlots = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
     "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"
   ];
 
-  // Fetch initial clinics list
+  // Fetch all clinics on mount
   useEffect(() => {
     const fetchClinics = async () => {
       try {
         const res = await apiClient.get("/clinics/");
         setClinics(res.results || res || []);
-      } catch (err) {
+      } catch {
         setError("Failed to load clinics.");
       }
     };
     fetchClinics();
   }, []);
 
-  // Fetch doctors whenever clinic_id changes
+  // Try geolocation on mount automatically
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    setGeoLoading(true);
+    setGeoError("");
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await apiClient.get(
+            `/clinics/nearby/?lat=${latitude}&lng=${longitude}&radius=50`
+          );
+          setNearbyClinics(res || []);
+        } catch {
+          // Silently fail – still shows full list below
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      () => {
+        setGeoLoading(false);
+        setGeoError("Location permission denied. Showing all clinics below.");
+      },
+      { timeout: 8000 }
+    );
+  }, []);
+
+  // Fetch doctors when clinic changes
   useEffect(() => {
     const fetchDoctors = async () => {
       if (!formData.clinic_id) {
-        // If no clinic selected, fetch all doctors
         try {
           const res = await apiClient.get("/doctors/");
           setDoctors(res.results || res || []);
-        } catch (err) {
-          console.error(err);
-        }
+        } catch {}
         return;
       }
-
       setLoading(true);
       try {
         const res = await apiClient.get(`/doctors/?clinic_id=${formData.clinic_id}`);
         setDoctors(res.results || res || []);
-      } catch (err) {
+      } catch {
         setError("Failed to load doctors for selected clinic.");
       } finally {
         setLoading(false);
       }
     };
-
     fetchDoctors();
   }, [formData.clinic_id]);
 
-  // Update consultation fee calculation
+  // Update consultation fee when doctor changes
   useEffect(() => {
     if (formData.doctor_id && doctors.length > 0) {
       const doc = doctors.find((d) => d.id === formData.doctor_id);
       setSelectedDoctorObj(doc || null);
-
-      if (doc && doc.doctor_clinics) {
+      if (doc?.doctor_clinics) {
         const mapping = doc.doctor_clinics.find(
           (dc) => dc.clinic?.id === formData.clinic_id || dc.clinic_id === formData.clinic_id
         );
-        if (mapping) {
-          setConsultationFee(mapping.consultation_fee);
-        } else if (doc.doctor_clinics.length > 0) {
-          setConsultationFee(doc.doctor_clinics[0].consultation_fee);
-        }
+        setConsultationFee(mapping?.consultation_fee ?? (doc.doctor_clinics[0]?.consultation_fee ?? null));
       }
     } else {
       setSelectedDoctorObj(null);
@@ -103,16 +126,19 @@ export default function BookAppointment() {
     setError("");
   };
 
+  const selectNearbyClinic = (clinicId) => {
+    setFormData({ ...formData, clinic_id: clinicId, doctor_id: "" });
+    window.scrollTo({ top: 400, behavior: "smooth" });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.clinic_id || !formData.doctor_id || !formData.appointment_date || !formData.appointment_time) {
       return setError("Please complete all required fields.");
     }
-
     setSubmitting(true);
     setError("");
     setSuccess("");
-
     try {
       await apiClient.post("/appointments/", {
         clinic_id: formData.clinic_id,
@@ -121,13 +147,11 @@ export default function BookAppointment() {
         appointment_time: formData.appointment_time,
         problem_description: formData.problem_description,
       });
-
       setSuccess("Appointment booked successfully! Redirecting to dashboard...");
       setTimeout(() => navigate("/dashboard"), 1500);
     } catch (err) {
       if (typeof err === "object") {
-        const msg = Object.values(err).flat().join(" ") || "Failed to book appointment.";
-        setError(msg);
+        setError(Object.values(err).flat().join(" ") || "Failed to book appointment.");
       } else {
         setError(err || "Failed to book appointment. Check slot availability.");
       }
@@ -142,6 +166,73 @@ export default function BookAppointment() {
         <ArrowLeft size={16} /> Back
       </Link>
 
+      {/* ====== Nearest Clinics Section ====== */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-success/10 rounded-xl text-success">
+            <Navigation size={20} />
+          </div>
+          <div>
+            <h2 className="text-lg font-extrabold text-base-content">Clinics Near You</h2>
+            <p className="text-xs text-base-content/60">
+              {geoLoading
+                ? "Detecting your location..."
+                : nearbyClinics.length > 0
+                ? `Found ${nearbyClinics.length} clinic(s) within 50 km of your location`
+                : geoError || "Allow location to see nearby clinics"}
+            </p>
+          </div>
+          {geoLoading && <Loader size={18} className="animate-spin text-primary ml-auto" />}
+        </div>
+
+        {geoError && (
+          <div className="text-xs text-warning bg-warning/10 border border-warning/20 rounded-xl px-4 py-2 flex items-center gap-2">
+            <AlertCircle size={14} /> {geoError}
+          </div>
+        )}
+
+        {nearbyClinics.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {nearbyClinics.map((clinic) => {
+              const isSelected = formData.clinic_id === clinic.id;
+              return (
+                <button
+                  key={clinic.id}
+                  type="button"
+                  onClick={() => selectNearbyClinic(clinic.id)}
+                  className={`text-left p-4 rounded-2xl border-2 transition-all hover:shadow-md ${
+                    isSelected
+                      ? "border-primary bg-primary/5 shadow-md"
+                      : "border-base-200 bg-base-100 hover:border-primary/40"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-bold text-base-content text-sm leading-tight">{clinic.name}</div>
+                    <span className="badge badge-sm badge-success badge-soft shrink-0">
+                      {clinic.distance_km} km
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1 text-xs text-base-content/60">
+                    <MapPin size={11} /> {clinic.city}
+                  </div>
+                  {isSelected && (
+                    <div className="flex items-center gap-1 mt-2 text-xs text-primary font-bold">
+                      <CheckCircle2 size={12} /> Selected
+                    </div>
+                  )}
+                  {!isSelected && (
+                    <div className="flex items-center gap-1 mt-2 text-xs text-base-content/50">
+                      <ChevronRight size={12} /> Click to select
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ====== Booking Form ====== */}
       <div className="bg-base-100 border border-base-200 p-8 rounded-3xl shadow-xl space-y-6">
         <div className="flex items-center gap-4 border-b border-base-200 pb-6">
           <div className="p-3 bg-primary/10 rounded-2xl text-primary font-bold">
@@ -152,7 +243,7 @@ export default function BookAppointment() {
               Book Your Consultation
             </h1>
             <p className="text-sm text-base-content/60">
-              Select clinic, doctor, and preferred time slot for your appointment
+              Select clinic, doctor, and preferred time slot
             </p>
           </div>
         </div>
@@ -163,7 +254,6 @@ export default function BookAppointment() {
             <span>{error}</span>
           </div>
         )}
-
         {success && (
           <div className="alert alert-success text-sm py-3 px-4 shadow-sm flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 shrink-0" />
@@ -273,7 +363,7 @@ export default function BookAppointment() {
             ></textarea>
           </div>
 
-          {/* Consultation Fee Summary Card */}
+          {/* Consultation Fee Summary */}
           {consultationFee && (
             <div className="p-4 bg-primary/5 rounded-2xl border border-primary/20 flex items-center justify-between">
               <div>
@@ -297,7 +387,7 @@ export default function BookAppointment() {
               className="btn btn-primary w-full shadow-lg text-base gap-2"
             >
               {submitting ? (
-                <span className="loading loading-spinner"></span>
+                <Loader size={18} className="animate-spin" />
               ) : (
                 <>
                   <CalendarCheck size={20} /> Confirm Booking

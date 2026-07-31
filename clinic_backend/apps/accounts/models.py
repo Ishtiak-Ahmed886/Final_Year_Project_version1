@@ -6,6 +6,7 @@ from apps.core.models import BaseModel
 class UserRole(models.TextChoices):
     ADMIN = 'ADMIN', 'Admin'
     CLINIC_ADMIN = 'CLINIC_ADMIN', 'ClinicAdmin'
+    DOCTOR = 'DOCTOR', 'Doctor'
     PATIENT = 'PATIENT', 'Patient'
 
 class UserManager(BaseUserManager):

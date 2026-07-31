@@ -44,6 +44,9 @@ export default function AdminDashboard() {
     phone: "",
     email: "",
     subscription_plan: "FREE",
+    latitude: "",
+    longitude: "",
+    certificate_url: "",
   });
 
   const [clinicDeptForm, setClinicDeptForm] = useState({
@@ -51,22 +54,7 @@ export default function AdminDashboard() {
     department_id: "",
   });
 
-  // Doctor Creation & Assignment Form (Combined for Clinic Admin / Admin)
-  const [doctorForm, setDoctorForm] = useState({
-    full_name: "",
-    email: "",
-    phone: "",
-    qualification: "",
-    experience_years: 0,
-    bio: "",
-    specialization_ids: [],
-    clinic_id: "",
-    consultation_fee: "",
-    department_id: "",
-    room_number: "",
-  });
-
-  // Quick Assign Existing Doctor Form
+  // Assign Existing Doctor Form (CLINIC_ADMIN assigns registered doctors to their clinic)
   const [assignDoctorForm, setAssignDoctorForm] = useState({
     doctor_id: "",
     clinic_id: "",
@@ -74,6 +62,7 @@ export default function AdminDashboard() {
     consultation_fee: "",
     room_number: "",
   });
+
 
   const [newDept, setNewDept] = useState({ name: "", description: "" });
   const [newSpec, setNewSpec] = useState({ name: "", description: "" });
@@ -125,7 +114,13 @@ export default function AdminDashboard() {
     setMsg("");
     setError("");
     try {
-      await apiClient.post("/clinics/", newClinic);
+      const payload = { ...newClinic };
+      // Only include lat/lng if actually filled
+      if (!payload.latitude) delete payload.latitude;
+      if (!payload.longitude) delete payload.longitude;
+      if (!payload.certificate_url) delete payload.certificate_url;
+
+      await apiClient.post("/clinics/", payload);
       setMsg("Clinic registered successfully!");
       setNewClinic({
         name: "",
@@ -134,6 +129,9 @@ export default function AdminDashboard() {
         phone: "",
         email: "",
         subscription_plan: "FREE",
+        latitude: "",
+        longitude: "",
+        certificate_url: "",
       });
       loadAllData();
     } catch (err) {
@@ -165,43 +163,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleCreateOrAssignDoctor = async (e) => {
-    e.preventDefault();
-    setMsg("");
-    setError("");
-    try {
-      const targetClinicId = user?.role === "CLINIC_ADMIN" && ownedClinic ? ownedClinic.id : doctorForm.clinic_id;
-
-      await apiClient.post("/doctors/", {
-        ...doctorForm,
-        clinic_id: targetClinicId,
-        consultation_fee: doctorForm.consultation_fee ? parseFloat(doctorForm.consultation_fee) : null,
-      });
-
-      setMsg("Doctor created & assigned to clinic successfully!");
-      setDoctorForm({
-        full_name: "",
-        email: "",
-        phone: "",
-        qualification: "",
-        experience_years: 0,
-        bio: "",
-        specialization_ids: [],
-        clinic_id: "",
-        consultation_fee: "",
-        department_id: "",
-        room_number: "",
-      });
-      loadAllData();
-    } catch (err) {
-      if (typeof err === "object") {
-        const detail = Object.values(err).flat().join(" ");
-        setError(detail || "Failed to create or assign doctor.");
-      } else {
-        setError(err || "Failed to create or assign doctor.");
-      }
-    }
-  };
 
   const handleAssignExistingDoctor = async (e) => {
     e.preventDefault();
@@ -459,6 +420,43 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                {/* Location fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label text-xs font-semibold">Latitude (optional, for nearby search)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. 40.7128"
+                      value={newClinic.latitude}
+                      onChange={(e) => setNewClinic({ ...newClinic, latitude: e.target.value })}
+                      className="input input-bordered w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="label text-xs font-semibold">Longitude (optional, for nearby search)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. -74.0060"
+                      value={newClinic.longitude}
+                      onChange={(e) => setNewClinic({ ...newClinic, longitude: e.target.value })}
+                      className="input input-bordered w-full"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label text-xs font-semibold">Registration Certificate URL (Cloudinary, optional)</label>
+                  <input
+                    type="url"
+                    placeholder="https://res.cloudinary.com/..."
+                    value={newClinic.certificate_url}
+                    onChange={(e) => setNewClinic({ ...newClinic, certificate_url: e.target.value })}
+                    className="input input-bordered w-full"
+                  />
+                </div>
+
                 <button type="submit" className="btn btn-primary w-full shadow-md gap-2">
                   <Plus size={16} /> Register Clinic
                 </button>
@@ -513,143 +511,29 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB 2: DOCTORS MANAGEMENT */}
+      {/* TAB 2: DOCTORS MANAGEMENT — Assign Only */}
       {activeTab === "doctors" && (
         <div className="space-y-6">
-          {/* Create & Assign Doctor to Clinic */}
-          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-            <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-              <UserPlus className="text-primary" /> Create & Assign Doctor to {ownedClinic ? ownedClinic.name : "Clinic"}
-            </h2>
-            <p className="text-xs text-base-content/60">
-              Creates a doctor profile (or assigns existing doctor if email matches) and maps them to your clinic.
-            </p>
-
-            <form onSubmit={handleCreateOrAssignDoctor} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="label text-xs font-semibold">Doctor Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Dr. Sarah Jenkins"
-                    value={doctorForm.full_name}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, full_name: e.target.value })}
-                    className="input input-bordered w-full"
-                  />
-                </div>
-                <div>
-                  <label className="label text-xs font-semibold">Email Address (Lookup / ID) *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="sarah@clinic.com"
-                    value={doctorForm.email}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })}
-                    className="input input-bordered w-full"
-                  />
-                </div>
-                <div>
-                  <label className="label text-xs font-semibold">Consultation Fee ($) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="120.00"
-                    value={doctorForm.consultation_fee}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, consultation_fee: e.target.value })}
-                    className="input input-bordered w-full"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="label text-xs font-semibold">Qualification</label>
-                  <input
-                    type="text"
-                    placeholder="MBBS, MD Cardiology"
-                    value={doctorForm.qualification}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, qualification: e.target.value })}
-                    className="input input-bordered w-full"
-                  />
-                </div>
-                <div>
-                  <label className="label text-xs font-semibold">Experience (Years)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={doctorForm.experience_years}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, experience_years: parseInt(e.target.value) || 0 })}
-                    className="input input-bordered w-full"
-                  />
-                </div>
-                <div>
-                  <label className="label text-xs font-semibold">Room Number (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="Room 204"
-                    value={doctorForm.room_number}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, room_number: e.target.value })}
-                    className="input input-bordered w-full"
-                  />
-                </div>
-              </div>
-
-              {user?.role !== "CLINIC_ADMIN" && (
-                <div>
-                  <label className="label text-xs font-semibold">Select Clinic *</label>
-                  <select
-                    required
-                    value={doctorForm.clinic_id}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, clinic_id: e.target.value })}
-                    className="select select-bordered w-full"
-                  >
-                    <option value="">-- Choose Clinic --</option>
-                    {clinics.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.city})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="label text-xs font-semibold">Specializations (Select Multiple)</label>
-                <select
-                  multiple
-                  className="select select-bordered w-full h-20"
-                  value={doctorForm.specialization_ids}
-                  onChange={(e) =>
-                    setDoctorForm({
-                      ...doctorForm,
-                      specialization_ids: Array.from(e.target.selectedOptions, (option) => option.value),
-                    })
-                  }
-                >
-                  {specializations.map((spec) => (
-                    <option key={spec.id} value={spec.id}>
-                      {spec.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button type="submit" className="btn btn-primary w-full shadow-md gap-2">
-                <Plus size={16} /> Save Doctor & Assign to Clinic
-              </button>
-            </form>
+          <div className="p-4 bg-info/10 border border-info/30 rounded-2xl text-sm text-base-content/80 flex items-start gap-3">
+            <Info className="text-info shrink-0 mt-0.5" size={18} />
+            <div>
+              <strong>Doctors self-register</strong> via the Register page (choose the Doctor role). Once registered, they appear below and can be assigned to your clinic.
+            </div>
           </div>
 
-          {/* Assign Existing Doctor to Clinic */}
+          {/* Assign Registered Doctor to Clinic */}
           <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
             <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-              <LinkIcon className="text-primary" /> Assign Pre-Existing Doctor to {ownedClinic ? ownedClinic.name : "Clinic"}
+              <LinkIcon className="text-primary" /> Assign Doctor to {ownedClinic ? ownedClinic.name : "Clinic"}
             </h2>
+            <p className="text-xs text-base-content/60">
+              Select a registered doctor from the list and set their consultation fee for this clinic.
+            </p>
 
             <form onSubmit={handleAssignExistingDoctor} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="label text-xs font-semibold">Select Doctor *</label>
+                  <label className="label text-xs font-semibold">Select Registered Doctor *</label>
                   <select
                     required
                     value={assignDoctorForm.doctor_id}
@@ -694,13 +578,65 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-secondary w-full shadow-md gap-2">
-                <LinkIcon size={16} /> Link Doctor Schedule & Fee
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label text-xs font-semibold">Department (optional)</label>
+                  <select
+                    value={assignDoctorForm.department_id}
+                    onChange={(e) => setAssignDoctorForm({ ...assignDoctorForm, department_id: e.target.value })}
+                    className="select select-bordered w-full"
+                  >
+                    <option value="">-- No specific department --</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label text-xs font-semibold">Room Number (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Room 204"
+                    value={assignDoctorForm.room_number}
+                    onChange={(e) => setAssignDoctorForm({ ...assignDoctorForm, room_number: e.target.value })}
+                    className="input input-bordered w-full"
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-primary w-full shadow-md gap-2">
+                <LinkIcon size={16} /> Link Doctor to Clinic
               </button>
             </form>
           </div>
+
+          {/* Doctors list */}
+          {doctors.length > 0 && (
+            <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
+              <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
+                <Stethoscope className="text-primary" /> Registered Doctors ({doctors.length})
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {doctors.map((d) => (
+                  <div key={d.id} className="p-4 bg-base-200/40 rounded-2xl flex items-start gap-3">
+                    <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                      <Stethoscope size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-sm text-base-content">Dr. {d.full_name}</div>
+                      <div className="text-xs text-base-content/60">{d.qualification}</div>
+                      <div className="text-xs text-base-content/50 truncate">{d.email}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+
+
 
       {/* TAB 3: DEPARTMENTS & SPECIALIZATIONS */}
       {activeTab === "taxonomy" && (

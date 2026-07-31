@@ -3,13 +3,14 @@ from typing import Optional
 from django.db import transaction, IntegrityError
 from rest_framework.exceptions import ValidationError
 from .models import Appointment, AppointmentStatus
-from apps.doctors.models import DoctorClinic
-from apps.clinics.models import Clinic
+from apps.doctors.models import DoctorClinic, DoctorClinicStatus
+from apps.clinics.models import Clinic, VerificationStatus
 from apps.doctors.models import Doctor
 
 def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_date: date, appointment_time: time, problem_description: str = "") -> Appointment:
     """
     Atomic appointment booking with concurrency protection against double booking.
+    Enforces that Clinic and Doctor are VERIFIED and their service agreement is ACCEPTED.
     """
     try:
         doctor_clinic = DoctorClinic.objects.select_related('doctor', 'clinic', 'department').get(
@@ -19,6 +20,15 @@ def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_dat
         )
     except DoctorClinic.DoesNotExist:
         raise ValidationError({"doctor_id": "Doctor does not practice at this clinic or mapping is inactive."})
+
+    if doctor_clinic.clinic.verification_status != VerificationStatus.VERIFIED:
+        raise ValidationError({"clinic_id": "This clinic is pending approval by platform Admin."})
+
+    if doctor_clinic.doctor.verification_status != VerificationStatus.VERIFIED:
+        raise ValidationError({"doctor_id": "This doctor profile is pending approval by platform Admin."})
+
+    if doctor_clinic.status != DoctorClinicStatus.ACCEPTED:
+        raise ValidationError({"doctor_id": "The service agreement between this doctor and clinic has not been accepted yet."})
 
     amount = doctor_clinic.consultation_fee
 

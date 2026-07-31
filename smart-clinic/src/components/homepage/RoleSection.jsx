@@ -2,6 +2,7 @@ import {
   Building2,
   UserRound,
 } from "lucide-react";
+import { Link } from "react-router";
 
 export default function RoleSection() {
   return (
@@ -39,9 +40,9 @@ export default function RoleSection() {
                 <li>✔ Appointment Dashboard</li>
               </ul>
 
-              <button className="btn btn-primary mt-5">
+              <Link to="/register" className="btn btn-primary mt-5">
                 Open Clinic
-              </button>
+              </Link>
 
             </div>
           </div>
@@ -66,9 +67,9 @@ export default function RoleSection() {
                 <li>✔ Digital Records</li>
               </ul>
 
-              <button className="btn btn-secondary mt-5">
+              <Link to="/register" className="btn btn-secondary mt-5">
                 Become Patient
-              </button>
+              </Link>
 
             </div>
           </div>

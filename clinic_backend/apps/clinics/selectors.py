@@ -5,8 +5,10 @@ from .models import Clinic, Department
 def list_departments() -> QuerySet:
     return Department.objects.filter(is_active=True)
 
-def list_clinics(*, city: Optional[str] = None, department_id: Optional[str] = None) -> QuerySet:
+def list_clinics(*, city: Optional[str] = None, department_id: Optional[str] = None, only_verified: bool = True) -> QuerySet:
     qs = Clinic.objects.filter(is_active=True).select_related('owner').prefetch_related('departments')
+    if only_verified:
+        qs = qs.filter(verification_status='VERIFIED')
     if city:
         qs = qs.filter(city__iexact=city)
     if department_id:

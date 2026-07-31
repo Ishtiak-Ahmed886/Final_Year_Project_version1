@@ -3,6 +3,7 @@ import {
   CalendarCheck,
   ShieldCheck,
 } from "lucide-react";
+import { Link } from "react-router";
 
 export default function Hero() {
   return (
@@ -32,13 +33,13 @@ export default function Hero() {
 
           <div className="flex flex-wrap gap-4">
 
-            <button className="btn btn-primary">
+            <Link to="/register" className="btn btn-primary">
               Open Your Clinic
-            </button>
+            </Link>
 
-            <button className="btn btn-outline">
+            <Link to="/clinics" className="btn btn-outline">
               Find a Clinic
-            </button>
+            </Link>
 
           </div>
 

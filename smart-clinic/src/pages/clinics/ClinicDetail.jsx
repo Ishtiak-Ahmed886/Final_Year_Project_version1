@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import apiClient from "../../api/axios";
-import { MapPin, Phone, Mail, Building2, Stethoscope, CalendarCheck, UserCheck, ArrowLeft } from "lucide-react";
+import { MapPin, Phone, Mail, Building2, Stethoscope, CalendarCheck, UserCheck, ArrowLeft, Award, ExternalLink } from "lucide-react";
 
 export default function ClinicDetail() {
   const { id } = useParams();
@@ -91,6 +91,26 @@ export default function ClinicDetail() {
               <Mail size={16} className="text-primary" />
               <span className="font-semibold">{clinic.email}</span>
             </div>
+          )}
+          {clinic.latitude && clinic.longitude && (
+            <a
+              href={`https://www.openstreetmap.org/?mlat=${clinic.latitude}&mlon=${clinic.longitude}#map=15/${clinic.latitude}/${clinic.longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-primary hover:underline font-semibold"
+            >
+              <MapPin size={16} /> View on Map <ExternalLink size={13} />
+            </a>
+          )}
+          {clinic.certificate_url && (
+            <a
+              href={clinic.certificate_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-success hover:underline font-semibold"
+            >
+              <Award size={16} /> View Certificate <ExternalLink size={13} />
+            </a>
           )}
         </div>
       </div>

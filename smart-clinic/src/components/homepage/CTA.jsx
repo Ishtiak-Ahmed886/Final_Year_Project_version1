@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+
 export default function CTA() {
   return (
     <section className="py-20 bg-primary text-primary-content">
@@ -12,9 +14,9 @@ export default function CTA() {
           Join Smart Clinic today.
         </p>
 
-        <button className="btn btn-neutral">
+        <Link to="/register" className="btn btn-neutral">
           Get Started
-        </button>
+        </Link>
 
       </div>
 

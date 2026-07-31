@@ -1,6 +1,13 @@
 from django.db import models
 from apps.core.models import BaseModel
-from apps.clinics.models import Clinic, Department
+from apps.clinics.models import Clinic, Department, VerificationStatus
+
+class DoctorClinicStatus(models.TextChoices):
+    PENDING_DOCTOR_APPROVAL = 'PENDING_DOCTOR_APPROVAL', 'Pending Doctor Approval'
+    PENDING_CLINIC_APPROVAL = 'PENDING_CLINIC_APPROVAL', 'Pending Clinic Approval'
+    ACCEPTED = 'ACCEPTED', 'Accepted'
+    REJECTED = 'REJECTED', 'Rejected'
+
 
 class Specialization(BaseModel):
     """
@@ -19,16 +26,31 @@ class Specialization(BaseModel):
 
 class Doctor(BaseModel):
     """
-    Doctor profile. Note: Doctors are standalone entities and do not have User login accounts.
+    Doctor profile. Linked to a User account (role=DOCTOR) via the `user` field.
     A doctor can work in multiple clinics through DoctorClinic.
     """
+    user = models.OneToOneField(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='doctor_profile',
+        limit_choices_to={'role': 'DOCTOR'}
+    )
     full_name = models.CharField(max_length=150, db_index=True)
-    email = models.EmailField(blank=True, default='')
+    email = models.EmailField(blank=True, default='', db_index=True)
     phone = models.CharField(max_length=20, blank=True, default='')
     experience_years = models.PositiveIntegerField(default=0)
-    qualification = models.CharField(max_length=255)
+    qualification = models.CharField(max_length=255, blank=True, default='')
     bio = models.TextField(blank=True, default='')
     avatar_url = models.URLField(blank=True, null=True)
+    certificate_url = models.URLField(blank=True, null=True, help_text="Cloudinary URL of medical license/certificate")
+    verification_status = models.CharField(
+        max_length=20,
+        choices=VerificationStatus.choices,
+        default=VerificationStatus.PENDING,
+        db_index=True
+    )
     is_active = models.BooleanField(default=True)
 
     specializations = models.ManyToManyField(
@@ -57,6 +79,13 @@ class DoctorClinic(BaseModel):
     room_number = models.CharField(max_length=50, blank=True, default='')
     joining_date = models.DateField(null=True, blank=True)
     leaving_date = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=30,
+        choices=DoctorClinicStatus.choices,
+        default=DoctorClinicStatus.ACCEPTED,
+        db_index=True
+    )
+    requested_by_role = models.CharField(max_length=20, blank=True, default='')
     is_active = models.BooleanField(default=True)
 
     class Meta:

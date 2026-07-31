@@ -24,8 +24,8 @@ class ClinicSerializer(serializers.ModelSerializer):
         model = Clinic
         fields = (
             'id', 'owner', 'owner_email', 'name', 'slug', 'address', 'city',
-            'phone', 'email', 'logo_url', 'subscription_plan',
-            'verification_status', 'is_active', 'departments', 'created_at'
+            'phone', 'email', 'logo_url', 'certificate_url', 'latitude', 'longitude',
+            'subscription_plan', 'verification_status', 'is_active', 'departments', 'created_at'
         )
         read_only_fields = ('id', 'verification_status', 'created_at')
 
@@ -34,7 +34,7 @@ class ClinicCreateUpdateSerializer(serializers.ModelSerializer):
         model = Clinic
         fields = (
             'name', 'slug', 'address', 'city', 'phone', 'email',
-            'logo_url', 'subscription_plan'
+            'logo_url', 'certificate_url', 'latitude', 'longitude', 'subscription_plan'
         )
         extra_kwargs = {
             'slug': {'required': False}
