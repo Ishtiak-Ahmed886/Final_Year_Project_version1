@@ -4,10 +4,14 @@ import apiClient from "../../api/axios";
 import {
   CalendarCheck, Building2, Stethoscope, Clock, FileText,
   CheckCircle2, AlertCircle, ArrowLeft, Navigation, Loader,
-  ChevronRight, MapPin, Users, Heart
+  ChevronRight, MapPin, Users, Heart, Calendar
 } from "lucide-react";
+import { useLanguage } from "../../context/LanguageContext";
+
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function BookAppointment() {
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -25,12 +29,16 @@ export default function BookAppointment() {
     doctor_id: preselectedDoctor,
     family_member_id: preselectedFamilyMember,
     appointment_date: new Date().toISOString().split("T")[0],
-    appointment_time: "09:00",
+    appointment_time: "",
     problem_description: "",
   });
 
   const [selectedDoctorObj, setSelectedDoctorObj] = useState(null);
   const [consultationFee, setConsultationFee] = useState(null);
+
+  // Smart Availability State
+  const [availability, setAvailability] = useState(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -39,7 +47,7 @@ export default function BookAppointment() {
   const [success, setSuccess] = useState("");
   const [geoError, setGeoError] = useState("");
 
-  const timeSlots = [
+  const fallbackTimeSlots = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
     "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"
   ];
@@ -127,6 +135,36 @@ export default function BookAppointment() {
     }
   }, [formData.doctor_id, formData.clinic_id, doctors]);
 
+  // Fetch Doctor Availability & Time Slots
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (!formData.doctor_id || !formData.clinic_id || !formData.appointment_date) {
+        setAvailability(null);
+        return;
+      }
+      setLoadingAvailability(true);
+      try {
+        const res = await apiClient.get(
+          `/doctors/availability/?doctor_id=${formData.doctor_id}&clinic_id=${formData.clinic_id}&date=${formData.appointment_date}`
+        );
+        setAvailability(res);
+
+        // Preselect first available slot if current time is not available
+        if (res?.slots?.length > 0) {
+          const firstAvailable = res.slots.find((s) => s.available);
+          if (firstAvailable && !formData.appointment_time) {
+            setFormData((prev) => ({ ...prev, appointment_time: firstAvailable.time }));
+          }
+        }
+      } catch {
+        setAvailability(null);
+      } finally {
+        setLoadingAvailability(false);
+      }
+    };
+    fetchAvailability();
+  }, [formData.doctor_id, formData.clinic_id, formData.appointment_date]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError("");
@@ -140,7 +178,7 @@ export default function BookAppointment() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.clinic_id || !formData.doctor_id || !formData.appointment_date || !formData.appointment_time) {
-      return setError("Please complete all required fields.");
+      return setError("Please complete all required fields and select an available time slot.");
     }
     setSubmitting(true);
     setError("");
@@ -247,10 +285,10 @@ export default function BookAppointment() {
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-base-content">
-              Book Doctor Appointment
+              {t("bookAppointment")}
             </h1>
             <p className="text-sm text-base-content/60">
-              Select patient, clinic, doctor, and preferred time slot
+              Select patient, clinic, doctor, and smart available chamber slot
             </p>
           </div>
         </div>
@@ -356,6 +394,19 @@ export default function BookAppointment() {
             </div>
           </div>
 
+          {/* Doctor Schedule Days Hint */}
+          {availability?.available_days && availability.available_days.length > 0 && (
+            <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 flex items-center gap-2 text-xs">
+              <Calendar size={14} className="text-primary shrink-0" />
+              <span>
+                <strong>Doctor's Weekly Schedule:</strong> Available on{" "}
+                <span className="text-primary font-bold">
+                  {availability.available_days.map((d) => DAY_NAMES[d]).join(", ")}
+                </span>
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Date Selection */}
             <div>
@@ -373,27 +424,78 @@ export default function BookAppointment() {
               />
             </div>
 
-            {/* Time Slot Picker */}
+            {/* Time Slot Picker (Dynamic & Smart) */}
             <div>
-              <label className="label text-sm font-bold flex items-center gap-1">
-                <Clock size={16} className="text-primary" /> Preferred Time Slot *
+              <label className="label text-sm font-bold flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Clock size={16} className="text-primary" /> Available Time Slot *
+                </span>
+                {loadingAvailability && (
+                  <span className="text-xs text-primary flex items-center gap-1">
+                    <Loader size={12} className="animate-spin" /> Checking slots...
+                  </span>
+                )}
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {timeSlots.map((slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, appointment_time: slot })}
-                    className={`btn btn-sm ${
-                      formData.appointment_time === slot
-                        ? "btn-primary shadow-sm"
-                        : "btn-outline border-base-300"
-                    }`}
-                  >
-                    {slot}
-                  </button>
-                ))}
-              </div>
+
+              {/* Doctor has a schedule for selected day */}
+              {availability?.slots && availability.slots.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-xs text-base-content/60 flex justify-between">
+                    <span>
+                      Chamber: {availability.schedule?.start_time?.slice(0, 5)} – {availability.schedule?.end_time?.slice(0, 5)}
+                    </span>
+                    <span className="text-success font-semibold">
+                      {availability.available_count} / {availability.total_slots} open slots
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 bg-base-200/40 rounded-xl border border-base-200">
+                    {availability.slots.map((slot) => {
+                      const isSelected = formData.appointment_time === slot.time;
+                      return (
+                        <button
+                          key={slot.time}
+                          type="button"
+                          disabled={!slot.available}
+                          onClick={() => setFormData({ ...formData, appointment_time: slot.time })}
+                          className={`btn btn-sm text-xs font-bold transition-all ${
+                            isSelected
+                              ? "btn-primary shadow-md"
+                              : slot.available
+                              ? "btn-outline border-base-300 hover:btn-primary"
+                              : "btn-disabled opacity-40 line-through bg-base-300"
+                          }`}
+                        >
+                          {slot.time}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : availability?.message ? (
+                <div className="p-3 bg-warning/10 text-warning-content border border-warning/20 rounded-xl text-xs space-y-1">
+                  <div className="font-bold">⚠️ Doctor not available on this date</div>
+                  <div>{availability.message}</div>
+                </div>
+              ) : (
+                /* Fallback standard slots when no custom schedule set */
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {fallbackTimeSlots.map((slot) => (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, appointment_time: slot })}
+                      className={`btn btn-sm text-xs font-bold ${
+                        formData.appointment_time === slot
+                          ? "btn-primary shadow-sm"
+                          : "btn-outline border-base-300"
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -431,7 +533,7 @@ export default function BookAppointment() {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (availability?.slots && availability.available_count === 0)}
               className="btn btn-primary w-full shadow-lg text-base gap-2"
             >
               {submitting ? (

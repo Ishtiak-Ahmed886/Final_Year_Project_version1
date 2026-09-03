@@ -10,6 +10,7 @@ import DoctorList from "./pages/doctors/DoctorList";
 import BookAppointment from "./pages/appointments/BookAppointment";
 import DashboardLayout from "./pages/dashboard/DashboardLayout";
 import { AuthProvider } from "./Provider/AuthProvider";
+import { LanguageProvider } from "./context/LanguageContext";
 import { PrivateRoute, RoleRoute } from "./components/shared/PrivateRoute";
 import "./App.css";
 
@@ -17,33 +18,35 @@ const root = document.getElementById("root");
 
 ReactDOM.createRoot(root).render(
   <BrowserRouter>
-    <AuthProvider>
-      <Routes>
-        <Route path="/" element={<App />}>
-          <Route index element={<HomePage />} />
-          <Route path="login" element={<Login />} />
-          <Route path="register" element={<Register />} />
-          <Route path="clinics" element={<ClinicList />} />
-          <Route path="clinics/:id" element={<ClinicDetail />} />
-          <Route path="doctors" element={<DoctorList />} />
-          <Route
-            path="book"
-            element={
-              <RoleRoute allowedRoles={["PATIENT"]}>
-                <BookAppointment />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="dashboard"
-            element={
-              <PrivateRoute>
-                <DashboardLayout />
-              </PrivateRoute>
-            }
-          />
-        </Route>
-      </Routes>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<App />}>
+            <Route index element={<HomePage />} />
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route path="clinics" element={<ClinicList />} />
+            <Route path="clinics/:id" element={<ClinicDetail />} />
+            <Route path="doctors" element={<DoctorList />} />
+            <Route
+              path="book"
+              element={
+                <RoleRoute allowedRoles={["PATIENT"]}>
+                  <BookAppointment />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="dashboard"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout />
+                </PrivateRoute>
+              }
+            />
+          </Route>
+        </Routes>
+      </AuthProvider>
+    </LanguageProvider>
   </BrowserRouter>
 );

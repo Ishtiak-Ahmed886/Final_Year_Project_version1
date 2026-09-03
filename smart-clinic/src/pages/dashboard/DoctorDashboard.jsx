@@ -3,7 +3,8 @@ import apiClient from "../../api/axios";
 import {
   Calendar, Clock, User, CheckCircle2, XCircle, AlertCircle,
   Stethoscope, Award, BookOpen, Edit3, Save, X, Loader, MapPin,
-  Building2, Send, Play, Pause, FastForward, Navigation, ShieldCheck, Heart
+  Building2, Send, Play, Pause, FastForward, Navigation, FileText, Plus, Trash2, Heart,
+  FolderHeart, ExternalLink
 } from "lucide-react";
 
 export default function DoctorDashboard() {
@@ -41,6 +42,101 @@ export default function DoctorDashboard() {
     department_id: "",
     room_number: "",
   });
+
+  // E-Prescription Modal State
+  const [rxModalOpen, setRxModalOpen] = useState(false);
+  const [selectedRxApt, setSelectedRxApt] = useState(null);
+  const [rxFormData, setRxFormData] = useState({
+    diagnosis: "",
+    vitals: { bp: "120/80", pulse: "72", weight: "", temp: "98.6F", blood_sugar: "" },
+    diagnostic_tests: "",
+    advice: "Drink plenty of water and rest.",
+    medications: [
+      { medication_name: "Tab. Napa 500mg (Paracetamol)", dosage: "1 + 0 + 1", timing: "After Meal", duration: "5 Days", instructions: "" }
+    ],
+  });
+  const [medSearchQuery, setMedSearchQuery] = useState("");
+  const [dgdaSearchResults, setDgdaSearchResults] = useState([]);
+  const [submittingRx, setSubmittingRx] = useState(false);
+
+  // Chamber Schedule State
+  const [schedules, setSchedules] = useState([]);
+  const [scheduleForm, setScheduleForm] = useState({
+    clinic_id: "",
+    day_of_week: 0,
+    start_time: "10:00",
+    end_time: "14:00",
+    slot_duration_minutes: 15,
+    max_patients: 20,
+  });
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
+  const fetchSchedules = async () => {
+    if (!profile?.id) return;
+    try {
+      const res = await apiClient.get(`/doctors/schedule/?doctor_id=${profile.id}`);
+      setSchedules(res.results || res || []);
+    } catch {}
+  };
+
+  const handleSaveSchedule = async (e) => {
+    e.preventDefault();
+    if (!profile?.id) return showErr("Doctor profile not found.");
+    const targetClinic = scheduleForm.clinic_id || selectedClinicId;
+    if (!targetClinic) return showErr("Please choose a clinic for this schedule.");
+
+    setSavingSchedule(true);
+    try {
+      await apiClient.post("/doctors/schedule/", {
+        doctor: profile.id,
+        clinic: targetClinic,
+        day_of_week: parseInt(scheduleForm.day_of_week, 10),
+        start_time: scheduleForm.start_time,
+        end_time: scheduleForm.end_time,
+        slot_duration_minutes: parseInt(scheduleForm.slot_duration_minutes, 10),
+        max_patients: parseInt(scheduleForm.max_patients, 10),
+      });
+      showMsg("Chamber schedule updated successfully!");
+      fetchSchedules();
+    } catch {
+      showErr("Failed to save chamber schedule.");
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const handleDeleteSchedule = async (id) => {
+    try {
+      await apiClient.delete(`/doctors/schedule/${id}/`);
+      showMsg("Schedule deactivated.");
+      fetchSchedules();
+    } catch {
+      showErr("Failed to deactivate schedule.");
+    }
+  };
+
+  // Patient Health Vault Modal State (for Doctors)
+  const [vaultModalOpen, setVaultModalOpen] = useState(false);
+  const [vaultReports, setVaultReports] = useState([]);
+  const [loadingVault, setLoadingVault] = useState(false);
+  const [selectedVaultApt, setSelectedVaultApt] = useState(null);
+
+  const openHealthVault = async (apt) => {
+    setSelectedVaultApt(apt);
+    setVaultModalOpen(true);
+    setLoadingVault(true);
+    try {
+      const patientId = apt.patient?.id;
+      const familyMemberId = apt.family_member?.id;
+      const url = `/prescriptions/reports/?patient_id=${patientId}${familyMemberId ? `&family_member_id=${familyMemberId}` : ''}`;
+      const res = await apiClient.get(url);
+      setVaultReports(res.results || res || []);
+    } catch {
+      setVaultReports([]);
+    } finally {
+      setLoadingVault(false);
+    }
+  };
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -86,7 +182,6 @@ export default function DoctorDashboard() {
       const verifiedList = (cRes.results || cRes || []).filter(c => c.verification_status === "VERIFIED");
       setApprovedClinics(verifiedList);
 
-      // Auto-select first accepted clinic mapping
       const acceptedReq = reqList.find(r => r.status === "ACCEPTED");
       if (acceptedReq && acceptedReq.clinic) {
         setSelectedClinicId(acceptedReq.clinic.id);
@@ -114,6 +209,7 @@ export default function DoctorDashboard() {
   useEffect(() => {
     if (profile && selectedClinicId) {
       fetchChamberSession();
+      fetchSchedules();
     }
   }, [profile, selectedClinicId]);
 
@@ -138,6 +234,98 @@ export default function DoctorDashboard() {
       showErr("Failed to update chamber session.");
     } finally {
       setUpdatingChamber(false);
+    }
+  };
+
+  const handleSearchDgda = async (query) => {
+    setMedSearchQuery(query);
+    if (!query || query.length < 2) return setDgdaSearchResults([]);
+    try {
+      const res = await apiClient.get(`/prescriptions/medications/?search=${encodeURIComponent(query)}`);
+      setDgdaSearchResults(res.results || res || []);
+    } catch {
+      setDgdaSearchResults([]);
+    }
+  };
+
+  const addMedicationFromDgda = (med) => {
+    const medName = `${med.form === 'TABLET' ? 'Tab.' : med.form === 'CAPSULE' ? 'Cap.' : 'Syr.'} ${med.brand_name} ${med.strength} (${med.generic_name})`;
+    setRxFormData((prev) => ({
+      ...prev,
+      medications: [
+        ...prev.medications,
+        { medication_name: medName, dosage: "1 + 0 + 1", timing: "After Meal", duration: "7 Days", instructions: "" }
+      ]
+    }));
+    setMedSearchQuery("");
+    setDgdaSearchResults([]);
+  };
+
+  const removeMedication = (index) => {
+    setRxFormData((prev) => ({
+      ...prev,
+      medications: prev.medications.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateMedicationItem = (index, field, value) => {
+    setRxFormData((prev) => {
+      const updated = [...prev.medications];
+      updated[index][field] = value;
+      return { ...prev, medications: updated };
+    });
+  };
+
+  const openPrescriptionModal = async (apt) => {
+    setSelectedRxApt(apt);
+    setRxFormData({
+      diagnosis: "",
+      vitals: { bp: "120/80", pulse: "72", weight: "70kg", temp: "98.6F", blood_sugar: "5.8 mmol/L" },
+      diagnostic_tests: "",
+      advice: "Take rest, drink clean water, avoid oily food.",
+      medications: [
+        { medication_name: "Tab. Napa 500mg (Paracetamol)", dosage: "1 + 0 + 1", timing: "After Meal", duration: "5 Days", instructions: "" }
+      ],
+    });
+
+    // Check if existing Rx exists
+    try {
+      const existing = await apiClient.get(`/prescriptions/appointment/${apt.id}/`);
+      if (existing) {
+        setRxFormData({
+          diagnosis: existing.diagnosis || "",
+          vitals: existing.vitals || { bp: "120/80", pulse: "72", weight: "70kg", temp: "98.6F", blood_sugar: "5.8 mmol/L" },
+          diagnostic_tests: existing.diagnostic_tests || "",
+          advice: existing.advice || "",
+          medications: existing.medications || [],
+        });
+      }
+    } catch {}
+
+    setRxModalOpen(true);
+  };
+
+  const handleSavePrescription = async (e) => {
+    e.preventDefault();
+    if (!selectedRxApt) return;
+    setSubmittingRx(true);
+    setError("");
+    try {
+      await apiClient.post("/prescriptions/", {
+        appointment_id: selectedRxApt.id,
+        diagnosis: rxFormData.diagnosis,
+        vitals: rxFormData.vitals,
+        diagnostic_tests: rxFormData.diagnostic_tests,
+        advice: rxFormData.advice,
+        medications: rxFormData.medications,
+      });
+      showMsg("Digital E-Prescription issued successfully!");
+      setRxModalOpen(false);
+      fetchAppointments();
+    } catch {
+      showErr("Failed to issue prescription. Check details.");
+    } finally {
+      setSubmittingRx(false);
     }
   };
 
@@ -233,7 +421,7 @@ export default function DoctorDashboard() {
           <h1 className="text-2xl font-extrabold text-base-content flex items-center gap-2">
             <Stethoscope className="text-primary" /> Doctor Portal
           </h1>
-          <p className="text-sm text-base-content/60 mt-1">Live queue control, appointment management, & clinic affiliations</p>
+          <p className="text-sm text-base-content/60 mt-1">Live queue control, E-Prescriptions, & clinic affiliations</p>
         </div>
 
         {/* Active Clinic Switcher */}
@@ -293,6 +481,12 @@ export default function DoctorDashboard() {
           onClick={() => { setTab("profile"); setError(""); setActionMsg(""); }}
         >
           <User size={15} className="mr-1" /> My Profile
+        </button>
+        <button
+          className={`tab rounded-lg font-semibold transition-all ${tab === "schedule" ? "tab-active" : ""}`}
+          onClick={() => { setTab("schedule"); setError(""); setActionMsg(""); fetchSchedules(); }}
+        >
+          <Clock size={15} className="mr-1" /> Chamber Schedule ({schedules.length})
         </button>
       </div>
 
@@ -458,13 +652,27 @@ export default function DoctorDashboard() {
                         )}
                       </div>
 
-                      <div className="flex gap-2 shrink-0 w-full md:w-auto">
+                      <div className="flex flex-wrap gap-2 shrink-0 w-full md:w-auto">
+                        <button
+                          onClick={() => openHealthVault(apt)}
+                          className="btn btn-outline btn-secondary btn-sm gap-1 flex-1 md:flex-initial"
+                        >
+                          <FolderHeart size={16} /> Health Vault
+                        </button>
+
+                        <button
+                          onClick={() => openPrescriptionModal(apt)}
+                          className="btn btn-secondary btn-sm gap-1 text-white shadow-sm flex-1 md:flex-initial"
+                        >
+                          <FileText size={16} /> Write E-Prescription
+                        </button>
+
                         {apt.status === "CONFIRMED" && (
                           <button
                             onClick={() => handleComplete(apt.id)}
                             className="btn btn-primary btn-sm gap-1 shadow-sm flex-1 md:flex-initial"
                           >
-                            <CheckCircle2 size={16} /> Complete Consultation
+                            <CheckCircle2 size={16} /> Complete Visit
                           </button>
                         )}
                         {apt.status !== "COMPLETED" && apt.status !== "CANCELLED" && (
@@ -716,6 +924,487 @@ export default function DoctorDashboard() {
           )}
         </div>
       )}
+
+      {/* ======== CHAMBER SCHEDULE TAB ======== */}
+      {tab === "schedule" && (
+        <div className="space-y-6">
+          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-5">
+            <div>
+              <h2 className="text-xl font-extrabold text-base-content flex items-center gap-2">
+                <Clock className="text-primary" /> Weekly Chamber Availability Schedule
+              </h2>
+              <p className="text-xs text-base-content/60 mt-1">
+                Configure your recurring consultation days, chamber hours, and patient capacity per clinic.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveSchedule} className="space-y-4 bg-base-200/50 p-5 rounded-2xl border border-base-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="label text-xs font-bold">Select Clinic *</label>
+                  <select
+                    value={scheduleForm.clinic_id || selectedClinicId}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, clinic_id: e.target.value })}
+                    className="select select-bordered select-sm w-full text-xs font-medium"
+                    required
+                  >
+                    <option value="">-- Choose Clinic --</option>
+                    {activeAffiliations.map((a) => (
+                      <option key={a.clinic?.id} value={a.clinic?.id}>
+                        {a.clinic?.name} ({a.clinic?.city})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label text-xs font-bold">Day of Week *</label>
+                  <select
+                    value={scheduleForm.day_of_week}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, day_of_week: e.target.value })}
+                    className="select select-bordered select-sm w-full text-xs font-bold"
+                  >
+                    <option value={0}>Monday (সোমবার)</option>
+                    <option value={1}>Tuesday (মঙ্গলবার)</option>
+                    <option value={2}>Wednesday (বুধবার)</option>
+                    <option value={3}>Thursday (বৃহস্পতিবার)</option>
+                    <option value={4}>Friday (শুক্রবার)</option>
+                    <option value={5}>Saturday (শনিবার)</option>
+                    <option value={6}>Sunday (রবিবার)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label text-xs font-bold">Consultation Slot Duration</label>
+                  <select
+                    value={scheduleForm.slot_duration_minutes}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, slot_duration_minutes: e.target.value })}
+                    className="select select-bordered select-sm w-full text-xs"
+                  >
+                    <option value={10}>10 minutes</option>
+                    <option value={15}>15 minutes (Standard)</option>
+                    <option value={20}>20 minutes</option>
+                    <option value={30}>30 minutes</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label text-xs font-bold">Chamber Start Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={scheduleForm.start_time}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, start_time: e.target.value })}
+                    className="input input-bordered input-sm w-full text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="label text-xs font-bold">Chamber End Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={scheduleForm.end_time}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, end_time: e.target.value })}
+                    className="input input-bordered input-sm w-full text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="label text-xs font-bold">Max Patients Per Session</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={scheduleForm.max_patients}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, max_patients: e.target.value })}
+                    className="input input-bordered input-sm w-full text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={savingSchedule}
+                  className="btn btn-primary btn-sm shadow-md gap-2"
+                >
+                  {savingSchedule ? <Loader size={14} className="animate-spin" /> : <Save size={14} />} Save Chamber Schedule
+                </button>
+              </div>
+            </form>
+
+            {/* List of Configured Schedules */}
+            <div className="space-y-3 pt-2">
+              <h3 className="font-extrabold text-sm text-base-content">
+                Configured Weekly Schedules ({schedules.length})
+              </h3>
+
+              {schedules.length === 0 ? (
+                <div className="text-center py-8 text-xs text-base-content/50 bg-base-200/30 rounded-2xl">
+                  No schedules configured yet. Add your weekly chamber hours above.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {schedules.map((s) => (
+                    <div key={s.id} className="p-4 bg-base-100 rounded-2xl border border-base-200 shadow-sm space-y-2">
+                      <div className="flex justify-between items-start">
+                        <span className="badge badge-primary font-black text-xs">
+                          {s.day_of_week_display}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteSchedule(s.id)}
+                          className="btn btn-ghost btn-xs text-error btn-circle"
+                          title="Remove Schedule"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
+                      <div className="font-extrabold text-sm text-base-content">
+                        {s.start_time?.slice(0, 5)} – {s.end_time?.slice(0, 5)}
+                      </div>
+
+                      <div className="text-xs text-base-content/60 flex justify-between">
+                        <span>Max: {s.max_patients} patients</span>
+                        <span>{s.slot_duration_minutes}m slots</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== WRITE E-PRESCIRPTION MODAL ====== */}
+      {rxModalOpen && selectedRxApt && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-base-100 max-w-3xl w-full max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-base-200 pb-3">
+              <div>
+                <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
+                  <FileText className="text-secondary" size={22} /> Issue Digital E-Prescription (E-Rx)
+                </h3>
+                <p className="text-xs text-base-content/60">
+                  Patient: <strong>{selectedRxApt.family_member ? selectedRxApt.family_member.full_name : `${selectedRxApt.patient?.first_name} ${selectedRxApt.patient?.last_name}`}</strong> (Serial #{selectedRxApt.serial_number})
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openHealthVault(selectedRxApt)}
+                  className="btn btn-outline btn-secondary btn-xs gap-1"
+                >
+                  <FolderHeart size={14} /> View Lab Reports
+                </button>
+                <button onClick={() => setRxModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSavePrescription} className="space-y-5">
+              {/* Diagnosis */}
+              <div>
+                <label className="label text-xs font-bold uppercase tracking-wider">Clinical Diagnosis *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Acute Upper Respiratory Tract Infection, Type-2 Diabetes"
+                  value={rxFormData.diagnosis}
+                  onChange={(e) => setRxFormData({ ...rxFormData, diagnosis: e.target.value })}
+                  className="input input-bordered w-full font-medium text-sm"
+                />
+              </div>
+
+              {/* Patient Vitals */}
+              <div className="bg-base-200/50 p-4 rounded-2xl space-y-2">
+                <label className="label text-xs font-bold uppercase tracking-wider">Patient Vitals</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <span className="text-[11px] font-semibold text-base-content/60">BP (mmHg)</span>
+                    <input
+                      type="text"
+                      placeholder="120/80"
+                      value={rxFormData.vitals.bp || ""}
+                      onChange={(e) => setRxFormData({ ...rxFormData, vitals: { ...rxFormData.vitals, bp: e.target.value } })}
+                      className="input input-bordered input-sm w-full text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-base-content/60">Weight (kg)</span>
+                    <input
+                      type="text"
+                      placeholder="70kg"
+                      value={rxFormData.vitals.weight || ""}
+                      onChange={(e) => setRxFormData({ ...rxFormData, vitals: { ...rxFormData.vitals, weight: e.target.value } })}
+                      className="input input-bordered input-sm w-full text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-base-content/60">Temp</span>
+                    <input
+                      type="text"
+                      placeholder="98.6F"
+                      value={rxFormData.vitals.temp || ""}
+                      onChange={(e) => setRxFormData({ ...rxFormData, vitals: { ...rxFormData.vitals, temp: e.target.value } })}
+                      className="input input-bordered input-sm w-full text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-base-content/60">Blood Sugar</span>
+                    <input
+                      type="text"
+                      placeholder="6.2 mmol/L"
+                      value={rxFormData.vitals.blood_sugar || ""}
+                      onChange={(e) => setRxFormData({ ...rxFormData, vitals: { ...rxFormData.vitals, blood_sugar: e.target.value } })}
+                      className="input input-bordered input-sm w-full text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* DGDA Bangladesh Drug Search */}
+              <div className="space-y-2">
+                <label className="label text-xs font-bold uppercase tracking-wider flex justify-between items-center">
+                  <span>Prescribed Medications (Rx)</span>
+                  <span className="text-secondary text-[11px]">Search DGDA BD Drug Catalog below</span>
+                </label>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Type to search BD medicines (e.g. Napa, Seclo, Maxpro, Sergel, Ace, Cef-3)..."
+                    value={medSearchQuery}
+                    onChange={(e) => handleSearchDgda(e.target.value)}
+                    className="input input-bordered w-full text-sm bg-base-100 shadow-inner"
+                  />
+
+                  {dgdaSearchResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 z-50 bg-base-100 border border-base-300 rounded-2xl shadow-2xl mt-1 max-h-48 overflow-y-auto divide-y divide-base-200">
+                      {dgdaSearchResults.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => addMedicationFromDgda(m)}
+                          className="w-full text-left p-3 hover:bg-primary/10 transition-colors flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-extrabold text-sm text-base-content">{m.brand_name} {m.strength}</span>
+                            <span className="text-xs text-base-content/60 ml-2">({m.generic_name})</span>
+                          </div>
+                          <span className="badge badge-sm badge-outline">{m.manufacturer}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Prescribed Medications Table */}
+                <div className="space-y-3 pt-2">
+                  {rxFormData.medications.map((item, index) => (
+                    <div key={index} className="p-3 bg-base-200/60 rounded-2xl border border-base-200 space-y-2">
+                      <div className="flex justify-between items-center gap-2">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Medicine Brand & Strength"
+                          value={item.medication_name}
+                          onChange={(e) => updateMedicationItem(index, "medication_name", e.target.value)}
+                          className="input input-bordered input-sm flex-1 font-bold text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeMedication(index)}
+                          className="btn btn-ghost btn-xs text-error btn-circle"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[10px] text-base-content/60 font-semibold">Dose (Morning+Noon+Night)</span>
+                          <input
+                            type="text"
+                            placeholder="1 + 0 + 1"
+                            value={item.dosage}
+                            onChange={(e) => updateMedicationItem(index, "dosage", e.target.value)}
+                            className="input input-bordered input-sm w-full text-xs font-mono"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-base-content/60 font-semibold">Timing</span>
+                          <input
+                            type="text"
+                            placeholder="After Meal"
+                            value={item.timing}
+                            onChange={(e) => updateMedicationItem(index, "timing", e.target.value)}
+                            className="input input-bordered input-sm w-full text-xs"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-base-content/60 font-semibold">Duration</span>
+                          <input
+                            type="text"
+                            placeholder="7 Days"
+                            value={item.duration}
+                            onChange={(e) => updateMedicationItem(index, "duration", e.target.value)}
+                            className="input input-bordered input-sm w-full text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setRxFormData((prev) => ({
+                      ...prev,
+                      medications: [...prev.medications, { medication_name: "", dosage: "1 + 0 + 1", timing: "After Meal", duration: "7 Days", instructions: "" }]
+                    }))}
+                    className="btn btn-outline btn-secondary btn-xs gap-1"
+                  >
+                    <Plus size={14} /> Add Custom Medicine Line
+                  </button>
+                </div>
+              </div>
+
+              {/* Diagnostic Tests & Advice */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label text-xs font-bold uppercase tracking-wider">Diagnostic Tests (Lab Orders)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. CBC, Lipid Profile, USG of Whole Abdomen"
+                    value={rxFormData.diagnostic_tests}
+                    onChange={(e) => setRxFormData({ ...rxFormData, diagnostic_tests: e.target.value })}
+                    className="textarea textarea-bordered w-full text-xs"
+                  ></textarea>
+                </div>
+
+                <div>
+                  <label className="label text-xs font-bold uppercase tracking-wider">Special Advice & Instructions</label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Avoid oily food, complete 7 day course"
+                    value={rxFormData.advice}
+                    onChange={(e) => setRxFormData({ ...rxFormData, advice: e.target.value })}
+                    className="textarea textarea-bordered w-full text-xs"
+                  ></textarea>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRxModalOpen(false)}
+                  className="btn btn-ghost flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRx}
+                  className="btn btn-secondary text-white flex-1 shadow-lg"
+                >
+                  {submittingRx ? "Generating Rx..." : "Issue E-Prescription & Complete"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====== PATIENT HEALTH VAULT MODAL (FOR DOCTOR REVIEW) ====== */}
+      {vaultModalOpen && selectedVaultApt && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-base-100 max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-base-200 pb-3">
+              <div>
+                <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
+                  <FolderHeart className="text-secondary" size={22} /> Patient Health Vault & Lab Reports
+                </h3>
+                <p className="text-xs text-base-content/60">
+                  Patient: <strong>{selectedVaultApt.family_member ? selectedVaultApt.family_member.full_name : `${selectedVaultApt.patient?.first_name} ${selectedVaultApt.patient?.last_name}`}</strong>
+                  {selectedVaultApt.family_member && ` (${selectedVaultApt.family_member.relationship_display}, ${selectedVaultApt.family_member.age || ''} yrs)`}
+                </p>
+              </div>
+              <button onClick={() => setVaultModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
+            </div>
+
+            {loadingVault ? (
+              <div className="py-12 text-center text-xs text-base-content/60 flex items-center justify-center gap-2">
+                <Loader size={16} className="animate-spin text-primary" /> Loading patient diagnostic history...
+              </div>
+            ) : vaultReports.length === 0 ? (
+              <div className="text-center py-12 bg-base-200/40 rounded-2xl space-y-2">
+                <FolderHeart size={36} className="mx-auto text-base-content/30" />
+                <div className="font-bold text-sm text-base-content">No Lab Reports in Vault</div>
+                <div className="text-xs text-base-content/60">
+                  The patient has not uploaded diagnostic test reports or previous scans yet.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="text-xs font-bold text-base-content/70">
+                  Found {vaultReports.length} Historical Report(s) / Scans:
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {vaultReports.map((r) => (
+                    <div key={r.id} className="p-4 bg-base-100 rounded-2xl border border-base-200 shadow-sm space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="badge badge-sm badge-primary badge-soft font-bold text-[10px]">
+                            {r.report_type_display || r.report_type}
+                          </span>
+                          <h4 className="font-extrabold text-sm text-base-content mt-1">{r.title}</h4>
+                        </div>
+                        <a
+                          href={r.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-outline btn-secondary btn-xs gap-1"
+                        >
+                          <ExternalLink size={12} /> View Full Scan ↗
+                        </a>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs text-base-content/70">
+                        <div>
+                          <span className="font-semibold">Center:</span> {r.diagnostic_center || "Diagnostic Center"}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Test Date:</span> {r.test_date}
+                        </div>
+                      </div>
+
+                      {r.summary_notes && (
+                        <div className="text-xs bg-base-200/60 p-2.5 rounded-xl text-base-content/90 font-medium">
+                          <span className="font-bold text-primary">Findings / Values: </span>
+                          {r.summary_notes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setVaultModalOpen(false)}
+                className="btn btn-ghost btn-sm"
+              >
+                Close Vault
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
