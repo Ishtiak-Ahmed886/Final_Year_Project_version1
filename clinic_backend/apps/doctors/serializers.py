@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Specialization, Doctor, DoctorClinic
+from .models import Specialization, Doctor, DoctorClinic, DoctorSchedule, DayOfWeek
 from apps.clinics.serializers import ClinicSerializer, DepartmentSerializer
 
 
@@ -114,4 +114,17 @@ class ChamberSessionUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=ChamberSessionStatus.choices, required=False)
     current_serial = serializers.IntegerField(required=False, min_value=0)
     action = serializers.ChoiceField(choices=['NEXT_SERIAL', 'PREV_SERIAL', 'SET_SERIAL', 'UPDATE_STATUS'], required=False)
+
+
+class DoctorScheduleSerializer(serializers.ModelSerializer):
+    day_of_week_display = serializers.CharField(source='get_day_of_week_display', read_only=True)
+
+    class Meta:
+        model = DoctorSchedule
+        fields = (
+            'id', 'doctor', 'clinic', 'day_of_week', 'day_of_week_display',
+            'start_time', 'end_time', 'slot_duration_minutes', 'max_patients',
+            'is_active', 'created_at'
+        )
+        read_only_fields = ('id', 'created_at', 'day_of_week_display')
 

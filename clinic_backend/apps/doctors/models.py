@@ -109,22 +109,25 @@ class DayOfWeek(models.IntegerChoices):
 class DoctorSchedule(BaseModel):
     """
     Weekly recurring availability schedule for a doctor at a specific clinic.
+    e.g. Dr. Karim: Sunday + Tuesday, 10:00–14:00, 15-min slots, max 20 patients.
     """
     doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='schedules')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='doctor_schedules')
     day_of_week = models.IntegerField(choices=DayOfWeek.choices, db_index=True)
     start_time = models.TimeField()
     end_time = models.TimeField()
+    slot_duration_minutes = models.PositiveIntegerField(default=15, help_text="Duration of each consultation slot in minutes")
+    max_patients = models.PositiveIntegerField(default=20, help_text="Maximum patients per session")
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['day_of_week', 'start_time']
-        unique_together = ('doctor', 'clinic', 'day_of_week', 'start_time')
+        unique_together = ('doctor', 'clinic', 'day_of_week')
         verbose_name = 'Doctor Schedule'
         verbose_name_plural = 'Doctor Schedules'
 
     def __str__(self):
-        return f"Dr. {self.doctor.full_name} - {self.get_day_of_week_display()} ({self.start_time}-{self.end_time})"
+        return f"Dr. {self.doctor.full_name} - {self.get_day_of_week_display()} ({self.start_time}–{self.end_time}, {self.slot_duration_minutes}min slots)"
 
 class DoctorLeave(BaseModel):
     """

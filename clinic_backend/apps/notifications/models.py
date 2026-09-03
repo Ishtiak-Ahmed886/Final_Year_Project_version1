@@ -6,6 +6,8 @@ class NotificationType(models.TextChoices):
     APPOINTMENT_BOOKED = 'APPOINTMENT_BOOKED', 'Appointment Booked'
     APPOINTMENT_CONFIRMED = 'APPOINTMENT_CONFIRMED', 'Appointment Confirmed'
     APPOINTMENT_CANCELLED = 'APPOINTMENT_CANCELLED', 'Appointment Cancelled'
+    SERIAL_PROXIMITY_ALERT = 'SERIAL_PROXIMITY_ALERT', 'Serial Proximity Alert'
+    PRESCRIPTION_ISSUED = 'PRESCRIPTION_ISSUED', 'Prescription Issued'
     SYSTEM = 'SYSTEM', 'System'
 
 class Notification(BaseModel):

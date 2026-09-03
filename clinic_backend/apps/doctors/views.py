@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 from apps.accounts.permissions import IsAdmin, IsClinicAdminOrAdmin, IsDoctor
 from apps.clinics.models import Clinic, VerificationStatus
-from .models import Specialization, Doctor, DoctorClinic, DoctorClinicStatus
+from .models import Specialization, Doctor, DoctorClinic, DoctorClinicStatus, DoctorSchedule, DayOfWeek
 from .serializers import (
     SpecializationSerializer,
     DoctorSerializer,
@@ -13,12 +13,14 @@ from .serializers import (
     DoctorProfileSetupSerializer,
     DoctorClinicRequestCreateSerializer,
     DoctorClinicRequestResponseSerializer,
+    DoctorScheduleSerializer,
 )
 from .selectors import list_specializations, list_doctors, get_doctor_by_id
 from .services import (
     create_specialization, setup_doctor_profile, assign_doctor_to_clinic,
     request_doctor_clinic_service
 )
+
 
 
 @extend_schema(tags=['Specializations'])
@@ -367,3 +369,142 @@ class ChamberSessionView(APIView):
         session.save()
         return Response(ChamberSessionSerializer(session).data, status=status.HTTP_200_OK)
 
+
+@extend_schema(tags=['Doctors'])
+class DoctorScheduleView(APIView):
+    """
+    GET  /api/v1/doctors/schedule/?doctor_id=X&clinic_id=Y  -> List schedules
+    POST /api/v1/doctors/schedule/                           -> Create/Update schedule entry
+    DELETE /api/v1/doctors/schedule/<id>/                   -> Remove a schedule entry
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        doctor_id = request.query_params.get('doctor_id')
+        clinic_id = request.query_params.get('clinic_id')
+        qs = DoctorSchedule.objects.filter(is_active=True)
+        if doctor_id:
+            qs = qs.filter(doctor_id=doctor_id)
+        if clinic_id:
+            qs = qs.filter(clinic_id=clinic_id)
+
+        # Doctor can also fetch own schedule
+        if not doctor_id and hasattr(request.user, 'doctor_profile') and request.user.doctor_profile:
+            qs = qs.filter(doctor=request.user.doctor_profile)
+
+        return Response(DoctorScheduleSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        # Upsert: create or update schedule for doctor/clinic/day_of_week
+        serializer = DoctorScheduleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        schedule, created = DoctorSchedule.objects.update_or_create(
+            doctor=data['doctor'],
+            clinic=data['clinic'],
+            day_of_week=data['day_of_week'],
+            defaults={
+                'start_time': data['start_time'],
+                'end_time': data['end_time'],
+                'slot_duration_minutes': data.get('slot_duration_minutes', 15),
+                'max_patients': data.get('max_patients', 20),
+                'is_active': data.get('is_active', True),
+            }
+        )
+        return Response(
+            DoctorScheduleSerializer(schedule).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
+    def delete(self, request, pk=None, *args, **kwargs):
+        try:
+            schedule = DoctorSchedule.objects.get(pk=pk)
+            schedule.is_active = False
+            schedule.save(update_fields=['is_active', 'updated_at'])
+            return Response({'detail': 'Schedule entry deactivated.'}, status=status.HTTP_200_OK)
+        except DoctorSchedule.DoesNotExist:
+            return Response({'detail': 'Schedule not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@extend_schema(tags=['Doctors'])
+class DoctorAvailabilityView(APIView):
+    """
+    GET /api/v1/doctors/availability/?doctor_id=X&clinic_id=Y&date=YYYY-MM-DD
+    Returns available time slots for a doctor at a clinic on a given date.
+    Also returns available_days (weekday numbers) and the schedule for the date.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        from datetime import datetime, timedelta
+        from apps.appointments.models import Appointment, AppointmentStatus
+
+        doctor_id = request.query_params.get('doctor_id')
+        clinic_id = request.query_params.get('clinic_id')
+        date_str = request.query_params.get('date')
+
+        if not (doctor_id and clinic_id):
+            return Response({'detail': 'doctor_id and clinic_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Return list of active scheduled days (as weekday numbers) for calendar highlighting
+        schedules = DoctorSchedule.objects.filter(
+            doctor_id=doctor_id, clinic_id=clinic_id, is_active=True
+        )
+        available_days = list(schedules.values_list('day_of_week', flat=True))
+
+        if not date_str:
+            return Response({
+                'available_days': available_days,
+                'slots': [],
+                'schedule': None
+            })
+
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # Python weekday(): Mon=0, Sun=6. Our DayOfWeek: Mon=0, Sun=6 — same mapping.
+        day_num = target_date.weekday()
+        # Adjust: Python Mon=0..Sun=6, our DayOfWeek Mon=0..Sun=6 matches
+        try:
+            schedule = schedules.get(day_of_week=day_num)
+        except DoctorSchedule.DoesNotExist:
+            return Response({
+                'available_days': available_days,
+                'slots': [],
+                'schedule': None,
+                'message': 'Doctor has no schedule for this day.'
+            })
+
+        # Generate all time slots from schedule
+        slot_minutes = schedule.slot_duration_minutes or 15
+        slots = []
+        current = datetime.combine(target_date, schedule.start_time)
+        end = datetime.combine(target_date, schedule.end_time)
+        while current < end:
+            slots.append(current.strftime('%H:%M'))
+            current += timedelta(minutes=slot_minutes)
+
+        # Get already-booked times for this doctor/clinic/date
+        booked_times = set(
+            Appointment.objects.filter(
+                doctor_id=doctor_id,
+                clinic_id=clinic_id,
+                appointment_date=target_date,
+                status__in=[AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]
+            ).values_list('appointment_time', flat=True)
+        )
+        booked_time_strs = {t.strftime('%H:%M') if hasattr(t, 'strftime') else str(t)[:5] for t in booked_times}
+
+        slot_data = [
+            {'time': slot, 'available': slot not in booked_time_strs}
+            for slot in slots
+        ]
+
+        return Response({
+            'available_days': available_days,
+            'schedule': DoctorScheduleSerializer(schedule).data,
+            'slots': slot_data,
+            'total_slots': len(slots),
+            'booked_count': len(booked_time_strs),
+            'available_count': sum(1 for s in slot_data if s['available'])
+        })
