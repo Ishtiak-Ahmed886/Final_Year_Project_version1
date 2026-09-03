@@ -132,7 +132,7 @@ export default function DoctorList() {
                     <ul className="mt-1 space-y-1 pl-4 list-disc">
                       {doctor.doctor_clinics.map((dc) => (
                         <li key={dc.id}>
-                          <span className="font-medium">{dc.clinic?.name}</span> - Fee: ${dc.consultation_fee}
+                          <span className="font-medium">{dc.clinic?.name}</span> - Fee: ৳{dc.consultation_fee} BDT
                         </li>
                       ))}
                     </ul>

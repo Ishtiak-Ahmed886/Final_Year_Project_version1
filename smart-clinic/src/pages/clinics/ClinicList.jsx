@@ -54,7 +54,7 @@ export default function ClinicList() {
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" size={18} />
               <input
                 type="text"
-                placeholder="Search by city (e.g. New York, London)..."
+                placeholder="Search by city (e.g. Dhaka, Chittagong, Sylhet)..."
                 value={searchCity}
                 onChange={(e) => setSearchCity(e.target.value)}
                 className="input input-bordered text-base-content w-full pl-10 bg-white/90 focus:bg-white border-none shadow-inner"

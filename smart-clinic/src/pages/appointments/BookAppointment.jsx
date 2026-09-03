@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router";
 import apiClient from "../../api/axios";
 import {
   CalendarCheck, Building2, Stethoscope, Clock, FileText,
-  CheckCircle2, AlertCircle, ArrowLeft, DollarSign,
-  MapPin, Navigation, Loader, Star, ChevronRight
+  CheckCircle2, AlertCircle, ArrowLeft, Navigation, Loader,
+  ChevronRight, MapPin, Users, Heart
 } from "lucide-react";
 
 export default function BookAppointment() {
@@ -13,14 +13,17 @@ export default function BookAppointment() {
 
   const preselectedClinic = searchParams.get("clinic") || "";
   const preselectedDoctor = searchParams.get("doctor") || "";
+  const preselectedFamilyMember = searchParams.get("family_member") || "";
 
   const [clinics, setClinics] = useState([]);
   const [nearbyClinics, setNearbyClinics] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [familyMembers, setFamilyMembers] = useState([]);
 
   const [formData, setFormData] = useState({
     clinic_id: preselectedClinic,
     doctor_id: preselectedDoctor,
+    family_member_id: preselectedFamilyMember,
     appointment_date: new Date().toISOString().split("T")[0],
     appointment_time: "09:00",
     problem_description: "",
@@ -41,20 +44,23 @@ export default function BookAppointment() {
     "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"
   ];
 
-  // Fetch all clinics on mount
+  // Fetch clinics and family members on mount
   useEffect(() => {
-    const fetchClinics = async () => {
+    const fetchInitialData = async () => {
       try {
-        const res = await apiClient.get("/clinics/");
-        setClinics(res.results || res || []);
+        const clinicsRes = await apiClient.get("/clinics/");
+        setClinics(clinicsRes.results || clinicsRes || []);
+
+        const familyRes = await apiClient.get("/accounts/family-members/");
+        setFamilyMembers(familyRes.results || familyRes || []);
       } catch {
-        setError("Failed to load clinics.");
+        setError("Failed to load initial data.");
       }
     };
-    fetchClinics();
+    fetchInitialData();
   }, []);
 
-  // Try geolocation on mount automatically
+  // Try geolocation on mount
   useEffect(() => {
     if (!navigator.geolocation) return;
     setGeoLoading(true);
@@ -68,7 +74,7 @@ export default function BookAppointment() {
           );
           setNearbyClinics(res || []);
         } catch {
-          // Silently fail – still shows full list below
+          // Silently fail
         } finally {
           setGeoLoading(false);
         }
@@ -143,6 +149,7 @@ export default function BookAppointment() {
       await apiClient.post("/appointments/", {
         clinic_id: formData.clinic_id,
         doctor_id: formData.doctor_id,
+        family_member_id: formData.family_member_id || null,
         appointment_date: formData.appointment_date,
         appointment_time: formData.appointment_time,
         problem_description: formData.problem_description,
@@ -240,10 +247,10 @@ export default function BookAppointment() {
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-base-content">
-              Book Your Consultation
+              Book Doctor Appointment
             </h1>
             <p className="text-sm text-base-content/60">
-              Select clinic, doctor, and preferred time slot
+              Select patient, clinic, doctor, and preferred time slot
             </p>
           </div>
         </div>
@@ -262,6 +269,48 @@ export default function BookAppointment() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* ====== Patient Selection (Parent Care / Self) ====== */}
+          <div className="bg-base-200/50 p-5 rounded-2xl space-y-3">
+            <label className="label text-sm font-bold flex items-center gap-1">
+              <Users size={16} className="text-primary" /> Who is this appointment for?
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, family_member_id: "" })}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                  !formData.family_member_id
+                    ? "border-primary bg-primary/10 font-bold shadow-sm"
+                    : "border-base-200 bg-base-100 hover:border-primary/40"
+                }`}
+              >
+                <div className="text-sm font-extrabold">Myself</div>
+                <div className="text-xs text-base-content/60">Account Holder</div>
+              </button>
+
+              {familyMembers.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, family_member_id: member.id })}
+                  className={`p-3 rounded-xl border-2 text-left transition-all ${
+                    formData.family_member_id === member.id
+                      ? "border-primary bg-primary/10 font-bold shadow-sm"
+                      : "border-base-200 bg-base-100 hover:border-primary/40"
+                  }`}
+                >
+                  <div className="text-sm font-extrabold flex items-center justify-between">
+                    <span>{member.full_name}</span>
+                    <Heart size={14} className="text-secondary" />
+                  </div>
+                  <div className="text-xs text-base-content/60">
+                    {member.relationship_display} {member.age ? `(${member.age} yrs)` : ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Clinic Selection */}
             <div>
@@ -373,8 +422,7 @@ export default function BookAppointment() {
                 </div>
               </div>
               <div className="text-2xl font-extrabold text-primary flex items-center">
-                <DollarSign size={20} />
-                {consultationFee}
+                ৳{consultationFee} BDT
               </div>
             </div>
           )}

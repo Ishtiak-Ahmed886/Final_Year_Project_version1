@@ -10,7 +10,7 @@ import DoctorList from "./pages/doctors/DoctorList";
 import BookAppointment from "./pages/appointments/BookAppointment";
 import DashboardLayout from "./pages/dashboard/DashboardLayout";
 import { AuthProvider } from "./Provider/AuthProvider";
-import { PrivateRoute } from "./components/shared/PrivateRoute";
+import { PrivateRoute, RoleRoute } from "./components/shared/PrivateRoute";
 import "./App.css";
 
 const root = document.getElementById("root");
@@ -29,9 +29,9 @@ ReactDOM.createRoot(root).render(
           <Route
             path="book"
             element={
-              <PrivateRoute>
+              <RoleRoute allowedRoles={["PATIENT"]}>
                 <BookAppointment />
-              </PrivateRoute>
+              </RoleRoute>
             }
           />
           <Route

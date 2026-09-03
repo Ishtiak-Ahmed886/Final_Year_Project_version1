@@ -3,7 +3,7 @@ import apiClient from "../../api/axios";
 import {
   Calendar, Clock, User, CheckCircle2, XCircle, AlertCircle,
   Stethoscope, Award, BookOpen, Edit3, Save, X, Loader, MapPin,
-  Building2, Send, FileCheck, Check
+  Building2, Send, Play, Pause, FastForward, Navigation, ShieldCheck, Heart
 } from "lucide-react";
 
 export default function DoctorDashboard() {
@@ -14,6 +14,11 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionMsg, setActionMsg] = useState("");
+
+  // Live Chamber Session State
+  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [chamberSession, setChamberSession] = useState(null);
+  const [updatingChamber, setUpdatingChamber] = useState(false);
 
   // Profile state
   const [profile, setProfile] = useState(null);
@@ -76,15 +81,27 @@ export default function DoctorDashboard() {
         apiClient.get("/doctors/requests/").catch(() => []),
         apiClient.get("/clinics/").catch(() => []),
       ]);
-      setRequests(reqRes.results || reqRes || []);
-      setApprovedClinics((cRes.results || cRes || []).filter(c => c.verification_status === "VERIFIED"));
+      const reqList = reqRes.results || reqRes || [];
+      setRequests(reqList);
+      const verifiedList = (cRes.results || cRes || []).filter(c => c.verification_status === "VERIFIED");
+      setApprovedClinics(verifiedList);
+
+      // Auto-select first accepted clinic mapping
+      const acceptedReq = reqList.find(r => r.status === "ACCEPTED");
+      if (acceptedReq && acceptedReq.clinic) {
+        setSelectedClinicId(acceptedReq.clinic.id);
+      }
     } catch {}
   };
 
-  const fetchSpecializations = async () => {
+  const fetchChamberSession = async () => {
+    if (!profile || !selectedClinicId) return;
     try {
-      const res = await apiClient.get("/doctors/specializations/");
-      setSpecializations(res.results || res || []);
+      const todayStr = new Date().toISOString().split("T")[0];
+      const res = await apiClient.get(
+        `/doctors/chamber-session/?doctor_id=${profile.id}&clinic_id=${selectedClinicId}&date=${todayStr}`
+      );
+      setChamberSession(res);
     } catch {}
   };
 
@@ -92,11 +109,37 @@ export default function DoctorDashboard() {
     fetchAppointments();
     fetchProfile();
     fetchRequestsAndClinics();
-    fetchSpecializations();
   }, []);
+
+  useEffect(() => {
+    if (profile && selectedClinicId) {
+      fetchChamberSession();
+    }
+  }, [profile, selectedClinicId]);
 
   const showMsg = (m) => { setActionMsg(m); setTimeout(() => setActionMsg(""), 4000); };
   const showErr = (e) => { setError(e); setTimeout(() => setError(""), 5000); };
+
+  const handleChamberAction = async (action, newStatus = null) => {
+    if (!profile || !selectedClinicId) return;
+    setUpdatingChamber(true);
+    try {
+      const payload = {
+        doctor_id: profile.id,
+        clinic_id: selectedClinicId,
+        action: action,
+      };
+      if (newStatus) payload.status = newStatus;
+
+      const res = await apiClient.post("/doctors/chamber-session/", payload);
+      setChamberSession(res);
+      showMsg(action === "NEXT_SERIAL" ? `Called Serial #${res.current_serial}!` : `Chamber status updated to ${res.status}`);
+    } catch {
+      showErr("Failed to update chamber session.");
+    } finally {
+      setUpdatingChamber(false);
+    }
+  };
 
   const handleComplete = async (id) => {
     try {
@@ -179,30 +222,40 @@ export default function DoctorDashboard() {
     }
   };
 
-  const toggleSpec = (id) => {
-    setProfileForm((prev) => ({
-      ...prev,
-      specialization_ids: prev.specialization_ids.includes(id)
-        ? prev.specialization_ids.filter((s) => s !== id)
-        : [...prev.specialization_ids, id],
-    }));
-  };
-
   const pendingIncomingInvites = requests.filter(r => r.status === "PENDING_DOCTOR_APPROVAL");
-  const pendingOutgoingRequests = requests.filter(r => r.status === "PENDING_CLINIC_APPROVAL");
   const activeAffiliations = requests.filter(r => r.status === "ACCEPTED");
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-base-100 p-6 rounded-3xl border border-base-200 shadow-md">
-        <h1 className="text-2xl font-extrabold text-base-content flex items-center gap-2">
-          <Stethoscope className="text-primary" /> Doctor Portal
-        </h1>
-        <p className="text-sm text-base-content/60 mt-1">Manage your appointments, clinic affiliations, and professional profile</p>
+      <div className="bg-base-100 p-6 rounded-3xl border border-base-200 shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-base-content flex items-center gap-2">
+            <Stethoscope className="text-primary" /> Doctor Portal
+          </h1>
+          <p className="text-sm text-base-content/60 mt-1">Live queue control, appointment management, & clinic affiliations</p>
+        </div>
+
+        {/* Active Clinic Switcher */}
+        {activeAffiliations.length > 0 && (
+          <div className="flex items-center gap-2 bg-base-200/60 p-2.5 rounded-2xl">
+            <Building2 size={16} className="text-primary" />
+            <select
+              value={selectedClinicId}
+              onChange={(e) => setSelectedClinicId(e.target.value)}
+              className="select select-sm select-ghost font-bold text-xs"
+            >
+              {activeAffiliations.map((a) => (
+                <option key={a.clinic?.id} value={a.clinic?.id}>
+                  {a.clinic?.name} ({a.clinic?.city})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Admin Approval Banner for Doctor */}
+      {/* Admin Approval Banner */}
       {profile && profile.verification_status !== "VERIFIED" && (
         <div className={`p-5 rounded-3xl border flex items-start gap-4 ${
           profile.verification_status === "REJECTED" ? "bg-error/15 border-error/30 text-error-content" : "bg-warning/15 border-warning/30 text-warning-content"
@@ -215,7 +268,7 @@ export default function DoctorDashboard() {
             <p className="text-xs mt-1">
               {profile.verification_status === "REJECTED"
                 ? "Your license certificate was rejected by platform Admin. Please update your certificate URL in your profile."
-                : "Your professional profile & certificate are currently PENDING approval from platform Admin. You will be able to request and accept clinic service affiliations once approved."}
+                : "Your professional profile & certificate are currently PENDING approval from platform Admin."}
             </p>
           </div>
         </div>
@@ -227,7 +280,7 @@ export default function DoctorDashboard() {
           className={`tab rounded-lg font-semibold transition-all ${tab === "appointments" ? "tab-active" : ""}`}
           onClick={() => { setTab("appointments"); setError(""); setActionMsg(""); }}
         >
-          <Calendar size={15} className="mr-1" /> Appointments
+          <Calendar size={15} className="mr-1" /> Live Queue & Appointments
         </button>
         <button
           className={`tab rounded-lg font-semibold transition-all ${tab === "affiliations" ? "tab-active" : ""}`}
@@ -243,7 +296,7 @@ export default function DoctorDashboard() {
         </button>
       </div>
 
-      {/* Alert messages */}
+      {/* Alerts */}
       {actionMsg && (
         <div className="alert alert-success text-sm py-3 px-4 shadow-sm flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 shrink-0" />
@@ -257,9 +310,83 @@ export default function DoctorDashboard() {
         </div>
       )}
 
-      {/* ======== APPOINTMENTS TAB ======== */}
+      {/* ======== APPOINTMENTS & LIVE QUEUE TAB ======== */}
       {tab === "appointments" && (
-        <>
+        <div className="space-y-6">
+          {/* ====== LIVE CHAMBER TOKEN CONTROL PANEL ====== */}
+          {selectedClinicId && (
+            <div className="bg-gradient-to-r from-primary/10 via-base-100 to-secondary/10 border-2 border-primary/30 p-6 rounded-3xl shadow-lg space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-base-200 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="badge badge-primary font-bold text-xs">Live Chamber Tracker</span>
+                    <span className={`badge font-bold text-xs ${
+                      chamberSession?.status === "IN_CHAMBER" ? "badge-success text-white animate-pulse" :
+                      chamberSession?.status === "IN_TRANSIT" ? "badge-warning" :
+                      chamberSession?.status === "PAUSED" ? "badge-secondary" : "badge-ghost"
+                    }`}>
+                      Status: {chamberSession?.status || "NOT_STARTED"}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-extrabold text-base-content mt-1">
+                    Serial Tracker Control
+                  </h2>
+                </div>
+
+                <div className="bg-base-100 px-6 py-2 rounded-2xl border border-base-200 shadow-sm flex items-center gap-3">
+                  <div className="text-xs text-base-content/60 font-semibold uppercase">Currently Called</div>
+                  <div className="text-3xl font-black text-primary">
+                    #{chamberSession?.current_serial || 0}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3 pt-1">
+                <button
+                  onClick={() => handleChamberAction("NEXT_SERIAL")}
+                  disabled={updatingChamber}
+                  className="btn btn-primary font-bold gap-2 text-base shadow-md flex-1 md:flex-initial"
+                >
+                  <FastForward size={18} /> Call Next Serial (#{(chamberSession?.current_serial || 0) + 1})
+                </button>
+
+                <button
+                  onClick={() => handleChamberAction("UPDATE_STATUS", "IN_TRANSIT")}
+                  disabled={updatingChamber}
+                  className="btn btn-warning btn-outline font-bold gap-1"
+                >
+                  <Navigation size={16} /> In Transit
+                </button>
+
+                <button
+                  onClick={() => handleChamberAction("UPDATE_STATUS", "IN_CHAMBER")}
+                  disabled={updatingChamber}
+                  className="btn btn-success btn-outline font-bold gap-1"
+                >
+                  <Play size={16} /> In Chamber
+                </button>
+
+                <button
+                  onClick={() => handleChamberAction("UPDATE_STATUS", "PAUSED")}
+                  disabled={updatingChamber}
+                  className="btn btn-secondary btn-outline font-bold gap-1"
+                >
+                  <Pause size={16} /> Pause
+                </button>
+
+                <button
+                  onClick={() => handleChamberAction("UPDATE_STATUS", "ENDED")}
+                  disabled={updatingChamber}
+                  className="btn btn-error btn-outline font-bold gap-1"
+                >
+                  <XCircle size={16} /> End Session
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Appointments List */}
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
@@ -274,85 +401,98 @@ export default function DoctorDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {appointments.map((apt) => (
-                <div key={apt.id} className="bg-base-100 border border-base-200 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
-                          <User size={18} className="text-primary" />
-                          {apt.patient?.first_name} {apt.patient?.last_name}
-                        </h3>
-                        <span className={`badge font-bold ${
-                          apt.status === "CONFIRMED" ? "badge-success badge-soft" :
-                          apt.status === "COMPLETED" ? "badge-info badge-soft" :
-                          apt.status === "CANCELLED" ? "badge-error badge-soft" : "badge-warning badge-soft"
-                        }`}>
-                          {apt.status}
-                        </span>
-                      </div>
+              {appointments.map((apt) => {
+                const isCurrentlyCalled = chamberSession && chamberSession.current_serial === apt.serial_number;
+                return (
+                  <div
+                    key={apt.id}
+                    className={`bg-base-100 border-2 rounded-2xl p-6 shadow-md hover:shadow-lg transition-all ${
+                      isCurrentlyCalled ? "border-success bg-success/5 shadow-xl scale-[1.01]" : "border-base-200"
+                    }`}
+                  >
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="badge badge-lg badge-primary font-black px-3">
+                            Serial #{apt.serial_number}
+                          </span>
+                          <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
+                            <User size={18} className="text-primary" />
+                            {apt.patient?.first_name} {apt.patient?.last_name}
+                          </h3>
+                          <span className={`badge font-bold ${
+                            apt.status === "CONFIRMED" ? "badge-success badge-soft" :
+                            apt.status === "COMPLETED" ? "badge-info badge-soft" :
+                            apt.status === "CANCELLED" ? "badge-error badge-soft" : "badge-warning badge-soft"
+                          }`}>
+                            {apt.status}
+                          </span>
+                          {apt.family_member && (
+                            <span className="badge badge-secondary badge-soft font-bold gap-1 text-xs">
+                              <Heart size={12} /> Patient: {apt.family_member.full_name} ({apt.family_member.relationship_display})
+                            </span>
+                          )}
+                        </div>
 
-                      <div className="flex flex-wrap gap-4 text-sm text-base-content/70">
-                        <div className="flex items-center gap-1">
-                          <Calendar size={16} className="text-primary" />
-                          <span>{apt.appointment_date}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock size={16} className="text-primary" />
-                          <span>{apt.appointment_time}</span>
-                        </div>
-                        {apt.clinic && (
+                        <div className="flex flex-wrap gap-4 text-sm text-base-content/70">
                           <div className="flex items-center gap-1">
-                            <MapPin size={16} className="text-primary" />
-                            <span>{apt.clinic.name}</span>
+                            <Calendar size={16} className="text-primary" />
+                            <span>{apt.appointment_date}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock size={16} className="text-primary" />
+                            <span>{apt.appointment_time}</span>
+                          </div>
+                          {apt.clinic && (
+                            <div className="flex items-center gap-1">
+                              <MapPin size={16} className="text-primary" />
+                              <span>{apt.clinic.name}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {apt.problem_description && (
+                          <div className="text-xs bg-base-200/60 p-3 rounded-xl text-base-content/80 mt-2">
+                            <span className="font-semibold">Patient Symptoms: </span>{apt.problem_description}
                           </div>
                         )}
                       </div>
 
-                      {apt.problem_description && (
-                        <div className="text-xs bg-base-200/60 p-3 rounded-xl text-base-content/80 mt-2">
-                          <span className="font-semibold">Patient Note: </span>{apt.problem_description}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2 shrink-0 w-full md:w-auto">
-                      {apt.status === "CONFIRMED" && (
-                        <button
-                          onClick={() => handleComplete(apt.id)}
-                          className="btn btn-primary btn-sm gap-1 shadow-sm flex-1 md:flex-initial"
-                        >
-                          <CheckCircle2 size={16} /> Mark Completed
-                        </button>
-                      )}
-                      {apt.status !== "COMPLETED" && apt.status !== "CANCELLED" && (
-                        <button
-                          onClick={() => handleCancel(apt.id)}
-                          className="btn btn-outline btn-error btn-sm gap-1 flex-1 md:flex-initial"
-                        >
-                          <XCircle size={16} /> Cancel
-                        </button>
-                      )}
+                      <div className="flex gap-2 shrink-0 w-full md:w-auto">
+                        {apt.status === "CONFIRMED" && (
+                          <button
+                            onClick={() => handleComplete(apt.id)}
+                            className="btn btn-primary btn-sm gap-1 shadow-sm flex-1 md:flex-initial"
+                          >
+                            <CheckCircle2 size={16} /> Complete Consultation
+                          </button>
+                        )}
+                        {apt.status !== "COMPLETED" && apt.status !== "CANCELLED" && (
+                          <button
+                            onClick={() => handleCancel(apt.id)}
+                            className="btn btn-outline btn-error btn-sm gap-1 flex-1 md:flex-initial"
+                          >
+                            <XCircle size={16} /> Cancel
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ======== CLINIC AFFILIATIONS TAB ======== */}
       {tab === "affiliations" && (
         <div className="space-y-6">
-          {/* Request to Join Clinic Form */}
           {profile && profile.verification_status === "VERIFIED" && (
             <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
               <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
                 <Send className="text-primary" /> Send Service Request to a Clinic
               </h2>
-              <p className="text-xs text-base-content/60">Request to practice at an approved clinic. The clinic admin will review and accept your request.</p>
-
               <form onSubmit={handleSendJoinRequest} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -367,8 +507,8 @@ export default function DoctorDashboard() {
                     </select>
                   </div>
                   <div>
-                    <label className="label text-xs font-semibold">Proposed Consultation Fee ($) *</label>
-                    <input type="number" step="0.01" required placeholder="120.00" value={joinClinicForm.consultation_fee}
+                    <label className="label text-xs font-semibold">Proposed Consultation Fee (৳ BDT) *</label>
+                    <input type="number" step="1" required placeholder="1000" value={joinClinicForm.consultation_fee}
                       onChange={(e) => setJoinClinicForm({ ...joinClinicForm, consultation_fee: e.target.value })}
                       className="input input-bordered w-full" />
                   </div>
@@ -384,7 +524,6 @@ export default function DoctorDashboard() {
             </div>
           )}
 
-          {/* Incoming Clinic Invites */}
           {pendingIncomingInvites.length > 0 && (
             <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
               <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
@@ -395,7 +534,7 @@ export default function DoctorDashboard() {
                   <div key={r.id} className="p-4 bg-base-200/50 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                       <div className="font-bold text-base-content">{r.clinic?.name}</div>
-                      <div className="text-xs text-base-content/60">📍 {r.clinic?.city} · Proposed Fee: ${r.consultation_fee}</div>
+                      <div className="text-xs text-base-content/60">📍 {r.clinic?.city} · Fee: ৳{r.consultation_fee} BDT</div>
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button onClick={() => handleRespondRequest(r.id, "ACCEPT")} className="btn btn-success btn-xs text-white">Accept Invite</button>
@@ -407,7 +546,6 @@ export default function DoctorDashboard() {
             </div>
           )}
 
-          {/* Active Affiliations */}
           <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
             <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
               <Building2 className="text-primary" /> Active Clinic Affiliations ({activeAffiliations.length})
@@ -421,7 +559,7 @@ export default function DoctorDashboard() {
                     <div className="p-2 bg-primary/10 rounded-xl text-primary"><Building2 size={18} /></div>
                     <div>
                       <div className="font-bold text-sm text-base-content">{r.clinic?.name}</div>
-                      <div className="text-xs text-base-content/60">{r.clinic?.city} · Fee: ${r.consultation_fee}</div>
+                      <div className="text-xs text-base-content/60">{r.clinic?.city} · Fee: ৳{r.consultation_fee} BDT</div>
                       <div className="text-xs text-success font-semibold mt-1">✓ Active Service Agreement</div>
                     </div>
                   </div>
@@ -440,7 +578,6 @@ export default function DoctorDashboard() {
               <Loader size={32} className="animate-spin text-primary" />
             </div>
           ) : !editingProfile ? (
-            // View Mode
             <div className="space-y-6">
               <div className="flex justify-between items-start">
                 <div>
@@ -466,7 +603,7 @@ export default function DoctorDashboard() {
                 </button>
               </div>
 
-              {profile ? (
+              {profile && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-4 bg-base-200/50 rounded-2xl">
@@ -501,16 +638,9 @@ export default function DoctorDashboard() {
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="text-center py-8 text-base-content/60">
-                  <Stethoscope size={40} className="mx-auto mb-3 text-base-content/30" />
-                  <p className="text-sm">Your professional profile is not set up yet.</p>
-                  <p className="text-xs mt-1">Click "Set Up Profile" to complete it with your license certificate.</p>
-                </div>
               )}
             </div>
           ) : (
-            // Edit Mode
             <form onSubmit={handleProfileSave} className="space-y-5">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-extrabold text-base-content">
@@ -522,7 +652,7 @@ export default function DoctorDashboard() {
               </div>
 
               <div>
-                <label className="label text-sm font-semibold">Full Name (as shown to patients)</label>
+                <label className="label text-sm font-semibold">Full Name</label>
                 <input
                   name="full_name" type="text" required
                   value={profileForm.full_name}
@@ -534,21 +664,17 @@ export default function DoctorDashboard() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="label text-sm font-semibold flex items-center gap-1">
-                    <Award size={14} className="text-primary" /> Qualification
-                  </label>
+                  <label className="label text-sm font-semibold">Qualification</label>
                   <input
                     name="qualification" type="text" required
                     value={profileForm.qualification}
                     onChange={(e) => setProfileForm({ ...profileForm, qualification: e.target.value })}
                     className="input input-bordered w-full"
-                    placeholder="MBBS, MD Cardiology"
+                    placeholder="MBBS, FCPS Cardiology"
                   />
                 </div>
                 <div>
-                  <label className="label text-sm font-semibold flex items-center gap-1">
-                    <BookOpen size={14} className="text-primary" /> Years of Experience
-                  </label>
+                  <label className="label text-sm font-semibold">Experience (Years)</label>
                   <input
                     name="experience_years" type="number" min={0} max={60}
                     value={profileForm.experience_years}
@@ -565,19 +691,16 @@ export default function DoctorDashboard() {
                   value={profileForm.certificate_url}
                   onChange={(e) => setProfileForm({ ...profileForm, certificate_url: e.target.value })}
                   className="input input-bordered w-full"
-                  placeholder="https://res.cloudinary.com/... link to certificate document"
                 />
-                <div className="text-xs text-base-content/60 mt-1">Required for Admin verification.</div>
               </div>
 
               <div>
-                <label className="label text-sm font-semibold">Bio / Professional Summary</label>
+                <label className="label text-sm font-semibold">Bio</label>
                 <textarea
                   rows={3}
                   value={profileForm.bio}
                   onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
                   className="textarea textarea-bordered w-full"
-                  placeholder="Brief description of your expertise..."
                 />
               </div>
 
@@ -586,7 +709,7 @@ export default function DoctorDashboard() {
                   <X size={16} /> Cancel
                 </button>
                 <button type="submit" disabled={profileLoading} className="btn btn-primary flex-1 gap-2">
-                  {profileLoading ? <Loader size={18} className="animate-spin" /> : <><Save size={16} /> Save Profile</>}
+                  {profileLoading ? <Loader size={18} className="animate-spin" /> : <Save size={16} />} Save Profile
                 </button>
               </div>
             </form>

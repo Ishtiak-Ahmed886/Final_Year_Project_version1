@@ -118,6 +118,10 @@ export default function Register() {
   // Step 2: Doctor profile setup
   const handleDoctorProfileSetup = async (e) => {
     e.preventDefault();
+    if (formData.role !== "DOCTOR" && registeredUser?.role !== "DOCTOR") {
+      setError("Only Doctor accounts can set up a doctor profile.");
+      return;
+    }
     setLoading(true);
     setError("");
 
