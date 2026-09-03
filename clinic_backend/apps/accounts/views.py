@@ -1,13 +1,15 @@
-from rest_framework import generics, status, permissions
+from rest_framework import generics, status, permissions, viewsets
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from .models import FamilyMember
 from .serializers import (
     UserRegistrationSerializer,
     UserSerializer,
     ChangePasswordSerializer,
     CustomTokenObtainPairSerializer,
+    FamilyMemberSerializer,
 )
 from .services import change_user_password
 
@@ -47,3 +49,15 @@ class ChangePasswordView(generics.GenericAPIView):
             new_password=serializer.validated_data['new_password']
         )
         return Response({'detail': 'Password changed successfully.'}, status=status.HTTP_200_OK)
+
+@extend_schema(tags=['Family Members'])
+class FamilyMemberViewSet(viewsets.ModelViewSet):
+    serializer_class = FamilyMemberSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return FamilyMember.objects.filter(patient=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(patient=self.request.user)
+

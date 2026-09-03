@@ -26,6 +26,9 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
         return queryset
 
     def create(self, request, *args, **kwargs):
+        if request.user.role != 'PATIENT':
+            return Response({'detail': 'Only patients can book appointments.'}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -35,7 +38,8 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
             doctor_id=str(serializer.validated_data['doctor_id']),
             appointment_date=serializer.validated_data['appointment_date'],
             appointment_time=serializer.validated_data['appointment_time'],
-            problem_description=serializer.validated_data.get('problem_description', '')
+            problem_description=serializer.validated_data.get('problem_description', ''),
+            family_member_id=str(serializer.validated_data['family_member_id']) if serializer.validated_data.get('family_member_id') else None
         )
         output_serializer = AppointmentSerializer(appointment)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
@@ -44,7 +48,17 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
 class AppointmentDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = AppointmentSerializer
-    queryset = Appointment.objects.select_related('patient', 'clinic', 'doctor', 'department').all()
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Appointment.objects.select_related('patient', 'clinic', 'doctor', 'department').all()
+        if user.role == 'PATIENT':
+            return queryset.filter(patient=user)
+        elif user.role == 'DOCTOR':
+            return queryset.filter(doctor__email=user.email)
+        elif user.role == 'CLINIC_ADMIN':
+            return queryset.filter(clinic__owner=user)
+        return queryset
 
 @extend_schema(tags=['Appointments'])
 class AppointmentCancelView(generics.GenericAPIView):
@@ -56,6 +70,20 @@ class AppointmentCancelView(generics.GenericAPIView):
             appointment = Appointment.objects.get(pk=pk)
         except Appointment.DoesNotExist:
             return Response({'detail': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        if user.role == 'PATIENT' and appointment.patient != user:
+            return Response({'detail': 'You can only cancel your own appointments.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'DOCTOR':
+            assigned_doctor = appointment.doctor
+            is_assigned = (
+                (hasattr(user, 'doctor_profile') and user.doctor_profile == assigned_doctor)
+                or (assigned_doctor.email and assigned_doctor.email == user.email)
+            )
+            if not is_assigned:
+                return Response({'detail': 'You are not assigned to this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'CLINIC_ADMIN' and appointment.clinic.owner != user:
+            return Response({'detail': 'You do not own the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
 
         appointment = cancel_appointment(appointment=appointment, cancelled_by_user=request.user)
         return Response(AppointmentSerializer(appointment).data, status=status.HTTP_200_OK)

@@ -16,6 +16,11 @@ class IsPatient(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.role == UserRole.PATIENT)
 
+class IsDoctor(BasePermission):
+    """Allows access only to Doctor users."""
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == UserRole.DOCTOR)
+
 class IsClinicAdminOrAdmin(BasePermission):
     """Allows access to ClinicAdmin or Admin users."""
     def has_permission(self, request, view):

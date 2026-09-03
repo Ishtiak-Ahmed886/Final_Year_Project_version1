@@ -90,3 +90,28 @@ class DoctorClinicRequestCreateSerializer(serializers.Serializer):
 
 class DoctorClinicRequestResponseSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['ACCEPT', 'REJECT'])
+
+
+from .models import ChamberSession, ChamberSessionStatus
+
+class ChamberSessionSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source='doctor.full_name', read_only=True)
+    clinic_name = serializers.CharField(source='clinic.name', read_only=True)
+
+    class Meta:
+        model = ChamberSession
+        fields = (
+            'id', 'doctor', 'doctor_name', 'clinic', 'clinic_name',
+            'session_date', 'status', 'current_serial',
+            'estimated_mins_per_patient', 'started_at', 'ended_at', 'created_at'
+        )
+        read_only_fields = ('id', 'created_at')
+
+class ChamberSessionUpdateSerializer(serializers.Serializer):
+    doctor_id = serializers.UUIDField(required=True)
+    clinic_id = serializers.UUIDField(required=True)
+    session_date = serializers.DateField(required=False, allow_null=True)
+    status = serializers.ChoiceField(choices=ChamberSessionStatus.choices, required=False)
+    current_serial = serializers.IntegerField(required=False, min_value=0)
+    action = serializers.ChoiceField(choices=['NEXT_SERIAL', 'PREV_SERIAL', 'SET_SERIAL', 'UPDATE_STATUS'], required=False)
+

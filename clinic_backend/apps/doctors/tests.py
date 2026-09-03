@@ -6,7 +6,6 @@ from apps.clinics.models import Clinic, Department
 from .models import Doctor, Specialization, DoctorClinic, DoctorSchedule, DoctorLeave, DayOfWeek
 from .services import (
     create_specialization,
-    create_doctor,
     assign_doctor_to_clinic,
     create_doctor_schedule,
     create_doctor_leave,
@@ -27,15 +26,17 @@ class DoctorsTestCase(TestCase):
             address="789 Care St",
             city="Boston",
             phone="+1555000111",
-            email="info@generalhospital.com"
+            email="info@generalhospital.com",
+            verification_status="VERIFIED"
         )
         self.spec = create_specialization(name="Neurology")
-        self.doctor = create_doctor(
+        self.doctor = Doctor.objects.create(
             full_name="Gregory House",
             qualification="MD - Diagnostic Medicine",
             experience_years=15,
-            specialization_ids=[self.spec.id]
+            verification_status="VERIFIED"
         )
+        self.doctor.specializations.add(self.spec)
 
     def test_doctor_clinic_assignment(self):
         mapping = assign_doctor_to_clinic(

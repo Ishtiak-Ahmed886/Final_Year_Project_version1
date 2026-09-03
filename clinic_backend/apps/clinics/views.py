@@ -84,6 +84,12 @@ class ClinicDetailView(generics.RetrieveUpdateAPIView):
             return [IsClinicAdminOrAdmin()]
         return [permissions.AllowAny()]
 
+    def update(self, request, *args, **kwargs):
+        clinic = self.get_object()
+        if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
 
 @extend_schema(tags=['Clinics'])
 class ClinicAddDepartmentView(generics.GenericAPIView):
@@ -94,6 +100,9 @@ class ClinicAddDepartmentView(generics.GenericAPIView):
         clinic = get_clinic_by_id(pk)
         if not clinic:
             return Response({'detail': 'Clinic not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
 
         if request.user.role == 'CLINIC_ADMIN' and clinic.verification_status != VerificationStatus.VERIFIED:
             return Response({'detail': 'Your clinic has not been approved by Admin yet.'}, status=status.HTTP_403_FORBIDDEN)

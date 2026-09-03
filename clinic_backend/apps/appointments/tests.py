@@ -27,17 +27,20 @@ class AppointmentsTestCase(TestCase):
             address="100 Health Way",
             city="San Francisco",
             phone="+14155551234",
-            email="info@apexclinic.com"
+            email="info@apexclinic.com",
+            verification_status="VERIFIED"
         )
         self.doctor = Doctor.objects.create(
             full_name="Meredith Grey",
             qualification="MD - General Surgery",
-            experience_years=10
+            experience_years=10,
+            verification_status="VERIFIED"
         )
         DoctorClinic.objects.create(
             doctor=self.doctor,
             clinic=self.clinic,
             consultation_fee=200.00,
+            status="ACCEPTED",
             is_active=True
         )
 

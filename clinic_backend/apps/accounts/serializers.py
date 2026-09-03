@@ -1,9 +1,22 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import UserRole
+from .models import UserRole, FamilyMember
 
 User = get_user_model()
+
+class FamilyMemberSerializer(serializers.ModelSerializer):
+    patient_email = serializers.ReadOnlyField(source='patient.email')
+    relationship_display = serializers.CharField(source='get_relationship_display', read_only=True)
+
+    class Meta:
+        model = FamilyMember
+        fields = (
+            'id', 'patient', 'patient_email', 'full_name', 'relationship',
+            'relationship_display', 'phone', 'age', 'gender', 'blood_group',
+            'medical_notes', 'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'patient', 'created_at', 'updated_at')
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod

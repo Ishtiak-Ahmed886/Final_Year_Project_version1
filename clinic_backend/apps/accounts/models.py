@@ -9,6 +9,28 @@ class UserRole(models.TextChoices):
     DOCTOR = 'DOCTOR', 'Doctor'
     PATIENT = 'PATIENT', 'Patient'
 
+class RelationshipType(models.TextChoices):
+    FATHER = 'FATHER', 'Father'
+    MOTHER = 'MOTHER', 'Mother'
+    SPOUSE = 'SPOUSE', 'Spouse'
+    CHILD = 'CHILD', 'Child'
+    OTHER = 'OTHER', 'Other'
+
+class Gender(models.TextChoices):
+    MALE = 'MALE', 'Male'
+    FEMALE = 'FEMALE', 'Female'
+    OTHER = 'OTHER', 'Other'
+
+class BloodGroup(models.TextChoices):
+    A_POSITIVE = 'A+', 'A+'
+    A_NEGATIVE = 'A-', 'A-'
+    B_POSITIVE = 'B+', 'B+'
+    B_NEGATIVE = 'B-', 'B-'
+    AB_POSITIVE = 'AB+', 'AB+'
+    AB_NEGATIVE = 'AB-', 'AB-'
+    O_POSITIVE = 'O+', 'O+'
+    O_NEGATIVE = 'O-', 'O-'
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -69,3 +91,43 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
     def __str__(self):
         return f"{self.email} ({self.role})"
+
+class FamilyMember(BaseModel):
+    """
+    Family member linked to a PATIENT account (e.g. Parents, Spouse, Child).
+    """
+    patient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='family_members',
+        limit_choices_to={'role': 'PATIENT'}
+    )
+    full_name = models.CharField(max_length=150)
+    relationship = models.CharField(
+        max_length=20,
+        choices=RelationshipType.choices,
+        default=RelationshipType.OTHER
+    )
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    age = models.PositiveIntegerField(null=True, blank=True)
+    gender = models.CharField(
+        max_length=10,
+        choices=Gender.choices,
+        default=Gender.MALE
+    )
+    blood_group = models.CharField(
+        max_length=10,
+        choices=BloodGroup.choices,
+        blank=True,
+        default=''
+    )
+    medical_notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Family Member'
+        verbose_name_plural = 'Family Members'
+
+    def __str__(self):
+        return f"{self.full_name} ({self.get_relationship_display()}) - Patient: {self.patient.email}"
+

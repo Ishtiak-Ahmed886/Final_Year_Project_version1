@@ -89,6 +89,7 @@ class DoctorClinic(BaseModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        ordering = ['-created_at']
         unique_together = ('doctor', 'clinic')
         verbose_name = 'Doctor Clinic Mapping'
         verbose_name_plural = 'Doctor Clinic Mappings'
@@ -143,3 +144,38 @@ class DoctorLeave(BaseModel):
 
     def __str__(self):
         return f"Dr. {self.doctor.full_name} Leave ({self.start_date} to {self.end_date})"
+
+class ChamberSessionStatus(models.TextChoices):
+    NOT_STARTED = 'NOT_STARTED', 'Not Started'
+    IN_TRANSIT = 'IN_TRANSIT', 'In Transit'
+    IN_CHAMBER = 'IN_CHAMBER', 'In Chamber'
+    PAUSED = 'PAUSED', 'Paused'
+    ENDED = 'ENDED', 'Ended'
+
+class ChamberSession(BaseModel):
+    """
+    Live real-time Chamber session for tracking serials and doctor status on a given date.
+    """
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='chamber_sessions')
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='chamber_sessions')
+    session_date = models.DateField(db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=ChamberSessionStatus.choices,
+        default=ChamberSessionStatus.NOT_STARTED,
+        db_index=True
+    )
+    current_serial = models.PositiveIntegerField(default=0)
+    estimated_mins_per_patient = models.PositiveIntegerField(default=15)
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-session_date']
+        unique_together = ('doctor', 'clinic', 'session_date')
+        verbose_name = 'Chamber Session'
+        verbose_name_plural = 'Chamber Sessions'
+
+    def __str__(self):
+        return f"Dr. {self.doctor.full_name} at {self.clinic.name} on {self.session_date} ({self.status} - Serial #{self.current_serial})"
+

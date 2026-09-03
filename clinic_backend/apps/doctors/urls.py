@@ -10,6 +10,7 @@ from .views import (
     DoctorClinicRequestRespondView,
     DoctorAssignClinicView,
     DoctorAssignClinicByPkView,
+    ChamberSessionView,
 )
 
 app_name = 'doctors'
@@ -17,6 +18,9 @@ app_name = 'doctors'
 urlpatterns = [
     # Public: Browse doctors
     path('', DoctorListView.as_view(), name='doctor_list'),
+    
+    # Chamber Session (Live Queue Tracking)
+    path('chamber-session/', ChamberSessionView.as_view(), name='chamber_session'),
     
     # Specializations catalog
     path('specializations/', SpecializationListCreateView.as_view(), name='specialization_list_create'),

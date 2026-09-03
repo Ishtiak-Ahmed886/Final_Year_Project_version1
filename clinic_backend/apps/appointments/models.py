@@ -4,6 +4,8 @@ from apps.core.models import BaseModel
 from apps.clinics.models import Clinic, Department
 from apps.doctors.models import Doctor
 
+from apps.accounts.models import FamilyMember
+
 class AppointmentStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
     CONFIRMED = 'CONFIRMED', 'Confirmed'
@@ -22,11 +24,19 @@ class Appointment(BaseModel):
         related_name='appointments',
         limit_choices_to={'role': 'PATIENT'}
     )
+    family_member = models.ForeignKey(
+        FamilyMember,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='appointments'
+    )
     clinic = models.ForeignKey(Clinic, on_delete=models.PROTECT, related_name='appointments')
     doctor = models.ForeignKey(Doctor, on_delete=models.PROTECT, related_name='appointments')
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='appointments')
     appointment_date = models.DateField(db_index=True)
     appointment_time = models.TimeField()
+    serial_number = models.PositiveIntegerField(default=1, db_index=True)
     status = models.CharField(
         max_length=20,
         choices=AppointmentStatus.choices,

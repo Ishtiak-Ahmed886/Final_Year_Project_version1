@@ -9,10 +9,13 @@ class PaymentStatus(models.TextChoices):
     REFUNDED = 'REFUNDED', 'Refunded'
 
 class PaymentMethod(models.TextChoices):
+    BKASH = 'BKASH', 'bKash'
+    NAGAD = 'NAGAD', 'Nagad'
+    ROCKET = 'ROCKET', 'Rocket'
+    CASH = 'CASH', 'Cash at Chamber'
     STRIPE = 'STRIPE', 'Stripe'
     SSLCOMMERZ = 'SSLCOMMERZ', 'SSLCommerz'
     PAYPAL = 'PAYPAL', 'PayPal'
-    CASH = 'CASH', 'Cash'
 
 class Payment(BaseModel):
     """
@@ -24,11 +27,11 @@ class Payment(BaseModel):
         related_name='payment'
     )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=10, default='USD')
+    currency = models.CharField(max_length=10, default='BDT')
     payment_method = models.CharField(
         max_length=20,
         choices=PaymentMethod.choices,
-        default=PaymentMethod.STRIPE
+        default=PaymentMethod.BKASH
     )
     transaction_id = models.CharField(max_length=255, blank=True, default='')
     payment_status = models.CharField(

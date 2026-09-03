@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Payment
+from .models import Payment, PaymentMethod
 from apps.appointments.serializers import AppointmentSerializer
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -15,7 +15,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 class InitiatePaymentSerializer(serializers.Serializer):
     appointment_id = serializers.UUIDField(required=True)
-    payment_method = serializers.CharField(required=False, default='STRIPE')
+    payment_method = serializers.ChoiceField(choices=PaymentMethod.choices, default=PaymentMethod.BKASH)
 
 class ProcessPaymentSerializer(serializers.Serializer):
-    transaction_id = serializers.CharField(required=False, default='TXN_MOCK_SUCCESS')
+    transaction_id = serializers.CharField(required=False, default='BKASH_TRX_MOCK_12345')

@@ -2,7 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
-from apps.accounts.permissions import IsAdmin, IsClinicAdminOrAdmin
+from apps.accounts.permissions import IsAdmin, IsClinicAdminOrAdmin, IsDoctor
 from apps.clinics.models import Clinic, VerificationStatus
 from .models import Specialization, Doctor, DoctorClinic, DoctorClinicStatus
 from .serializers import (
@@ -76,7 +76,7 @@ class DoctorProfileSetupView(generics.GenericAPIView):
     GET: Returns the current user's Doctor profile.
     """
     serializer_class = DoctorProfileSetupSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsDoctor]
 
     def get(self, request, *args, **kwargs):
         if request.user.role != 'DOCTOR':
@@ -307,3 +307,63 @@ class DoctorAssignClinicByPkView(generics.GenericAPIView):
             initial_status=DoctorClinicStatus.ACCEPTED
         )
         return Response(DoctorClinicSerializer(mapping).data, status=status.HTTP_200_OK)
+
+
+from datetime import date
+from .models import ChamberSession, ChamberSessionStatus
+from .serializers import ChamberSessionSerializer, ChamberSessionUpdateSerializer
+
+@extend_schema(tags=['Chamber Sessions'])
+class ChamberSessionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        doctor_id = request.query_params.get('doctor_id')
+        clinic_id = request.query_params.get('clinic_id')
+        session_date_str = request.query_params.get('date') or str(date.today())
+
+        if not doctor_id or not clinic_id:
+            return Response({'detail': 'doctor_id and clinic_id query parameters are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        session, created = ChamberSession.objects.get_or_create(
+            doctor_id=doctor_id,
+            clinic_id=clinic_id,
+            session_date=session_date_str,
+            defaults={'status': ChamberSessionStatus.NOT_STARTED, 'current_serial': 0}
+        )
+        return Response(ChamberSessionSerializer(session).data, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChamberSessionUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        session_date = data.get('session_date') or date.today()
+        session, created = ChamberSession.objects.get_or_create(
+            doctor_id=data['doctor_id'],
+            clinic_id=data['clinic_id'],
+            session_date=session_date,
+            defaults={'status': ChamberSessionStatus.NOT_STARTED, 'current_serial': 0}
+        )
+
+        action = data.get('action')
+        if action == 'NEXT_SERIAL':
+            session.current_serial += 1
+            if session.status == ChamberSessionStatus.NOT_STARTED:
+                session.status = ChamberSessionStatus.IN_CHAMBER
+        elif action == 'PREV_SERIAL':
+            if session.current_serial > 0:
+                session.current_serial -= 1
+        elif action == 'SET_SERIAL':
+            if 'current_serial' in data:
+                session.current_serial = data['current_serial']
+        elif action == 'UPDATE_STATUS' or 'status' in data:
+            if 'status' in data:
+                session.status = data['status']
+
+        if 'status' in data and data['status']:
+            session.status = data['status']
+
+        session.save()
+        return Response(ChamberSessionSerializer(session).data, status=status.HTTP_200_OK)
+

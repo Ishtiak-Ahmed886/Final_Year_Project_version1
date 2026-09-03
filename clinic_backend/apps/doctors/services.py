@@ -25,6 +25,9 @@ def setup_doctor_profile(
     Called when a DOCTOR user sets up their own professional profile.
     Creates a new Doctor profile linked to the User, or updates the existing one.
     """
+    if getattr(user, 'role', None) != 'DOCTOR':
+        raise ValidationError({"user": "Only users with the DOCTOR role can set up a doctor profile."})
+
     # Check if user already has a doctor profile
     if hasattr(user, 'doctor_profile') and user.doctor_profile is not None:
         doctor = user.doctor_profile

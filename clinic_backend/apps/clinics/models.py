@@ -86,6 +86,7 @@ class ClinicDepartment(BaseModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        ordering = ['-created_at']
         unique_together = ('clinic', 'department')
         verbose_name = 'Clinic Department'
         verbose_name_plural = 'Clinic Departments'
