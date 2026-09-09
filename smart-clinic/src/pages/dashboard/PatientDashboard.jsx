@@ -5,7 +5,7 @@ import {
   Calendar, Clock, MapPin, Stethoscope, XCircle, CheckCircle,
   AlertCircle, CreditCard, Users, Plus, Heart, Phone, FastForward, Navigation, Bell,
   FileText, Printer, CheckCircle2, FolderHeart, ExternalLink, Trash2, Upload, Pencil, Smartphone, Building2,
-  Tv, Volume2, AlertTriangle
+  Tv, Volume2, AlertTriangle, Star, MessageSquare, Send, ThumbsUp
 } from "lucide-react";
 
 import { useLanguage } from "../../context/LanguageContext";
@@ -87,6 +87,14 @@ export default function PatientDashboard() {
     family_member_id: "",
   });
   const [submittingReport, setSubmittingReport] = useState(false);
+
+  // Review / Rating Modal State
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewAppointment, setReviewAppointment] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [existingReviews, setExistingReviews] = useState({}); // { appointmentId: review }
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -193,6 +201,42 @@ export default function PatientDashboard() {
       setRxViewModalOpen(false);
     } finally {
       setLoadingRx(false);
+    }
+  };
+
+  const openReviewModal = async (apt) => {
+    setReviewAppointment(apt);
+    setReviewRating(existingReviews[apt.id]?.rating || 5);
+    setReviewComment(existingReviews[apt.id]?.comment || "");
+    setReviewModalOpen(true);
+    // Check if review already exists
+    try {
+      const res = await apiClient.get(`/reviews/check/?appointment_id=${apt.id}`);
+      if (res?.has_review && res?.review) {
+        setExistingReviews((prev) => ({ ...prev, [apt.id]: res.review }));
+        setReviewRating(res.review.rating);
+        setReviewComment(res.review.comment || "");
+      }
+    } catch {}
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!reviewAppointment) return;
+    setSubmittingReview(true);
+    try {
+      const res = await apiClient.post("/reviews/create/", {
+        appointment_id: reviewAppointment.id,
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+      setExistingReviews((prev) => ({ ...prev, [reviewAppointment.id]: res }));
+      setActionMessage(`⭐ Thank you! Your review for Dr. ${reviewAppointment.doctor?.full_name} has been submitted.`);
+      setReviewModalOpen(false);
+    } catch (err) {
+      setError(typeof err === "string" ? err : "Could not submit review. You may have already reviewed this appointment.");
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -748,6 +792,21 @@ export default function PatientDashboard() {
                               className="btn btn-secondary btn-sm gap-1 text-white shadow-sm flex-1 md:flex-initial"
                             >
                               <FileText size={16} /> {t("viewPrescription")}
+                            </button>
+                          )}
+
+                          {apt.status === "COMPLETED" && (
+                            <button
+                              onClick={() => openReviewModal(apt)}
+                              className={`btn btn-sm gap-1 flex-1 md:flex-initial ${
+                                existingReviews[apt.id]
+                                  ? "btn-outline btn-warning"
+                                  : "btn-warning text-white shadow-sm"
+                              }`}
+                              title={existingReviews[apt.id] ? "Update your review" : "Leave a review for this doctor"}
+                            >
+                              <Star size={15} />
+                              {existingReviews[apt.id] ? "Edit Review" : t("leaveReview") || "Leave Review"}
                             </button>
                           )}
 
@@ -1646,6 +1705,101 @@ export default function PatientDashboard() {
                   className="btn btn-secondary flex-1 text-white shadow-md"
                 >
                   {submittingReport ? "Uploading..." : "Save to Vault"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====== REVIEW / RATING MODAL ====== */}
+      {reviewModalOpen && reviewAppointment && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-base-100 max-w-lg w-full rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-base-200 pb-3">
+              <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
+                <Star className="text-warning" size={22} />
+                {existingReviews[reviewAppointment.id] ? "Update Your Review" : "Leave a Review"}
+              </h3>
+              <button onClick={() => setReviewModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
+            </div>
+
+            {/* Doctor Info */}
+            <div className="bg-base-200/40 p-3 rounded-2xl flex items-center gap-3">
+              <div className="bg-primary/10 p-2 rounded-xl">
+                <Stethoscope size={20} className="text-primary" />
+              </div>
+              <div>
+                <div className="font-extrabold text-base-content">Dr. {reviewAppointment.doctor?.full_name}</div>
+                <div className="text-xs text-base-content/60">
+                  {reviewAppointment.clinic?.name} · {reviewAppointment.appointment_date}
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="space-y-5">
+              {/* Star Rating */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-base-content">Your Rating</label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="transition-transform hover:scale-125"
+                    >
+                      <Star
+                        size={32}
+                        className={star <= reviewRating ? "text-warning fill-warning" : "text-base-300"}
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-2 font-black text-warning text-lg">
+                    {reviewRating}/5
+                  </span>
+                  <span className="text-xs text-base-content/50 ml-1">
+                    {reviewRating === 5 ? "Excellent! 🌟" : reviewRating === 4 ? "Very Good 👍" : reviewRating === 3 ? "Average 😐" : reviewRating === 2 ? "Poor 😕" : "Very Poor 😞"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Comment */}
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-base-content">Your Comments (Optional)</label>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  rows={3}
+                  placeholder="Describe your experience with the doctor — wait time, diagnosis quality, behavior, etc."
+                  className="textarea textarea-bordered w-full text-sm resize-none"
+                  maxLength={500}
+                />
+                <div className="text-[10px] text-base-content/40 text-right">{reviewComment.length}/500</div>
+              </div>
+
+              {existingReviews[reviewAppointment.id] && (
+                <div className="bg-warning/10 border border-warning/30 text-warning-content p-3 rounded-xl text-xs flex items-center gap-2">
+                  <ThumbsUp size={14} className="text-warning shrink-0" />
+                  You already reviewed this appointment. Submitting again will overwrite your previous review.
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setReviewModalOpen(false)} className="btn btn-ghost flex-1 rounded-xl">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReview}
+                  className="btn btn-warning flex-1 text-white font-bold shadow-md gap-2"
+                >
+                  {submittingReview ? (
+                    <span className="loading loading-spinner loading-xs" />
+                  ) : (
+                    <Send size={16} />
+                  )}
+                  {submittingReview ? "Submitting..." : "Submit Review"}
                 </button>
               </div>
             </form>

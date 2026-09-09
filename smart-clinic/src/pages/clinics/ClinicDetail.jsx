@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import apiClient from "../../api/axios";
-import { MapPin, Phone, Mail, Building2, Stethoscope, CalendarCheck, UserCheck, ArrowLeft, Award, ExternalLink, LayoutDashboard } from "lucide-react";
+import { MapPin, Phone, Mail, Building2, Stethoscope, CalendarCheck, UserCheck, ArrowLeft, Award, ExternalLink, LayoutDashboard, Star, MessageSquare } from "lucide-react";
 import { useAuth } from "../../Provider/AuthProvider";
 
 export default function ClinicDetail() {
@@ -10,6 +10,7 @@ export default function ClinicDetail() {
   const { user } = useAuth();
   const [clinic, setClinic] = useState(null);
   const [doctors, setDoctors] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -31,6 +32,9 @@ export default function ClinicDetail() {
 
         const doctorsData = await apiClient.get(`/doctors/?clinic_id=${id}`);
         setDoctors(doctorsData.results || doctorsData || []);
+
+        const reviewsData = await apiClient.get(`/reviews/?clinic_id=${id}`);
+        setReviews(reviewsData.results || reviewsData || []);
       } catch (err) {
         setError("Failed to load clinic details.");
       } finally {
@@ -103,8 +107,14 @@ export default function ClinicDetail() {
             </div>
             <div>
               <h1 className="text-2xl md:text-4xl font-extrabold text-base-content">{clinic.name}</h1>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex flex-wrap items-center gap-2 mt-1">
                 <span className="badge badge-accent badge-soft font-semibold">{clinic.subscription_plan || "Verified"}</span>
+                {clinic.average_rating ? (
+                  <span className="badge badge-warning gap-1 font-bold text-xs text-amber-900 bg-amber-100 border-amber-300">
+                    <Star size={12} className="fill-amber-400 text-amber-500" />
+                    {clinic.average_rating} / 5 ({clinic.review_count || reviews.length} reviews)
+                  </span>
+                ) : null}
                 <span className="text-sm text-base-content/60 flex items-center gap-1">
                   <MapPin size={14} className="text-primary" /> {clinic.city}
                 </span>
@@ -217,6 +227,65 @@ export default function ClinicDetail() {
                     </Link>
                   </div>
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Patient Reviews Section */}
+      <div className="space-y-4 pt-6 border-t border-base-200">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-base-content flex items-center gap-2">
+              <Star className="text-warning fill-warning" size={20} /> Verified Patient Reviews
+            </h2>
+            <p className="text-xs text-base-content/60">
+              Honest ratings and feedback submitted by patients after completing visits.
+            </p>
+          </div>
+          {reviews.length > 0 && (
+            <span className="badge badge-warning badge-soft font-bold text-xs">
+              {reviews.length} Verified Review{reviews.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+
+        {reviews.length === 0 ? (
+          <div className="text-center py-10 bg-base-100 rounded-3xl border border-base-200 text-xs text-base-content/50 space-y-1">
+            <MessageSquare size={28} className="mx-auto text-base-content/30 mb-2" />
+            <div className="font-semibold text-base-content/70">No patient reviews yet for this clinic</div>
+            <div>Reviews appear automatically after verified patients complete their consultations.</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {reviews.map((rev) => (
+              <div key={rev.id} className="bg-base-100 border border-base-200 p-5 rounded-2xl space-y-2.5 shadow-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-extrabold text-sm text-base-content">{rev.patient_name}</div>
+                    <div className="text-[11px] text-base-content/50">
+                      Dr. {rev.doctor_name} · {new Date(rev.created_at).toLocaleDateString("en-GB")}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0.5 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        size={12}
+                        className={s <= rev.rating ? "text-warning fill-warning" : "text-base-300"}
+                      />
+                    ))}
+                    <span className="font-black text-xs text-amber-700 ml-1">{rev.rating}.0</span>
+                  </div>
+                </div>
+                {rev.comment ? (
+                  <p className="text-xs text-base-content/80 leading-relaxed italic bg-base-200/40 p-3 rounded-xl">
+                    "{rev.comment}"
+                  </p>
+                ) : (
+                  <div className="text-[11px] text-base-content/40 italic">Rated {rev.rating} stars with no written comment.</div>
+                )}
               </div>
             ))}
           </div>

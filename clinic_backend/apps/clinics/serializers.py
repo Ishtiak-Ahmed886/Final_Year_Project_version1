@@ -19,15 +19,26 @@ class ClinicDepartmentSerializer(serializers.ModelSerializer):
 class ClinicSerializer(serializers.ModelSerializer):
     departments = DepartmentSerializer(many=True, read_only=True)
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Clinic
         fields = (
             'id', 'owner', 'owner_email', 'name', 'slug', 'address', 'city',
             'phone', 'email', 'logo_url', 'certificate_url', 'latitude', 'longitude',
-            'subscription_plan', 'verification_status', 'is_active', 'departments', 'created_at'
+            'subscription_plan', 'verification_status', 'is_active', 'departments',
+            'average_rating', 'review_count', 'created_at'
         )
         read_only_fields = ('id', 'verification_status', 'created_at')
+
+    def get_average_rating(self, obj):
+        from django.db.models import Avg
+        avg = obj.reviews.aggregate(Avg('rating'))['rating__avg']
+        return round(float(avg), 1) if avg is not None else None
+
+    def get_review_count(self, obj):
+        return obj.reviews.count()
 
 class ClinicCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:

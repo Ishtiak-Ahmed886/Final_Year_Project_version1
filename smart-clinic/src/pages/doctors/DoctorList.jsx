@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import apiClient from "../../api/axios";
-import { Stethoscope, Award, CalendarCheck, Search, User, Filter, Building2, ArrowLeft, LayoutDashboard } from "lucide-react";
+import { Stethoscope, Award, CalendarCheck, Search, User, Filter, Building2, ArrowLeft, LayoutDashboard, Star } from "lucide-react";
 import { useAuth } from "../../Provider/AuthProvider";
 
 export default function DoctorList() {
@@ -142,9 +142,19 @@ export default function DoctorList() {
                       Dr. {doctor.full_name}
                     </h2>
                     <p className="text-xs text-primary font-semibold">{doctor.qualification || "Medical Specialist"}</p>
-                    <div className="flex items-center gap-1 mt-1 text-xs text-base-content/60">
-                      <Award size={14} className="text-warning" />
-                      <span>{doctor.experience_years} years experience</span>
+                    <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-base-content/60">
+                      <div className="flex items-center gap-1">
+                        <Award size={14} className="text-warning" />
+                        <span>{doctor.experience_years} yrs exp</span>
+                      </div>
+                      {doctor.average_rating ? (
+                        <div className="flex items-center gap-1 font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-md">
+                          <Star size={12} className="fill-amber-400 text-amber-400" />
+                          <span>{doctor.average_rating} ({doctor.review_count})</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-base-content/40">No reviews yet</span>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -32,6 +32,8 @@ class DoctorSerializer(serializers.ModelSerializer):
         child=serializers.UUIDField(), write_only=True, required=False
     )
     doctor_clinics = DoctorClinicSerializer(many=True, read_only=True)
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Doctor
@@ -39,9 +41,18 @@ class DoctorSerializer(serializers.ModelSerializer):
             'id', 'full_name', 'email', 'phone', 'experience_years',
             'qualification', 'bio', 'avatar_url', 'certificate_url',
             'verification_status', 'is_active',
-            'specializations', 'specialization_ids', 'doctor_clinics', 'created_at'
+            'specializations', 'specialization_ids', 'doctor_clinics',
+            'average_rating', 'review_count', 'created_at'
         )
         read_only_fields = ('id', 'created_at')
+
+    def get_average_rating(self, obj):
+        from django.db.models import Avg
+        avg = obj.reviews.aggregate(Avg('rating'))['rating__avg']
+        return round(float(avg), 1) if avg is not None else None
+
+    def get_review_count(self, obj):
+        return obj.reviews.count()
 
 
 class DoctorClinicAssignmentSerializer(serializers.Serializer):
