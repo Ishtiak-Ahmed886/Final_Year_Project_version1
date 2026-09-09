@@ -113,7 +113,7 @@ class AppointmentCheckInView(generics.GenericAPIView):
                 'amount': appointment.amount,
                 'currency': 'BDT',
                 'payment_method': PaymentMethod.CASH,
-                'status': PaymentStatus.COMPLETED,
+                'payment_status': PaymentStatus.COMPLETED,
                 'transaction_id': f"CASH_CHECKIN_{appointment.id.hex[:8]}"
             }
         )

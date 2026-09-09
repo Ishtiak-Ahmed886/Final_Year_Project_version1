@@ -113,3 +113,46 @@ class AppointmentsTestCase(TestCase):
                 rating=4,
                 comment="Good service"
             )
+
+    def test_walk_in_counter_booking_flow(self):
+        """Clinic Admin can book walk-in counter appointment with instant CONFIRMED status."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.clinic_admin)
+
+        response = client.post('/api/v1/appointments/', {
+            'clinic_id': str(self.clinic.id),
+            'doctor_id': str(self.doctor.id),
+            'appointment_date': str(date(2026, 8, 15)),
+            'appointment_time': '12:00:00',
+            'is_walk_in': True,
+            'walk_in_name': 'Walk-in Patient Karim',
+            'walk_in_phone': '01899999999',
+            'problem_description': 'Chest congestion'
+        }, format='json')
+
+        self.assertEqual(response.status_code, 201)
+        data = response.data.get('data', response.data)
+        self.assertEqual(data['status'], AppointmentStatus.CONFIRMED)
+        self.assertEqual(data['serial_number'], 1)
+
+    def test_counter_cash_check_in_endpoint(self):
+        """Clinic reception can mark PENDING appointment as paid in cash and confirmed."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.clinic_admin)
+
+        apt = book_appointment(
+            patient=self.patient,
+            clinic_id=self.clinic.id,
+            doctor_id=self.doctor.id,
+            appointment_date=date(2026, 8, 16),
+            appointment_time=time(14, 0)
+        )
+        self.assertEqual(apt.status, AppointmentStatus.PENDING)
+
+        response = client.post(f'/api/v1/appointments/{apt.id}/checkin/')
+        self.assertEqual(response.status_code, 200)
+        apt.refresh_from_db()
+        self.assertEqual(apt.status, AppointmentStatus.CONFIRMED)
+
