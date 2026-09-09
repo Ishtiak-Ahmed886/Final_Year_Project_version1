@@ -56,7 +56,7 @@ export default function SuperAdminDashboard() {
   const handleVerifyClinic = async (clinicId, verification_status) => {
     try {
       await apiClient.patch(`/clinics/${clinicId}/verify/`, { verification_status });
-      showMsg(`Clinic status updated to ${verification_status}`);
+      showMsg(`Clinic ${verification_status === "VERIFIED" ? "approved" : "rejected"} successfully! Notification & email sent.`);
       loadData();
     } catch {
       showErr("Failed to update clinic status.");
@@ -66,7 +66,7 @@ export default function SuperAdminDashboard() {
   const handleVerifyDoctor = async (doctorId, verification_status) => {
     try {
       await apiClient.patch(`/doctors/${doctorId}/verify/`, { verification_status });
-      showMsg(`Doctor status updated to ${verification_status}`);
+      showMsg(`Doctor ${verification_status === "VERIFIED" ? "approved" : "rejected"} successfully! Notification & email sent.`);
       loadData();
     } catch {
       showErr("Failed to update doctor status.");
@@ -235,7 +235,7 @@ export default function SuperAdminDashboard() {
           {/* Pending Clinics */}
           <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
             <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-              <Building2 className="text-primary" /> Pending Clinic Registrations ({pendingClinics.length})
+              <Building2 className="text-primary" /> Pending Clinic Approvals ({pendingClinics.length})
             </h2>
             {pendingClinics.length === 0 ? (
               <div className="text-center py-6 text-sm text-base-content/60">No pending clinic registrations.</div>
@@ -278,7 +278,7 @@ export default function SuperAdminDashboard() {
           {/* Pending Doctors */}
           <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
             <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-              <Stethoscope className="text-secondary" /> Pending Doctor Profiles ({pendingDoctors.length})
+              <Stethoscope className="text-secondary" /> Pending Doctor Approvals ({pendingDoctors.length})
             </h2>
             {pendingDoctors.length === 0 ? (
               <div className="text-center py-6 text-sm text-base-content/60">No pending doctor profile applications.</div>

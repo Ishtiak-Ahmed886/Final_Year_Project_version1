@@ -7,10 +7,11 @@ from apps.doctors.models import DoctorClinic, DoctorClinicStatus
 from apps.clinics.models import Clinic, VerificationStatus
 from apps.doctors.models import Doctor
 
-def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_date: date, appointment_time: time, problem_description: str = "", family_member_id: Optional[str] = None) -> Appointment:
+def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_date: date, appointment_time: time, problem_description: str = "", family_member_id: Optional[str] = None, initial_status: str = AppointmentStatus.PENDING, is_walk_in: bool = False) -> Appointment:
     """
     Atomic appointment booking with concurrency protection against double booking.
     Enforces that Clinic and Doctor are VERIFIED and their service agreement is ACCEPTED.
+    Supports walk-in appointments booked at clinic counter with instant confirmation.
     """
     try:
         doctor_clinic = DoctorClinic.objects.select_related('doctor', 'clinic', 'department').get(
@@ -53,6 +54,15 @@ def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_dat
         if existing:
             raise ValidationError({"appointment_time": "This time slot is already booked. Please choose another slot."})
 
+        # Calculate sequential serial number for this doctor at this clinic on this date
+        current_count = Appointment.objects.filter(
+            doctor_id=doctor_id,
+            clinic_id=clinic_id,
+            appointment_date=appointment_date,
+            status__in=[AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]
+        ).count()
+        next_serial = current_count + 1
+
         # Check doctor schedule if configured
         from apps.doctors.models import DoctorSchedule
         day_num = appointment_date.weekday()
@@ -73,15 +83,6 @@ def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_dat
                     "appointment_date": f"Maximum appointment capacity ({schedule.max_patients} patients) reached for this chamber session."
                 })
 
-        # Calculate sequential serial number for this doctor at this clinic on this date
-        current_count = Appointment.objects.filter(
-            doctor_id=doctor_id,
-            clinic_id=clinic_id,
-            appointment_date=appointment_date,
-            status__in=[AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]
-        ).count()
-        next_serial = current_count + 1
-
         try:
             appointment = Appointment.objects.create(
                 patient=patient,
@@ -94,24 +95,39 @@ def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_dat
                 serial_number=next_serial,
                 amount=amount,
                 problem_description=problem_description,
-                status=AppointmentStatus.PENDING
+                status=initial_status
             )
+
+            # If walk-in or marked confirmed with cash, record payment entry
+            if initial_status == AppointmentStatus.CONFIRMED:
+                try:
+                    from apps.payments.models import Payment, PaymentMethod, PaymentStatus
+                    Payment.objects.create(
+                        appointment=appointment,
+                        amount=amount,
+                        currency='BDT',
+                        payment_method=PaymentMethod.CASH,
+                        status=PaymentStatus.COMPLETED,
+                        transaction_id=f"CASH_COUNTER_{appointment.id.hex[:8]}"
+                    )
+                except Exception:
+                    pass
 
             # Dispatch SMS & in-app booking confirmation notification
             try:
                 from apps.notifications.sms_service import send_sms_notification
                 from apps.notifications.models import NotificationType
                 patient_name = family_member.full_name if family_member else f"{patient.first_name} {patient.last_name}".strip()
+                status_text = "Confirmed (Cash Paid at Counter)" if initial_status == AppointmentStatus.CONFIRMED else "Booked"
                 send_sms_notification(
                     recipient=patient,
-                    title="Appointment Booked ✅",
+                    title=f"Appointment {status_text} ✅",
                     message=(
-                        f"Dear {patient_name}, your appointment with Dr. {doctor_clinic.doctor.full_name} "
-                        f"at {doctor_clinic.clinic.name} on {appointment_date} has been booked. "
-                        f"Serial #: {next_serial}. Fee: ৳{amount} BDT. "
-                        f"Please pay to confirm your slot."
+                        f"Dear {patient_name}, your token with Dr. {doctor_clinic.doctor.full_name} "
+                        f"at {doctor_clinic.clinic.name} on {appointment_date} ({appointment_time.strftime('%I:%M %p') if hasattr(appointment_time, 'strftime') else appointment_time}) is {status_text}. "
+                        f"Serial #: {next_serial}. Fee: ৳{amount} BDT."
                     ),
-                    notification_type=NotificationType.APPOINTMENT_BOOKED
+                    notification_type=NotificationType.APPOINTMENT_CONFIRMED if initial_status == AppointmentStatus.CONFIRMED else NotificationType.APPOINTMENT_BOOKED
                 )
             except Exception:
                 pass  # Never let notification failure break core booking flow
@@ -119,6 +135,7 @@ def book_appointment(*, patient, clinic_id: str, doctor_id: str, appointment_dat
             return appointment
         except IntegrityError:
             raise ValidationError({"appointment_time": "Time slot conflict. Slot was booked concurrently."})
+
 
 def cancel_appointment(*, appointment: Appointment, cancelled_by_user) -> Appointment:
     if appointment.status in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:

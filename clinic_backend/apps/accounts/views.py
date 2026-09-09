@@ -50,14 +50,21 @@ class ChangePasswordView(generics.GenericAPIView):
         )
         return Response({'detail': 'Password changed successfully.'}, status=status.HTTP_200_OK)
 
+from .permissions import IsFamilyMemberOwner
+
 @extend_schema(tags=['Family Members'])
 class FamilyMemberViewSet(viewsets.ModelViewSet):
     serializer_class = FamilyMemberSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsFamilyMemberOwner]
 
     def get_queryset(self):
-        return FamilyMember.objects.filter(patient=self.request.user)
+        if self.action == 'list':
+            return FamilyMember.objects.filter(patient=self.request.user)
+        return FamilyMember.objects.all()
 
     def perform_create(self, serializer):
+        serializer.save(patient=self.request.user)
+
+    def perform_update(self, serializer):
         serializer.save(patient=self.request.user)
 

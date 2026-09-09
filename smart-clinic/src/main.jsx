@@ -9,9 +9,12 @@ import ClinicDetail from "./pages/clinics/ClinicDetail";
 import DoctorList from "./pages/doctors/DoctorList";
 import BookAppointment from "./pages/appointments/BookAppointment";
 import DashboardLayout from "./pages/dashboard/DashboardLayout";
+import CheckoutGateway from "./pages/checkout/CheckoutGateway";
 import { AuthProvider } from "./Provider/AuthProvider";
 import { LanguageProvider } from "./context/LanguageContext";
 import { PrivateRoute, RoleRoute } from "./components/shared/PrivateRoute";
+import WaitingRoomDisplay from "./pages/queue/WaitingRoomDisplay";
+import PrescriptionVerify from "./pages/prescriptions/PrescriptionVerify";
 import "./App.css";
 
 const root = document.getElementById("root");
@@ -21,6 +24,12 @@ ReactDOM.createRoot(root).render(
     <LanguageProvider>
       <AuthProvider>
         <Routes>
+          <Route path="/queue-display/:clinicId/:doctorId" element={<WaitingRoomDisplay />} />
+          <Route path="/queue-display" element={<WaitingRoomDisplay />} />
+          <Route path="/verify-prescription/:qrToken" element={<PrescriptionVerify />} />
+          <Route path="/verify-prescription" element={<PrescriptionVerify />} />
+          <Route path="/verify/:qrToken" element={<PrescriptionVerify />} />
+          <Route path="/verify" element={<PrescriptionVerify />} />
           <Route path="/" element={<App />}>
             <Route index element={<HomePage />} />
             <Route path="login" element={<Login />} />
@@ -44,9 +53,11 @@ ReactDOM.createRoot(root).render(
                 </PrivateRoute>
               }
             />
+            <Route path="checkout/:paymentId" element={<CheckoutGateway />} />
           </Route>
         </Routes>
       </AuthProvider>
     </LanguageProvider>
   </BrowserRouter>
 );
+

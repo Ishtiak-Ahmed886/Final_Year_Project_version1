@@ -15,14 +15,20 @@ def initiate_payment(*, appointment: Appointment, payment_method: str = PaymentM
     )
     return payment
 
-def process_payment_success(*, payment: Payment, transaction_id: str) -> Payment:
+def process_payment_success(*, payment: Payment, transaction_id: str, val_id: str = '', bank_tran_id: str = '', card_type: str = '') -> Payment:
     if payment.payment_status == PaymentStatus.COMPLETED:
         return payment
 
     with transaction.atomic():
         payment.payment_status = PaymentStatus.COMPLETED
         payment.transaction_id = transaction_id
-        payment.save(update_fields=['payment_status', 'transaction_id', 'updated_at'])
+        if val_id:
+            payment.val_id = val_id
+        if bank_tran_id:
+            payment.bank_tran_id = bank_tran_id
+        if card_type:
+            payment.card_type = card_type
+        payment.save(update_fields=['payment_status', 'transaction_id', 'val_id', 'bank_tran_id', 'card_type', 'updated_at'])
 
         # Update appointment status to CONFIRMED
         appointment = payment.appointment

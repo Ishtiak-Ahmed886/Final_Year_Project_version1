@@ -8,15 +8,38 @@ User = get_user_model()
 class FamilyMemberSerializer(serializers.ModelSerializer):
     patient_email = serializers.ReadOnlyField(source='patient.email')
     relationship_display = serializers.CharField(source='get_relationship_display', read_only=True)
+    name = serializers.CharField(source='full_name', required=False)
 
     class Meta:
         model = FamilyMember
         fields = (
-            'id', 'patient', 'patient_email', 'full_name', 'relationship',
-            'relationship_display', 'phone', 'age', 'gender', 'blood_group',
+            'id', 'patient', 'patient_email', 'full_name', 'name', 'relationship',
+            'relationship_display', 'phone', 'age', 'date_of_birth', 'gender', 'blood_group',
             'medical_notes', 'created_at', 'updated_at'
         )
-        read_only_fields = ('id', 'patient', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'patient', 'patient_email', 'created_at', 'updated_at', 'relationship_display')
+
+    def validate(self, attrs):
+        if 'date_of_birth' in attrs and attrs['date_of_birth'] and not attrs.get('age'):
+            from datetime import date
+            dob = attrs['date_of_birth']
+            today = date.today()
+            attrs['age'] = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+        phone = attrs.get('phone', '')
+        if phone:
+            import re
+            cleaned_phone = re.sub(r'[\s\-]', '', str(phone))
+            if cleaned_phone.startswith('+880'):
+                cleaned_phone = '0' + cleaned_phone[4:]
+            elif cleaned_phone.startswith('880'):
+                cleaned_phone = '0' + cleaned_phone[3:]
+
+            if not re.match(r'^01[3-9]\d{8}$', cleaned_phone):
+                raise serializers.ValidationError({"phone": "Please enter a valid 11-digit Bangladeshi mobile number (e.g. 01712345678)."})
+            attrs['phone'] = cleaned_phone
+
+        return attrs
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -28,6 +51,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        if self.username_field in attrs and isinstance(attrs[self.username_field], str):
+            attrs[self.username_field] = attrs[self.username_field].strip().lower()
         data = super().validate(attrs)
         data['user'] = {
             'id': str(self.user.id),
@@ -50,6 +75,23 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs['password'] != attrs.pop('password_confirm'):
             raise serializers.ValidationError({"password": "Passwords do not match."})
+
+        if 'email' in attrs and isinstance(attrs['email'], str):
+            attrs['email'] = attrs['email'].strip().lower()
+
+        phone = attrs.get('phone', '')
+        if phone:
+            import re
+            cleaned_phone = re.sub(r'[\s\-]', '', str(phone))
+            if cleaned_phone.startswith('+880'):
+                cleaned_phone = '0' + cleaned_phone[4:]
+            elif cleaned_phone.startswith('880'):
+                cleaned_phone = '0' + cleaned_phone[3:]
+
+            if not re.match(r'^01[3-9]\d{8}$', cleaned_phone):
+                raise serializers.ValidationError({"phone": "Please enter a valid 11-digit Bangladeshi mobile number (e.g. 01712345678)."})
+            attrs['phone'] = cleaned_phone
+
         return attrs
 
     def create(self, validated_data):

@@ -35,7 +35,7 @@ class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError('The Email field must be set')
-        email = self.normalize_email(email)
+        email = self.normalize_email(email).strip().lower()
         extra_fields.setdefault('role', UserRole.PATIENT)
         user = self.model(email=email, **extra_fields)
         if password:
@@ -49,6 +49,10 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('role', UserRole.ADMIN)
+
+        if not email:
+            raise ValueError('The Email field must be set')
+        email = self.normalize_email(email).strip().lower()
 
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Superuser must have is_staff=True.')
@@ -110,6 +114,7 @@ class FamilyMember(BaseModel):
     )
     phone = models.CharField(max_length=20, blank=True, null=True)
     age = models.PositiveIntegerField(null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(
         max_length=10,
         choices=Gender.choices,

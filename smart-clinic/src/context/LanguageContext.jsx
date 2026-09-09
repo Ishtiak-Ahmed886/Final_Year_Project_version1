@@ -68,10 +68,15 @@ const translations = {
     relationship: "Relationship",
     phone: "Phone Number (BD)",
     age: "Age",
+    dateOfBirth: "Date of Birth",
     gender: "Gender",
     bloodGroup: "Blood Group",
     medicalNotes: "Medical Notes / History",
     saveMember: "Save Member",
+    editMember: "Edit Family Member",
+    updateMember: "Update Member",
+    deleteMember: "Delete",
+    confirmDeleteMember: "Are you sure you want to remove this family member?",
     saving: "Saving...",
 
     // Prescription
@@ -82,6 +87,14 @@ const translations = {
     recommendedTests: "Recommended Lab Tests:",
     doctorAdvice: "Doctor Advice:",
     prescribedMedicines: "Rx (Prescribed Medicines)",
+    rxVerificationTitle: "Official E-Prescription Verification",
+    rxVerificationSubtitle: "Government & DGDA Compliant Digital Medical Record Verification for Pharmacies & Labs",
+    verifyPrescription: "Verify Prescription",
+    enterQrToken: "Enter QR Token / Prescription UUID",
+    dispenseHelper: "Pharmacy Dispensing Checklist",
+    markDispensed: "Dispensed",
+    copyVerifyLink: "Copy Link",
+    linkCopied: "Link Copied!",
 
     // Medical Report Vault
     medicalReportVault: "Medical Report Vault",
@@ -164,10 +177,15 @@ const translations = {
     relationship: "সম্পর্ক",
     phone: "ফোন নম্বর (বাংলাদেশ)",
     age: "বয়স",
+    dateOfBirth: "জন্ম তারিখ",
     gender: "লিঙ্গ",
     bloodGroup: "রক্তের গ্রুপ",
     medicalNotes: "চিকিৎসার নোট / ইতিহাস",
     saveMember: "সদস্য সংরক্ষণ করুন",
+    editMember: "সদস্য সম্পাদনা করুন",
+    updateMember: "আপডেট করুন",
+    deleteMember: "মুছুন",
+    confirmDeleteMember: "আপনি কি নিশ্চিতভাবে এই সদস্যকে মুছে ফেলতে চান?",
     saving: "সংরক্ষণ হচ্ছে...",
 
     // Prescription
@@ -178,6 +196,14 @@ const translations = {
     recommendedTests: "প্রস্তাবিত ল্যাব পরীক্ষা:",
     doctorAdvice: "ডাক্তারের পরামর্শ:",
     prescribedMedicines: "Rx (নির্ধারিত ওষুধ)",
+    rxVerificationTitle: "অফিসিয়াল ই-প্রেসক্রিপশন যাচাইকরণ",
+    rxVerificationSubtitle: "ফার্মেসি ও ডায়াগনস্টিক ল্যাবের জন্য ডিজিডিএ অনুমোদিত ডিজিটাল চিকিৎসা ব্যবস্থাপত্র যাচাইকরণ",
+    verifyPrescription: "প্রেসক্রিপশন যাচাই করুন",
+    enterQrToken: "কিউআর টোকেন বা কোড লিখুন",
+    dispenseHelper: "ফার্মেসি ওষুধ বিতরণ চেকলিস্ট",
+    markDispensed: "দেওয়া হয়েছে",
+    copyVerifyLink: "লিংক কপি",
+    linkCopied: "লিংক কপি হয়েছে!",
 
     // Medical Report Vault
     medicalReportVault: "মেডিকেল রিপোর্ট ভল্ট",

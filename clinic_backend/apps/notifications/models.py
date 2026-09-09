@@ -8,6 +8,8 @@ class NotificationType(models.TextChoices):
     APPOINTMENT_CANCELLED = 'APPOINTMENT_CANCELLED', 'Appointment Cancelled'
     SERIAL_PROXIMITY_ALERT = 'SERIAL_PROXIMITY_ALERT', 'Serial Proximity Alert'
     PRESCRIPTION_ISSUED = 'PRESCRIPTION_ISSUED', 'Prescription Issued'
+    CLINIC_APPROVED = 'CLINIC_APPROVED', 'Clinic Approved'
+    DOCTOR_APPROVED = 'DOCTOR_APPROVED', 'Doctor Approved'
     SYSTEM = 'SYSTEM', 'System'
 
 class Notification(BaseModel):

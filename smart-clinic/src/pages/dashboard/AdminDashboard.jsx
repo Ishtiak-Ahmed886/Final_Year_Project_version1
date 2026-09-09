@@ -14,6 +14,9 @@ import {
   Info,
   UserPlus,
   Link as LinkIcon,
+  ExternalLink,
+  XCircle,
+  FileCheck,
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -230,6 +233,30 @@ export default function AdminDashboard() {
     }
   };
 
+  const pendingClinics = clinics.filter((c) => c.verification_status === "PENDING");
+  const pendingDoctors = doctors.filter((d) => d.verification_status === "PENDING");
+  const totalPending = pendingClinics.length + pendingDoctors.length;
+
+  const handleVerifyClinic = async (clinicId, verification_status) => {
+    try {
+      await apiClient.patch(`/clinics/${clinicId}/verify/`, { verification_status });
+      setMsg(`Clinic ${verification_status === "VERIFIED" ? "approved" : "rejected"} successfully! Notification & email sent.`);
+      loadAllData();
+    } catch {
+      setError("Failed to update clinic status.");
+    }
+  };
+
+  const handleVerifyDoctor = async (doctorId, verification_status) => {
+    try {
+      await apiClient.patch(`/doctors/${doctorId}/verify/`, { verification_status });
+      setMsg(`Doctor ${verification_status === "VERIFIED" ? "approved" : "rejected"} successfully! Notification & email sent.`);
+      loadAllData();
+    } catch {
+      setError("Failed to update doctor status.");
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header Banner */}
@@ -322,7 +349,108 @@ export default function AdminDashboard() {
         >
           <Layers size={16} /> Departments & Specializations
         </button>
+        <button
+          onClick={() => setActiveTab("approvals")}
+          className={`tab font-bold gap-2 ${activeTab === "approvals" ? "tab-active bg-primary text-white rounded-xl" : ""}`}
+        >
+          <FileCheck size={16} /> Pending Approvals ({totalPending})
+        </button>
       </div>
+
+      {/* TAB 0: PENDING APPROVALS */}
+      {activeTab === "approvals" && (
+        <div className="space-y-6">
+          {/* Pending Doctor Approvals */}
+          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
+            <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
+              <Stethoscope className="text-primary" /> Pending Doctor Approvals ({pendingDoctors.length})
+            </h2>
+            {pendingDoctors.length === 0 ? (
+              <div className="text-center py-6 text-sm text-base-content/60">
+                No pending doctor profile applications.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingDoctors.map((d) => (
+                  <div key={d.id} className="p-5 bg-base-200/50 rounded-2xl border border-base-200 flex flex-col md:flex-row justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="font-extrabold text-lg flex items-center gap-2">
+                        Dr. {d.full_name} <span className="badge badge-warning text-xs font-bold">PENDING</span>
+                      </div>
+                      <div className="text-xs text-base-content/70 flex flex-wrap gap-4">
+                        <span>🎓 {d.qualification}</span>
+                        <span>⏱️ {d.experience_years} yrs exp</span>
+                        <span>📧 {d.email}</span>
+                      </div>
+                      {d.certificate_url ? (
+                        <a href={d.certificate_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary font-bold hover:underline bg-primary/10 px-3 py-1.5 rounded-lg">
+                          <ExternalLink size={13} /> View License Certificate ↗
+                        </a>
+                      ) : (
+                        <span className="text-xs text-error font-semibold">No certificate document uploaded</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => handleVerifyDoctor(d.id, "VERIFIED")} className="btn btn-success btn-sm gap-1 text-white shadow-sm">
+                        <CheckCircle2 size={16} /> Approve
+                      </button>
+                      <button onClick={() => handleVerifyDoctor(d.id, "REJECTED")} className="btn btn-error btn-sm gap-1 text-white shadow-sm">
+                        <XCircle size={16} /> Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pending Clinic Approvals */}
+          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
+            <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
+              <Building2 className="text-secondary" /> Pending Clinic Approvals ({pendingClinics.length})
+            </h2>
+            {pendingClinics.length === 0 ? (
+              <div className="text-center py-6 text-sm text-base-content/60">
+                No pending clinic registrations.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingClinics.map((c) => (
+                  <div key={c.id} className="p-5 bg-base-200/50 rounded-2xl border border-base-200 flex flex-col md:flex-row justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="font-extrabold text-lg flex items-center gap-2">
+                        {c.name} <span className="badge badge-warning text-xs font-bold">PENDING</span>
+                      </div>
+                      <div className="text-xs text-base-content/70 flex flex-wrap gap-4">
+                        <span>📍 {c.address}, {c.city}</span>
+                        <span>📧 {c.email}</span>
+                        <span>👤 Owner: {c.owner_email}</span>
+                      </div>
+                      {c.certificate_url ? (
+                        <a href={c.certificate_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-secondary font-bold hover:underline bg-secondary/10 px-3 py-1.5 rounded-lg">
+                          <ExternalLink size={13} /> View Clinic Registration Certificate ↗
+                        </a>
+                      ) : (
+                        <span className="text-xs text-error font-semibold">No certificate document uploaded</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => handleVerifyClinic(c.id, "VERIFIED")} className="btn btn-success btn-sm gap-1 text-white shadow-sm">
+                        <CheckCircle2 size={16} /> Approve
+                      </button>
+                      <button onClick={() => handleVerifyClinic(c.id, "REJECTED")} className="btn btn-error btn-sm gap-1 text-white shadow-sm">
+                        <XCircle size={16} /> Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: CLINICS MANAGEMENT */}
       {activeTab === "clinics" && (

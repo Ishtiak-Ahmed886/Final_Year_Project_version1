@@ -167,3 +167,19 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# SSLCommerz Configuration (Bangladesh Payment Gateway)
+SSLCOMMERZ_STORE_ID = os.getenv('SSLCOMMERZ_STORE_ID', 'testbox')
+SSLCOMMERZ_STORE_PASS = os.getenv('SSLCOMMERZ_STORE_PASS', 'qwerty')
+SSLCOMMERZ_IS_SANDBOX = os.getenv('SSLCOMMERZ_IS_SANDBOX', 'True').lower() in ('true', '1', 't')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://127.0.0.1:5173')
+BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')
+
+# Email Configuration (Gmail SMTP)
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@smartclinic.com')

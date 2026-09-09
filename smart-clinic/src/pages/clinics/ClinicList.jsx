@@ -1,13 +1,24 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import apiClient from "../../api/axios";
-import { MapPin, Phone, Mail, Building2, Search, ArrowRight, Stethoscope } from "lucide-react";
+import { MapPin, Phone, Mail, Building2, Search, ArrowRight, Stethoscope, ArrowLeft, LayoutDashboard } from "lucide-react";
+import { useAuth } from "../../Provider/AuthProvider";
 
 export default function ClinicList() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [clinics, setClinics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchCity, setSearchCity] = useState("");
   const [error, setError] = useState("");
+
+  const handleGoBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate(user ? "/dashboard" : "/");
+    }
+  };
 
   const fetchClinics = async (city = "") => {
     setLoading(true);
@@ -34,7 +45,35 @@ export default function ClinicList() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Smart Back Navigation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm">
+        <button
+          type="button"
+          onClick={handleGoBack}
+          className="btn btn-ghost btn-sm gap-2 font-bold text-base-content/80 hover:text-primary"
+        >
+          <ArrowLeft size={18} /> Back
+        </button>
+
+        <div className="flex items-center gap-2">
+          {user && (
+            <Link
+              to="/dashboard"
+              className="btn btn-outline btn-primary btn-sm gap-2 font-bold shadow-xs"
+            >
+              <LayoutDashboard size={16} /> Return to Dashboard
+            </Link>
+          )}
+          <Link
+            to="/doctors"
+            className="btn btn-ghost btn-sm gap-1.5 font-semibold text-base-content/70 hover:text-primary"
+          >
+            <Stethoscope size={16} /> View Doctors
+          </Link>
+        </div>
+      </div>
+
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-primary/90 via-primary to-secondary text-primary-content p-8 md:p-12 rounded-3xl shadow-2xl relative overflow-hidden">
         <div className="relative z-10 max-w-2xl space-y-4">

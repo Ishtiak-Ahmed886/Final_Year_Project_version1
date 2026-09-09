@@ -42,7 +42,7 @@ class SpecializationListCreateView(generics.ListCreateAPIView):
 
 @extend_schema(tags=['Doctors'])
 class DoctorListView(generics.ListAPIView):
-    """Public read-only list of doctors. Admins see all doctors including unverified."""
+    """Public read-only list of doctors. Strictly verified only, unless queried by system ADMIN."""
     serializer_class = DoctorSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -50,18 +50,25 @@ class DoctorListView(generics.ListAPIView):
         clinic_id = self.request.query_params.get('clinic_id')
         specialization_id = self.request.query_params.get('specialization_id')
         department_id = self.request.query_params.get('department_id')
+        verification_status = self.request.query_params.get('verification_status')
         user = self.request.user
 
+        # STRICT: Public, Patients, Doctors, and Clinic Admins ONLY see VERIFIED doctors!
         only_verified = True
-        if user and user.is_authenticated and user.role in ['ADMIN', 'CLINIC_ADMIN', 'DOCTOR']:
+        if user and user.is_authenticated and user.role == 'ADMIN':
             only_verified = False
 
-        return list_doctors(
+        qs = list_doctors(
             clinic_id=clinic_id,
             specialization_id=specialization_id,
             department_id=department_id,
             only_verified=only_verified
         )
+
+        if user and user.is_authenticated and user.role == 'ADMIN' and verification_status:
+            qs = qs.filter(verification_status=verification_status)
+
+        return qs
 
 
 @extend_schema(tags=['Doctors'])
@@ -127,6 +134,41 @@ class DoctorVerifyView(APIView):
 
         doctor.verification_status = new_status
         doctor.save()
+
+        if new_status == VerificationStatus.VERIFIED:
+            try:
+                from apps.notifications.models import Notification, NotificationType
+                from apps.notifications.email_service import send_approval_email
+
+                recipient_user = doctor.user
+                if recipient_user:
+                    Notification.objects.create(
+                        recipient=recipient_user,
+                        title="Congratulations! Your Doctor Profile Has Been Approved 🎉",
+                        message=f"Dr. {doctor.full_name}, your medical credentials and profile have been verified and approved by the Administration! You can now accept clinic chamber invitations and receive patient appointments.",
+                        notification_type=NotificationType.DOCTOR_APPROVED
+                    )
+
+                send_approval_email(
+                    recipient_email=(recipient_user.email if recipient_user else '') or doctor.email,
+                    recipient_name=f"Dr. {doctor.full_name}",
+                    subject=f"🎉 Congratulations! Dr. {doctor.full_name}, Your Profile is Approved - Smart Clinic",
+                    message=(
+                        f"Dear Dr. {doctor.full_name},\n\n"
+                        f"Congratulations! We are delighted to inform you that your doctor profile and medical credentials "
+                        f"have been verified and officially APPROVED by the Smart Clinic Administration.\n\n"
+                        f"Your profile is now visible in the Doctors Directory for patients across Bangladesh. You can now:\n"
+                        f"• Join partnered clinics and define your consultation fees\n"
+                        f"• Configure smart chamber schedules and patient slots\n"
+                        f"• Manage your digital consultation chamber and issue DGDA-compliant E-Prescriptions\n\n"
+                        f"Log in to your Doctor Dashboard to begin consultations.\n\n"
+                        f"Warm regards,\n"
+                        f"The Smart Clinic Team"
+                    )
+                )
+            except Exception:
+                pass
+
         return Response(DoctorSerializer(doctor).data, status=status.HTTP_200_OK)
 
 
@@ -317,7 +359,7 @@ from .serializers import ChamberSessionSerializer, ChamberSessionUpdateSerialize
 
 @extend_schema(tags=['Chamber Sessions'])
 class ChamberSessionView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get(self, request, *args, **kwargs):
         doctor_id = request.query_params.get('doctor_id')
@@ -348,26 +390,102 @@ class ChamberSessionView(APIView):
             defaults={'status': ChamberSessionStatus.NOT_STARTED, 'current_serial': 0}
         )
 
+        from django.utils import timezone
         action = data.get('action')
+
         if action == 'NEXT_SERIAL':
             session.current_serial += 1
-            if session.status == ChamberSessionStatus.NOT_STARTED:
+            if session.status in [ChamberSessionStatus.NOT_STARTED, ChamberSessionStatus.PAUSED, ChamberSessionStatus.PRAYER_BREAK]:
                 session.status = ChamberSessionStatus.IN_CHAMBER
+            if not session.started_at:
+                session.started_at = timezone.now()
+
         elif action == 'PREV_SERIAL':
             if session.current_serial > 0:
                 session.current_serial -= 1
+
         elif action == 'SET_SERIAL':
             if 'current_serial' in data:
                 session.current_serial = data['current_serial']
-        elif action == 'UPDATE_STATUS' or 'status' in data:
-            if 'status' in data:
-                session.status = data['status']
 
+        elif action == 'SKIP_SERIAL':
+            # Add current serial to skipped list and call next
+            skipped = list(session.skipped_serials or [])
+            if session.current_serial > 0 and session.current_serial not in skipped:
+                skipped.append(session.current_serial)
+            session.skipped_serials = skipped
+            session.current_serial += 1
+
+        elif action == 'RECALL_SERIAL':
+            target = data.get('current_serial')
+            if target is not None:
+                session.current_serial = target
+                skipped = [s for s in (session.skipped_serials or []) if s != target]
+                session.skipped_serials = skipped
+
+        elif action == 'RESET':
+            session.current_serial = 0
+            session.status = ChamberSessionStatus.NOT_STARTED
+            session.skipped_serials = []
+            session.delay_minutes = 0
+            session.announcement_note = ''
+
+        # Apply specific fields
         if 'status' in data and data['status']:
             session.status = data['status']
+            if session.status == ChamberSessionStatus.IN_CHAMBER and not session.started_at:
+                session.started_at = timezone.now()
+            elif session.status == ChamberSessionStatus.ENDED:
+                session.ended_at = timezone.now()
+
+        if 'delay_minutes' in data:
+            session.delay_minutes = data['delay_minutes']
+
+        if 'announcement_note' in data:
+            session.announcement_note = data['announcement_note']
+
+        if 'room_number' in data and data['room_number']:
+            session.room_number = data['room_number']
+
+        if 'estimated_mins_per_patient' in data:
+            session.estimated_mins_per_patient = data['estimated_mins_per_patient']
 
         session.save()
+
+        # Proximity Alert Trigger: When serial advances or is set, alert patients who are 3 serials ahead
+        if action in ['NEXT_SERIAL', 'SET_SERIAL', 'SKIP_SERIAL'] and session.current_serial > 0:
+            try:
+                from apps.appointments.models import Appointment, AppointmentStatus
+                from apps.notifications.sms_service import send_sms_notification
+                from apps.notifications.models import NotificationType
+
+                target_proximity_serial = session.current_serial + 3
+                upcoming_apts = Appointment.objects.filter(
+                    doctor_id=session.doctor_id,
+                    clinic_id=session.clinic_id,
+                    appointment_date=session.session_date,
+                    serial_number=target_proximity_serial,
+                    status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING]
+                ).select_related('patient', 'family_member', 'doctor', 'clinic')
+
+                for apt in upcoming_apts:
+                    patient_name = apt.family_member.full_name if apt.family_member else f"{apt.patient.first_name} {apt.patient.last_name}".strip()
+                    send_sms_notification(
+                        recipient=apt.patient,
+                        title="Your Serial is Approaching ⏳",
+                        message=(
+                            f"Dear {patient_name}, Serial #{session.current_serial} is now in chamber with Dr. {apt.doctor.full_name}. "
+                            f"Your Serial is #{apt.serial_number} (3 patients away). "
+                            f"Please be near {session.room_number or 'the chamber door'}."
+                        ),
+                        notification_type=NotificationType.SERIAL_PROXIMITY_ALERT
+                    )
+            except Exception:
+                pass  # Non-blocking notification dispatch
+
         return Response(ChamberSessionSerializer(session).data, status=status.HTTP_200_OK)
+
+
 
 
 @extend_schema(tags=['Doctors'])

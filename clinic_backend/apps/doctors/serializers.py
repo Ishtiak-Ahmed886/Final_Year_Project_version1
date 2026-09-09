@@ -96,14 +96,17 @@ from .models import ChamberSession, ChamberSessionStatus
 
 class ChamberSessionSerializer(serializers.ModelSerializer):
     doctor_name = serializers.CharField(source='doctor.full_name', read_only=True)
+    doctor_qualification = serializers.CharField(source='doctor.qualification', read_only=True)
     clinic_name = serializers.CharField(source='clinic.name', read_only=True)
+    clinic_address = serializers.CharField(source='clinic.address', read_only=True)
 
     class Meta:
         model = ChamberSession
         fields = (
-            'id', 'doctor', 'doctor_name', 'clinic', 'clinic_name',
+            'id', 'doctor', 'doctor_name', 'doctor_qualification', 'clinic', 'clinic_name', 'clinic_address',
             'session_date', 'status', 'current_serial',
-            'estimated_mins_per_patient', 'started_at', 'ended_at', 'created_at'
+            'estimated_mins_per_patient', 'delay_minutes', 'announcement_note', 'room_number', 'skipped_serials',
+            'started_at', 'ended_at', 'created_at'
         )
         read_only_fields = ('id', 'created_at')
 
@@ -113,7 +116,19 @@ class ChamberSessionUpdateSerializer(serializers.Serializer):
     session_date = serializers.DateField(required=False, allow_null=True)
     status = serializers.ChoiceField(choices=ChamberSessionStatus.choices, required=False)
     current_serial = serializers.IntegerField(required=False, min_value=0)
-    action = serializers.ChoiceField(choices=['NEXT_SERIAL', 'PREV_SERIAL', 'SET_SERIAL', 'UPDATE_STATUS'], required=False)
+    delay_minutes = serializers.IntegerField(required=False, min_value=0)
+    announcement_note = serializers.CharField(required=False, allow_blank=True)
+    room_number = serializers.CharField(required=False, allow_blank=True)
+    estimated_mins_per_patient = serializers.IntegerField(required=False, min_value=1)
+    action = serializers.ChoiceField(
+        choices=[
+            'NEXT_SERIAL', 'PREV_SERIAL', 'SET_SERIAL',
+            'SKIP_SERIAL', 'RECALL_SERIAL',
+            'UPDATE_STATUS', 'UPDATE_DELAY', 'RESET'
+        ],
+        required=False
+    )
+
 
 
 class DoctorScheduleSerializer(serializers.ModelSerializer):

@@ -152,12 +152,14 @@ class ChamberSessionStatus(models.TextChoices):
     NOT_STARTED = 'NOT_STARTED', 'Not Started'
     IN_TRANSIT = 'IN_TRANSIT', 'In Transit'
     IN_CHAMBER = 'IN_CHAMBER', 'In Chamber'
+    PRAYER_BREAK = 'PRAYER_BREAK', 'Prayer / Namaz Break'
+    EMERGENCY = 'EMERGENCY', 'Emergency Round'
     PAUSED = 'PAUSED', 'Paused'
     ENDED = 'ENDED', 'Ended'
 
 class ChamberSession(BaseModel):
     """
-    Live real-time Chamber session for tracking serials and doctor status on a given date.
+    Live real-time Chamber session for tracking serials, delays, and doctor status on a given date.
     """
     doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='chamber_sessions')
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='chamber_sessions')
@@ -169,7 +171,11 @@ class ChamberSession(BaseModel):
         db_index=True
     )
     current_serial = models.PositiveIntegerField(default=0)
-    estimated_mins_per_patient = models.PositiveIntegerField(default=15)
+    estimated_mins_per_patient = models.PositiveIntegerField(default=12)
+    delay_minutes = models.PositiveIntegerField(default=0, help_text="Broadcasted delay e.g. 20 mins due to traffic/OT")
+    announcement_note = models.CharField(max_length=255, blank=True, default='', help_text="e.g. Stuck in Mohakhali traffic, arriving at 6:30 PM")
+    room_number = models.CharField(max_length=50, blank=True, default='', help_text="e.g. Room 304, 3rd Floor")
+    skipped_serials = models.JSONField(default=list, blank=True, help_text="List of skipped/held patient serial numbers")
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
 
@@ -181,4 +187,5 @@ class ChamberSession(BaseModel):
 
     def __str__(self):
         return f"Dr. {self.doctor.full_name} at {self.clinic.name} on {self.session_date} ({self.status} - Serial #{self.current_serial})"
+
 

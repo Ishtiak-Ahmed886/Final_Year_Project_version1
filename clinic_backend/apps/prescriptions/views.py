@@ -106,8 +106,19 @@ class PrescriptionVerifyView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, qr_token, *args, **kwargs):
+        import uuid
         try:
-            prescription = Prescription.objects.select_related('appointment', 'doctor', 'patient', 'family_member').prefetch_related('medications').get(qr_token=qr_token)
+            val_uuid = uuid.UUID(str(qr_token).strip())
+        except (ValueError, AttributeError):
+            return Response({
+                'is_valid': False,
+                'verification_message': 'Invalid prescription QR token format.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            prescription = Prescription.objects.select_related(
+                'appointment', 'appointment__clinic', 'doctor', 'patient', 'family_member'
+            ).prefetch_related('medications').get(qr_token=val_uuid)
             return Response({
                 'is_valid': True,
                 'verification_message': 'Official Digital E-Prescription Verified',
@@ -116,7 +127,7 @@ class PrescriptionVerifyView(APIView):
         except Prescription.DoesNotExist:
             return Response({
                 'is_valid': False,
-                'verification_message': 'Invalid or unverified prescription QR token.'
+                'verification_message': 'Prescription not found or unverified QR token.'
             }, status=status.HTTP_404_NOT_FOUND)
 
 

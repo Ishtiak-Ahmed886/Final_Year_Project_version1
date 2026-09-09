@@ -20,13 +20,20 @@ class PrescriptionSerializer(serializers.ModelSerializer):
     patient = UserSerializer(read_only=True)
     family_member = FamilyMemberSerializer(read_only=True)
     medications = PrescribedMedicationSerializer(many=True, read_only=True)
+    clinic_name = serializers.CharField(source='appointment.clinic.name', read_only=True, default='')
+    clinic_address = serializers.CharField(source='appointment.clinic.address', read_only=True, default='')
+    clinic_phone = serializers.CharField(source='appointment.clinic.phone', read_only=True, default='')
+    appointment_date = serializers.DateField(source='appointment.appointment_date', read_only=True, default=None)
+    serial_number = serializers.IntegerField(source='appointment.serial_number', read_only=True, default=1)
 
     class Meta:
         model = Prescription
         fields = (
             'id', 'appointment', 'doctor', 'patient', 'family_member',
             'diagnosis', 'vitals', 'diagnostic_tests', 'advice',
-            'qr_token', 'medications', 'created_at', 'updated_at'
+            'qr_token', 'medications', 'clinic_name', 'clinic_address',
+            'clinic_phone', 'appointment_date', 'serial_number',
+            'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'qr_token', 'created_at', 'updated_at')
 

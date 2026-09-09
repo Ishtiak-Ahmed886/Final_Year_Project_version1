@@ -16,7 +16,11 @@ export default function Login() {
   const from = location.state?.from?.pathname || "/dashboard";
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    let value = e.target.value;
+    if (e.target.name === "email") {
+      value = value.toLowerCase().trim();
+    }
+    setFormData({ ...formData, [e.target.name]: value });
     setError("");
   };
 
@@ -27,7 +31,7 @@ export default function Login() {
     setSuccess("");
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData.email.toLowerCase().trim(), formData.password);
       setSuccess("Logged in successfully! Redirecting...");
       setTimeout(() => navigate(from, { replace: true }), 1000);
     } catch (err) {
@@ -85,7 +89,7 @@ export default function Login() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="input input-bordered w-full pl-10"
+                  className="input input-bordered w-full pl-10 lowercase"
                   placeholder="admin@clinic.com or patient@example.com"
                 />
               </div>

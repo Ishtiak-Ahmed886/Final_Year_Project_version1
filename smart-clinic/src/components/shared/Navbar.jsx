@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Bell,
   Languages,
+  Trash2,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router";
 import { useAuth } from "../../Provider/AuthProvider";
@@ -51,6 +52,26 @@ export default function Navbar() {
         prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
     } catch {}
+  };
+
+  const handleDeleteNotification = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await apiClient.delete(`/notifications/${id}/`);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    } catch {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    }
+  };
+
+  const handleClearAllNotifications = async (e) => {
+    e.stopPropagation();
+    try {
+      await apiClient.delete("/notifications/clear-all/");
+      setNotifications([]);
+    } catch {
+      setNotifications([]);
+    }
   };
 
   const handleLogout = () => {
@@ -146,9 +167,20 @@ export default function Navbar() {
             {showNotifDropdown && (
               <div className="absolute right-0 top-12 z-50 w-80 bg-base-100 border border-base-200 rounded-2xl shadow-2xl overflow-hidden">
                 <div className="flex justify-between items-center px-4 py-3 border-b border-base-200 bg-base-200/50">
-                  <span className="font-bold text-sm text-base-content">{t("notifications")}</span>
-                  {unreadCount > 0 && (
-                    <span className="badge badge-error badge-sm text-white">{unreadCount} new</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-base-content">{t("notifications")}</span>
+                    {unreadCount > 0 && (
+                      <span className="badge badge-error badge-xs text-white">{unreadCount} new</span>
+                    )}
+                  </div>
+                  {notifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearAllNotifications}
+                      className="text-[11px] text-error hover:underline font-medium"
+                    >
+                      Clear all
+                    </button>
                   )}
                 </div>
 
@@ -157,20 +189,30 @@ export default function Navbar() {
                     <div className="text-center py-8 text-xs text-base-content/50">{t("noNotifications")}</div>
                   ) : (
                     notifications.map((n) => (
-                      <button
+                      <div
                         key={n.id}
                         onClick={() => { handleMarkRead(n.id); setShowNotifDropdown(false); }}
-                        className={`w-full text-left px-4 py-3 hover:bg-base-200/60 transition-colors block ${!n.is_read ? "bg-primary/5" : ""}`}
+                        className={`w-full text-left px-4 py-3 hover:bg-base-200/60 transition-colors cursor-pointer group flex items-start justify-between gap-2 ${!n.is_read ? "bg-primary/5" : ""}`}
                       >
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="font-semibold text-xs text-base-content leading-tight">{n.title}</div>
-                          {!n.is_read && <span className="w-2 h-2 bg-primary rounded-full shrink-0 mt-1" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-xs text-base-content leading-tight">{n.title}</span>
+                            {!n.is_read && <span className="w-2 h-2 bg-primary rounded-full shrink-0" />}
+                          </div>
+                          <p className="text-[11px] text-base-content/60 mt-0.5 leading-relaxed line-clamp-2">{n.message}</p>
+                          <span className="text-[10px] text-base-content/40 mt-1 block">
+                            {new Date(n.created_at).toLocaleString()}
+                          </span>
                         </div>
-                        <p className="text-[11px] text-base-content/60 mt-0.5 leading-relaxed line-clamp-2">{n.message}</p>
-                        <span className="text-[10px] text-base-content/40 mt-1 block">
-                          {new Date(n.created_at).toLocaleString()}
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteNotification(e, n.id)}
+                          className="p-1.5 text-base-content/40 hover:text-error hover:bg-error/10 rounded-lg shrink-0 transition-colors"
+                          title="Delete notification"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>

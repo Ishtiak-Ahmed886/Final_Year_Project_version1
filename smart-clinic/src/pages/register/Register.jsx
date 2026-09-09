@@ -56,7 +56,13 @@ export default function Register() {
   }, [step]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    let value = e.target.value;
+    if (e.target.name === "email") {
+      value = value.toLowerCase().trim();
+    } else if (e.target.name === "phone") {
+      value = value.replace(/\D/g, "").slice(0, 11);
+    }
+    setFormData({ ...formData, [e.target.name]: value });
     setError("");
   };
 
@@ -81,12 +87,23 @@ export default function Register() {
       return setError("Passwords do not match.");
     }
 
+    if (formData.phone) {
+      const bdPhoneRegex = /^01[3-9]\d{8}$/;
+      if (!bdPhoneRegex.test(formData.phone)) {
+        return setError("Please enter a valid 11-digit Bangladeshi mobile number (e.g. 01712345678).");
+      }
+    }
+
     setLoading(true);
     setError("");
     setSuccess("");
 
     try {
-      const user = await register(formData);
+      const payload = {
+        ...formData,
+        email: formData.email.toLowerCase().trim(),
+      };
+      const user = await register(payload);
       setRegisteredUser(user);
 
       if (formData.role === "DOCTOR") {
@@ -241,7 +258,7 @@ export default function Register() {
                   <input
                     name="email" type="email" required
                     value={formData.email} onChange={handleChange}
-                    className="input input-bordered w-full pl-10"
+                    className="input input-bordered w-full pl-10 lowercase"
                     placeholder="john@example.com"
                   />
                 </div>
@@ -253,12 +270,16 @@ export default function Register() {
                     <Phone size={18} />
                   </div>
                   <input
-                    name="phone" type="text"
+                    name="phone" type="tel" inputMode="numeric"
                     value={formData.phone} onChange={handleChange}
-                    className="input input-bordered w-full pl-10"
-                    placeholder="+1234567890"
+                    className="input input-bordered w-full pl-10 font-mono"
+                    placeholder="017XXXXXXXX"
+                    maxLength={11}
                   />
                 </div>
+                <span className="text-[11px] text-base-content/50 mt-1 block">
+                  Bangladeshi 11-digit mobile number (e.g. 01712345678)
+                </span>
               </div>
             </div>
 

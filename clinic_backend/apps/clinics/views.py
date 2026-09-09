@@ -54,14 +54,33 @@ class ClinicListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         city = self.request.query_params.get('city')
         department_id = self.request.query_params.get('department_id')
+        verification_status = self.request.query_params.get('verification_status')
         user = self.request.user
 
-        # Admin or ClinicAdmin can see unverified clinics (e.g. for approval or managing own clinic)
+        # STRICT: Only system ADMIN can see all unverified clinics!
+        # ClinicAdmin can see verified clinics PLUS their own clinic.
+        # Patients, doctors, and public ONLY see verified clinics!
         only_verified = True
-        if user and user.is_authenticated and user.role in ['ADMIN', 'CLINIC_ADMIN']:
+        if user and user.is_authenticated and user.role == 'ADMIN':
             only_verified = False
 
-        return list_clinics(city=city, department_id=department_id, only_verified=only_verified)
+        if user and user.is_authenticated and user.role == 'CLINIC_ADMIN':
+            from django.db.models import Q
+            qs = Clinic.objects.filter(is_active=True).filter(
+                Q(verification_status=VerificationStatus.VERIFIED) | Q(owner=user)
+            ).select_related('owner').prefetch_related('departments')
+            if city:
+                qs = qs.filter(city__iexact=city)
+            if department_id:
+                qs = qs.filter(departments__id=department_id)
+            return qs
+
+        qs = list_clinics(city=city, department_id=department_id, only_verified=only_verified)
+
+        if user and user.is_authenticated and user.role == 'ADMIN' and verification_status:
+            qs = qs.filter(verification_status=verification_status)
+
+        return qs
 
     def create(self, request, *args, **kwargs):
         if not (request.user and request.user.is_authenticated and request.user.role in ['CLINIC_ADMIN', 'ADMIN']):
@@ -135,6 +154,40 @@ class ClinicVerifyView(APIView):
 
         clinic.verification_status = new_status
         clinic.save()
+
+        if new_status == VerificationStatus.VERIFIED:
+            try:
+                from apps.notifications.models import Notification, NotificationType
+                from apps.notifications.email_service import send_approval_email
+
+                if clinic.owner:
+                    Notification.objects.create(
+                        recipient=clinic.owner,
+                        title="Congratulations! Your Clinic Has Been Approved 🎉",
+                        message=f"Your clinic '{clinic.name}' ({clinic.city}) has been approved by the Administration! You can now link departments, approve doctor affiliations, and receive appointments.",
+                        notification_type=NotificationType.CLINIC_APPROVED
+                    )
+
+                    send_approval_email(
+                        recipient_email=clinic.owner.email or clinic.email,
+                        recipient_name=f"{clinic.owner.first_name} {clinic.owner.last_name}".strip() or clinic.name,
+                        subject=f"🎉 Congratulations! {clinic.name} is Approved - Smart Clinic",
+                        message=(
+                            f"Dear {clinic.owner.first_name or 'Clinic Administrator'},\n\n"
+                            f"We are delighted to inform you that your clinic registration for '{clinic.name}' ({clinic.city}) "
+                            f"has been reviewed and officially APPROVED by the Smart Clinic Administration.\n\n"
+                            f"Your clinic is now visible to patients in the Clinics Directory. You can now:\n"
+                            f"• Configure medical departments\n"
+                            f"• Link verified doctors to your clinic\n"
+                            f"• Manage patient appointment queues and chamber schedules\n\n"
+                            f"Log in to your Clinic Admin Dashboard to get started.\n\n"
+                            f"Warm regards,\n"
+                            f"The Smart Clinic Team"
+                        )
+                    )
+            except Exception:
+                pass
+
         return Response(ClinicSerializer(clinic).data, status=status.HTTP_200_OK)
 
 

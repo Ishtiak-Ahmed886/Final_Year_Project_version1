@@ -1,15 +1,37 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import apiClient from "../../api/axios";
 import {
   Calendar, Clock, MapPin, Stethoscope, XCircle, CheckCircle,
   AlertCircle, CreditCard, Users, Plus, Heart, Phone, FastForward, Navigation, Bell,
-  FileText, Printer, CheckCircle2, FolderHeart, ExternalLink, Trash2, Upload
+  FileText, Printer, CheckCircle2, FolderHeart, ExternalLink, Trash2, Upload, Pencil, Smartphone, Building2,
+  Tv, Volume2, AlertTriangle
 } from "lucide-react";
+
 import { useLanguage } from "../../context/LanguageContext";
+
+const DOB_MONTHS = [
+  { value: "01", label: "01 - Jan" },
+  { value: "02", label: "02 - Feb" },
+  { value: "03", label: "03 - Mar" },
+  { value: "04", label: "04 - Apr" },
+  { value: "05", label: "05 - May" },
+  { value: "06", label: "06 - Jun" },
+  { value: "07", label: "07 - Jul" },
+  { value: "08", label: "08 - Aug" },
+  { value: "09", label: "09 - Sep" },
+  { value: "10", label: "10 - Oct" },
+  { value: "11", label: "11 - Nov" },
+  { value: "12", label: "12 - Dec" },
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+const DOB_YEARS = Array.from({ length: CURRENT_YEAR - 1920 + 1 }, (_, i) => (CURRENT_YEAR - i).toString());
+const DOB_DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
 
 export default function PatientDashboard() {
   const { t } = useLanguage();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("appointments");
   const [appointments, setAppointments] = useState([]);
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -26,16 +48,21 @@ export default function PatientDashboard() {
   // Payment Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("BKASH");
+  const [paymentMethod, setPaymentMethod] = useState("SSLCOMMERZ");
   const [trxId, setTrxId] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
 
-  // Add Family Member Modal State
+  // Family Member Modal & CRUD States
   const [familyModalOpen, setFamilyModalOpen] = useState(false);
+  const [editingFamilyMember, setEditingFamilyMember] = useState(null);
+  const [deleteConfirmModalOpen, setDeleteConfirmModalOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
+  const [deletingFamily, setDeletingFamily] = useState(false);
   const [familyFormData, setFamilyFormData] = useState({
     full_name: "",
     relationship: "FATHER",
     phone: "",
+    date_of_birth: "",
     age: "",
     gender: "MALE",
     blood_group: "B+",
@@ -123,6 +150,19 @@ export default function PatientDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Listen to payment callback redirect params (e.g. from SSLCommerz or Checkout)
+  useEffect(() => {
+    const paymentParam = searchParams.get("payment");
+    if (paymentParam === "success") {
+      setActionMessage("🎉 Payment completed successfully via SSLCommerz! Your appointment is now Confirmed.");
+      fetchAppointments();
+    } else if (paymentParam === "fail") {
+      setError("Payment failed or was declined by the gateway. Please try again.");
+    } else if (paymentParam === "cancel") {
+      setActionMessage("Payment was cancelled. You can complete payment anytime before consultation.");
+    }
+  }, [searchParams]);
+
   const handleCancel = async (id) => {
     if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
 
@@ -137,8 +177,7 @@ export default function PatientDashboard() {
 
   const openPaymentModal = (appointment) => {
     setSelectedAppointment(appointment);
-    setPaymentMethod("BKASH");
-    setTrxId("");
+    setPaymentMethod("SSLCOMMERZ");
     setPaymentModalOpen(true);
   };
 
@@ -164,52 +203,177 @@ export default function PatientDashboard() {
     setProcessingPayment(true);
     setError("");
     try {
-      const paymentRes = await apiClient.post("/payments/", {
-        appointment_id: selectedAppointment.id,
-        payment_method: paymentMethod,
-      });
+      if (paymentMethod === "CASH") {
+        // Direct cash-at-chamber confirmation
+        const paymentRes = await apiClient.post("/payments/", {
+          appointment_id: selectedAppointment.id,
+          payment_method: "CASH",
+        });
 
-      const finalTrxId =
-        paymentMethod === "CASH"
-          ? `CASH_CHAMBER_${Date.now()}`
-          : trxId.trim() || `TRX_${paymentMethod}_${Date.now()}`;
+        await apiClient.post(`/payments/${paymentRes.id}/process/`, {
+          transaction_id: `CASH_CHAMBER_${Date.now()}`,
+        });
 
-      await apiClient.post(`/payments/${paymentRes.id}/process/`, {
-        transaction_id: finalTrxId,
-      });
+        setActionMessage("Appointment confirmed with Cash at Chamber option! Please pay at clinic reception.");
+        setPaymentModalOpen(false);
+        fetchAppointments();
+      } else {
+        // SSLCOMMERZ Hosted Gateway Initiation & Direct Redirect
+        const res = await apiClient.post("/payments/initiate-sslcommerz/", {
+          appointment_id: selectedAppointment.id,
+        });
 
-      setActionMessage(`Payment via ${paymentMethod} successful! Appointment confirmed.`);
-      setPaymentModalOpen(false);
-      fetchAppointments();
-    } catch {
-      setError("Payment processing failed. Please check details and try again.");
+        if (res?.redirect_url) {
+          window.location.href = res.redirect_url;
+        } else {
+          setError("Failed to generate payment gateway session.");
+        }
+      }
+    } catch (err) {
+      setError(typeof err === "string" ? err : "Payment initiation failed. Please try again.");
     } finally {
       setProcessingPayment(false);
     }
   };
 
-  const handleAddFamilyMember = async (e) => {
+  const initialFamilyForm = {
+    full_name: "",
+    relationship: "FATHER",
+    phone: "",
+    date_of_birth: "",
+    age: "",
+    gender: "MALE",
+    blood_group: "B+",
+    medical_notes: "",
+  };
+
+  const openAddFamilyModal = () => {
+    setEditingFamilyMember(null);
+    setFamilyFormData(initialFamilyForm);
+    setError("");
+    setFamilyModalOpen(true);
+  };
+
+  const openEditFamilyModal = (member) => {
+    setEditingFamilyMember(member);
+    setFamilyFormData({
+      full_name: member.full_name || "",
+      relationship: member.relationship || "OTHER",
+      phone: member.phone || "",
+      date_of_birth: member.date_of_birth || "",
+      age: member.age || "",
+      gender: member.gender || "MALE",
+      blood_group: member.blood_group || "B+",
+      medical_notes: member.medical_notes || "",
+    });
+    setError("");
+    setFamilyModalOpen(true);
+  };
+
+  const openDeleteConfirm = (member) => {
+    setMemberToDelete(member);
+    setDeleteConfirmModalOpen(true);
+  };
+
+  const [dobYear, dobMonth, dobDay] = (familyFormData.date_of_birth || "").split("-");
+
+  const handleDobChange = (part, val) => {
+    let y = part === "year" ? val : (dobYear || "");
+    let m = part === "month" ? val : (dobMonth || "");
+    let d = part === "day" ? val : (dobDay || "");
+
+    if (y && m && d) {
+      const formatted = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      const birthDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+      const today = new Date();
+      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+      }
+      calculatedAge = Math.max(0, calculatedAge);
+
+      setFamilyFormData((prev) => ({
+        ...prev,
+        date_of_birth: formatted,
+        age: calculatedAge.toString(),
+      }));
+    } else {
+      const formatted = [y, m, d].some(Boolean) ? `${y}-${m}-${d}` : "";
+      setFamilyFormData((prev) => ({
+        ...prev,
+        date_of_birth: formatted,
+      }));
+    }
+  };
+
+  const handleSaveFamilyMember = async (e) => {
     e.preventDefault();
+
+    if (familyFormData.phone) {
+      const bdPhoneRegex = /^01[3-9]\d{8}$/;
+      if (!bdPhoneRegex.test(familyFormData.phone)) {
+        setError("Please enter a valid 11-digit Bangladeshi mobile number (e.g. 01712345678).");
+        return;
+      }
+    }
+
     setSubmittingFamily(true);
     setError("");
     try {
-      await apiClient.post("/accounts/family-members/", familyFormData);
-      setActionMessage("Family member added successfully!");
+      const payload = {
+        full_name: familyFormData.full_name,
+        relationship: familyFormData.relationship,
+        phone: familyFormData.phone || "",
+        date_of_birth: familyFormData.date_of_birth || null,
+        age: familyFormData.age ? parseInt(familyFormData.age, 10) : null,
+        gender: familyFormData.gender,
+        blood_group: familyFormData.blood_group,
+        medical_notes: familyFormData.medical_notes,
+      };
+
+      if (editingFamilyMember) {
+        const updated = await apiClient.patch(`/accounts/family-members/${editingFamilyMember.id}/`, payload);
+        // Immediate UI update without page refresh
+        setFamilyMembers((prev) =>
+          prev.map((m) => (m.id === editingFamilyMember.id ? { ...m, ...updated } : m))
+        );
+        setActionMessage(`${familyFormData.full_name}'s profile updated successfully!`);
+      } else {
+        const created = await apiClient.post("/accounts/family-members/", payload);
+        // Immediate UI update without page refresh
+        setFamilyMembers((prev) => [created, ...prev]);
+        setActionMessage("Family member added successfully!");
+      }
       setFamilyModalOpen(false);
-      setFamilyFormData({
-        full_name: "",
-        relationship: "FATHER",
-        phone: "",
-        age: "",
-        gender: "MALE",
-        blood_group: "B+",
-        medical_notes: "",
-      });
-      fetchFamilyMembers();
-    } catch {
-      setError("Failed to add family member. Check inputs.");
+      setEditingFamilyMember(null);
+      setFamilyFormData(initialFamilyForm);
+    } catch (err) {
+      if (typeof err === "object") {
+        setError(Object.values(err).flat().join(" ") || "Failed to save family member. Check inputs.");
+      } else {
+        setError(err || "Failed to save family member. Check inputs.");
+      }
     } finally {
       setSubmittingFamily(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!memberToDelete) return;
+    setDeletingFamily(true);
+    setError("");
+    try {
+      await apiClient.delete(`/accounts/family-members/${memberToDelete.id}/`);
+      // Immediately remove from UI without page refresh
+      setFamilyMembers((prev) => prev.filter((m) => m.id !== memberToDelete.id));
+      setActionMessage(`${memberToDelete.full_name} removed from family profiles.`);
+      setDeleteConfirmModalOpen(false);
+      setMemberToDelete(null);
+    } catch (err) {
+      setError("Failed to delete family member.");
+    } finally {
+      setDeletingFamily(false);
     }
   };
 
@@ -390,59 +554,111 @@ export default function PatientDashboard() {
                   >
                     {/* ====== LIVE QUEUE TRACKER WIDGET FOR TODAY ====== */}
                     {isToday && (
-                      <div className="bg-gradient-to-r from-primary/10 via-base-200/50 to-secondary/10 p-4 rounded-2xl border border-primary/20 space-y-3">
+                      <div className="bg-gradient-to-r from-primary/10 via-base-200/50 to-secondary/10 p-5 rounded-2xl border-2 border-primary/30 space-y-3.5 shadow-md">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="badge badge-primary font-black text-xs">{t("liveSerialTracker")}</span>
                             <span
                               className={`badge font-bold text-xs ${
                                 session?.status === "IN_CHAMBER"
                                   ? "badge-success text-white animate-pulse"
                                   : session?.status === "IN_TRANSIT"
-                                  ? "badge-warning"
+                                  ? "badge-warning font-black text-black"
+                                  : session?.status === "PRAYER_BREAK"
+                                  ? "badge-info text-white font-bold"
+                                  : session?.status === "EMERGENCY"
+                                  ? "badge-error text-white font-black animate-pulse"
                                   : "badge-ghost"
                               }`}
                             >
-                              {t("doctorStatus")} {session?.status || "NOT_STARTED"}
+                              {session?.status === "IN_CHAMBER"
+                                ? "🟢 In Chamber (রোগী দেখা হচ্ছে)"
+                                : session?.status === "IN_TRANSIT"
+                                ? "🟡 In Transit (ডাক্তার পথে আছেন)"
+                                : session?.status === "PRAYER_BREAK"
+                                ? "🔵 Namaz Break (নামাজের বিরতি)"
+                                : session?.status === "EMERGENCY"
+                                ? "🔴 Emergency Round / OT"
+                                : session?.status === "PAUSED"
+                                ? "⏸️ Paused (সাময়িক বিরতি)"
+                                : "⚪ Session Not Started"}
                             </span>
+
+                            {session?.room_number && (
+                              <span className="badge badge-ghost font-bold text-xs gap-1">
+                                <MapPin size={11} className="text-primary" /> {session.room_number}
+                              </span>
+                            )}
                           </div>
 
-                          <div className="text-xs font-semibold text-base-content/60">
-                            {t("refreshesAuto")}
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={`/queue-display/${apt.clinic?.id}/${apt.doctor?.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn btn-outline btn-secondary btn-xs font-bold gap-1 shadow-xs"
+                              title="Open Waiting Room Live TV Screen"
+                            >
+                              <Tv size={12} /> Open TV Board ↗
+                            </a>
+                            <div className="text-[11px] font-semibold text-base-content/60">
+                              {t("refreshesAuto")}
+                            </div>
                           </div>
                         </div>
 
+                        {/* Broadcast Notice or Delay Alert from Doctor / Clinic */}
+                        {(session?.delay_minutes > 0 || session?.announcement_note) && (
+                          <div className="bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 p-3 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs">
+                            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                            <span>
+                              {session.delay_minutes > 0 && `Chamber is delayed by ~${session.delay_minutes} minutes. `}
+                              {session.announcement_note || "Doctor is held up in road traffic/emergency round."}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Skipped Serial Warning */}
+                        {session?.skipped_serials?.includes(yourSerial) && (
+                          <div className="alert alert-warning text-warning-content font-bold text-xs flex items-center gap-2 shadow-sm">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span>
+                              ⚠️ Serial #{yourSerial} was temporarily held/skipped. Please inform the receptionist to recall your turn!
+                            </span>
+                          </div>
+                        )}
+
                         {/* Progress Cards */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center">
+                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center shadow-xs">
                             <div className="text-[11px] font-semibold text-base-content/60 uppercase">
                               {t("currentlyCalled")}
                             </div>
-                            <div className="text-2xl font-black text-primary">#{currentSerial}</div>
+                            <div className="text-3xl font-black text-primary">#{currentSerial}</div>
                           </div>
 
-                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center">
+                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center shadow-xs">
                             <div className="text-[11px] font-semibold text-base-content/60 uppercase">
                               {t("yourSerial")}
                             </div>
-                            <div className="text-2xl font-black text-secondary">#{yourSerial}</div>
+                            <div className="text-3xl font-black text-secondary">#{yourSerial}</div>
                           </div>
 
-                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center">
+                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center shadow-xs">
                             <div className="text-[11px] font-semibold text-base-content/60 uppercase">
                               {t("patientsAhead")}
                             </div>
-                            <div className="text-2xl font-black text-base-content">
+                            <div className="text-3xl font-black text-base-content">
                               {currentSerial >= yourSerial ? 0 : patientsAhead}
                             </div>
                           </div>
 
-                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center">
+                          <div className="bg-base-100 p-3 rounded-xl border border-base-200 text-center shadow-xs">
                             <div className="text-[11px] font-semibold text-base-content/60 uppercase">
                               {t("estWait")}
                             </div>
-                            <div className="text-lg font-bold text-success mt-1">
-                              {currentSerial >= yourSerial ? t("yourTurn") : `~${patientsAhead * 15} mins`}
+                            <div className="text-base font-extrabold text-success mt-1">
+                              {currentSerial >= yourSerial ? t("yourTurn") : `~${patientsAhead * (session?.estimated_mins_per_patient || 12)} mins`}
                             </div>
                           </div>
                         </div>
@@ -452,8 +668,7 @@ export default function PatientDashboard() {
                           <div className="alert alert-success text-white font-extrabold text-sm flex items-center gap-2 shadow-md animate-bounce">
                             <Bell className="w-5 h-5 shrink-0" />
                             <span>
-                              {t("itsYourTurn")} {apt.doctor?.full_name}
-                              {t("consultationRoom")}
+                              {t("itsYourTurn")} {apt.doctor?.full_name} {session?.room_number ? `(${session.room_number})` : t("consultationRoom")}!
                             </span>
                           </div>
                         )}
@@ -462,12 +677,13 @@ export default function PatientDashboard() {
                           <div className="alert alert-warning text-warning-content font-bold text-xs flex items-center gap-2 shadow-sm">
                             <Bell className="w-4 h-4 shrink-0" />
                             <span>
-                              {t("getReady")} {patientsAhead} {t("patientsAway")}
+                              {t("getReady")} {patientsAhead} {t("patientsAway")} - Please wait right near {session?.room_number || "the chamber entrance"}!
                             </span>
                           </div>
                         )}
                       </div>
                     )}
+
 
                     {/* Appointment Information Card */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pt-1">
@@ -476,9 +692,14 @@ export default function PatientDashboard() {
                           <span className="badge badge-lg badge-secondary font-black">
                             {t("serialBadge")}{apt.serial_number || 1}
                           </span>
-                          <h3 className="font-extrabold text-lg text-base-content">
+                          <Link
+                            to={`/doctors?specialization_id=${apt.doctor?.specializations?.[0]?.id || ""}`}
+                            className="font-extrabold text-lg text-base-content hover:text-primary transition-colors flex items-center gap-1 group"
+                            title="View Doctor details"
+                          >
                             Dr. {apt.doctor?.full_name}
-                          </h3>
+                            <span className="text-xs opacity-0 group-hover:opacity-100 text-primary transition-opacity">↗</span>
+                          </Link>
                           {getStatusBadge(apt.status)}
                           {apt.family_member && (
                             <span className="badge badge-secondary badge-soft font-bold gap-1 text-xs">
@@ -488,10 +709,15 @@ export default function PatientDashboard() {
                         </div>
 
                         <div className="flex flex-wrap gap-4 text-sm text-base-content/70">
-                          <div className="flex items-center gap-1">
-                            <MapPin size={16} className="text-primary" />
+                          <Link
+                            to={`/clinics/${apt.clinic?.id}`}
+                            className="flex items-center gap-1 hover:text-primary transition-colors font-medium group"
+                            title="View Clinic Details & Location"
+                          >
+                            <MapPin size={16} className="text-primary shrink-0" />
                             <span>{apt.clinic?.name}</span>
-                          </div>
+                            <span className="text-xs opacity-0 group-hover:opacity-100 text-primary transition-opacity">↗</span>
+                          </Link>
                           <div className="flex items-center gap-1">
                             <Calendar size={16} className="text-primary" />
                             <span>{apt.appointment_date}</span>
@@ -561,7 +787,7 @@ export default function PatientDashboard() {
               <h3 className="font-bold text-base-content">{t("parentCareTitle")}</h3>
               <p className="text-xs text-base-content/60">{t("parentCareSubtitle")}</p>
             </div>
-            <button onClick={() => setFamilyModalOpen(true)} className="btn btn-primary btn-sm gap-1">
+            <button onClick={openAddFamilyModal} className="btn btn-primary btn-sm gap-1">
               <Plus size={16} /> {t("addMember")}
             </button>
           </div>
@@ -571,7 +797,7 @@ export default function PatientDashboard() {
               <Users size={40} className="mx-auto text-base-content/30 mb-3" />
               <h4 className="font-bold text-base-content">{t("noFamilyMembers")}</h4>
               <p className="text-xs text-base-content/60 mt-1">{t("noFamilyHint")}</p>
-              <button onClick={() => setFamilyModalOpen(true)} className="btn btn-primary btn-outline btn-sm mt-4">
+              <button onClick={openAddFamilyModal} className="btn btn-primary btn-outline btn-sm mt-4">
                 {t("addMember")}
               </button>
             </div>
@@ -586,7 +812,7 @@ export default function PatientDashboard() {
                     <div>
                       <h4 className="font-extrabold text-base-content text-lg">{member.full_name}</h4>
                       <span className="badge badge-primary badge-soft text-xs font-bold mt-1">
-                        {member.relationship_display}
+                        {member.relationship_display || member.relationship}
                       </span>
                     </div>
                     {member.blood_group && (
@@ -599,6 +825,7 @@ export default function PatientDashboard() {
                   <div className="grid grid-cols-2 gap-2 text-xs text-base-content/70 mt-3 pt-3 border-t border-base-200">
                     <div>
                       <span className="font-semibold">{t("age")}:</span> {member.age ? `${member.age} yrs` : "N/A"}
+                      {member.date_of_birth && <span className="text-[11px] text-base-content/50 block">DOB: {member.date_of_birth}</span>}
                     </div>
                     <div>
                       <span className="font-semibold">{t("gender")}:</span> {member.gender}
@@ -617,12 +844,31 @@ export default function PatientDashboard() {
                     </div>
                   )}
 
-                  <div className="mt-4 pt-2 flex justify-end">
+                  <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-2 border-t border-base-200">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditFamilyModal(member)}
+                        className="btn btn-ghost btn-xs text-primary gap-1 border border-primary/20 hover:bg-primary/10"
+                        title="Edit Member"
+                      >
+                        <Pencil size={12} /> {t("editMember") || "Edit"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirm(member)}
+                        className="btn btn-ghost btn-xs text-error gap-1 border border-error/20 hover:bg-error/10"
+                        title="Delete Member"
+                      >
+                        <Trash2 size={12} /> {t("deleteMember") || "Delete"}
+                      </button>
+                    </div>
+
                     <Link
                       to={`/book?family_member=${member.id}`}
-                      className="btn btn-primary btn-sm btn-outline gap-1"
+                      className="btn btn-primary btn-xs btn-outline gap-1"
                     >
-                      <Calendar size={14} /> {t("bookAppointment")}
+                      <Calendar size={12} /> {t("bookAppointment")}
                     </Link>
                   </div>
                 </div>
@@ -873,10 +1119,18 @@ export default function PatientDashboard() {
                     </div>
                   </div>
 
-                  <div className="text-center bg-slate-100 p-2 rounded-xl border border-slate-200 font-mono text-[10px]">
-                    <div className="font-bold text-slate-700">{t("qrVerified")}</div>
-                    <div className="text-slate-400">{t("scanToVerify")}</div>
-                  </div>
+                  <Link
+                    to={`/verify-prescription/${selectedRx.qr_token}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-center bg-emerald-50 hover:bg-emerald-100 p-2.5 rounded-xl border border-emerald-200 font-mono text-[10px] text-emerald-800 transition flex flex-col items-center gap-0.5 shadow-xs"
+                    title="Open public verification page for pharmacies & labs"
+                  >
+                    <div className="font-bold flex items-center gap-1">
+                      {t("qrVerified")} <ExternalLink size={10} />
+                    </div>
+                    <div className="text-emerald-600 text-[9px]">{t("scanToVerify")}</div>
+                  </Link>
                 </div>
               </div>
             ) : null}
@@ -884,21 +1138,27 @@ export default function PatientDashboard() {
         </div>
       )}
 
-      {/* ====== PAYMENT MODAL (bKash, Nagad, Rocket, Cash) ====== */}
+      {/* ====== PAYMENT MODAL (SSLCommerz Gateway & Cash at Chamber) ====== */}
       {paymentModalOpen && selectedAppointment && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-base-100 max-w-md w-full rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
+          <div className="bg-base-100 max-w-lg w-full rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-base-200 pb-3">
               <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
-                <CreditCard className="text-primary" size={20} /> {t("processPayment")}
+                <CreditCard className="text-primary" size={20} /> {t("processPayment") || "Process Payment"}
               </h3>
-              <button onClick={() => setPaymentModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
+              <button
+                onClick={() => setPaymentModalOpen(false)}
+                className="btn btn-ghost btn-sm btn-circle"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 flex justify-between items-center">
               <div>
-                <div className="text-xs text-base-content/60">{t("amountPayable")}</div>
+                <div className="text-xs text-base-content/60">{t("amountPayable") || "Amount Payable"}</div>
                 <div className="text-sm font-bold">Dr. {selectedAppointment.doctor?.full_name}</div>
+                <div className="text-xs text-base-content/50">{selectedAppointment.clinic?.name}</div>
               </div>
               <div className="text-2xl font-black text-primary">
                 ৳{selectedAppointment.amount} BDT
@@ -907,49 +1167,78 @@ export default function PatientDashboard() {
 
             <form onSubmit={handleProcessPayment} className="space-y-4">
               <div>
-                <label className="label text-xs font-bold">{t("selectPaymentMethod")}</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: "BKASH", name: "bKash", color: "bg-pink-600 text-white" },
-                    { id: "NAGAD", name: "Nagad", color: "bg-orange-600 text-white" },
-                    { id: "ROCKET", name: "Rocket", color: "bg-purple-600 text-white" },
-                    { id: "CASH", name: "Cash at Chamber", color: "bg-emerald-600 text-white" },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(m.id)}
-                      className={`p-3 rounded-xl font-bold text-sm transition-all border-2 text-center ${
-                        paymentMethod === m.id
-                          ? `${m.color} border-transparent shadow-md scale-98`
-                          : "bg-base-200 border-base-300 text-base-content hover:border-primary/50"
-                      }`}
-                    >
-                      {m.name}
-                    </button>
-                  ))}
+                <label className="label text-xs font-bold">{t("selectPaymentMethod") || "Choose Payment Method"}</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* OPTION 1: SSLCommerz Online Gateway */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("SSLCOMMERZ")}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      paymentMethod === "SSLCOMMERZ"
+                        ? "border-primary bg-primary/5 shadow-md scale-101"
+                        : "border-base-300 bg-base-100 hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
+                        <Smartphone className="text-primary" size={16} /> Pay Online
+                      </div>
+                      <span className="badge badge-primary badge-sm font-bold">SSLCommerz</span>
+                    </div>
+                    <div className="text-xs text-base-content/70 mt-1">
+                      bKash, Nagad, Rocket, Cards
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                      <span className="badge bg-[#E2136E] text-white border-none text-[10px] font-bold px-1.5 py-0.5">bKash</span>
+                      <span className="badge bg-[#F7941D] text-white border-none text-[10px] font-bold px-1.5 py-0.5">Nagad</span>
+                      <span className="badge bg-[#8C3494] text-white border-none text-[10px] font-bold px-1.5 py-0.5">Rocket</span>
+                      <span className="badge bg-slate-700 text-white border-none text-[10px] font-bold px-1.5 py-0.5">Cards</span>
+                    </div>
+                  </button>
+
+                  {/* OPTION 2: Cash at Chamber */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("CASH")}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      paymentMethod === "CASH"
+                        ? "border-emerald-600 bg-emerald-50/70 shadow-md scale-101"
+                        : "border-base-300 bg-base-100 hover:border-emerald-500/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
+                        <Building2 className="text-emerald-600" size={16} /> Cash at Chamber
+                      </div>
+                      <span className="badge badge-success badge-soft badge-sm font-bold text-emerald-800">চেম্বারে নগদ</span>
+                    </div>
+                    <div className="text-xs text-base-content/70 mt-1">
+                      Pay cash at clinic desk
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-medium mt-3 flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Instant confirmation
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {paymentMethod !== "CASH" ? (
-                <div className="space-y-2 bg-base-200/50 p-4 rounded-2xl">
-                  <div className="text-xs text-base-content/70">
-                    Send <strong>৳{selectedAppointment.amount}</strong> to Merchant Number:{" "}
-                    <strong className="text-primary font-mono">01700000000</strong> ({paymentMethod})
+              {paymentMethod === "SSLCOMMERZ" ? (
+                <div className="bg-primary/5 border border-primary/20 p-4 rounded-2xl text-xs space-y-1.5 text-base-content/80">
+                  <div className="font-bold text-primary flex items-center gap-1">
+                    <ExternalLink size={14} /> Official Payment Gateway Redirect
                   </div>
-                  <label className="label text-xs font-bold">{t("enterTrxId")}</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. BK89201AX"
-                    value={trxId}
-                    onChange={(e) => setTrxId(e.target.value)}
-                    className="input input-bordered w-full font-mono text-sm uppercase"
-                  />
+                  <p>
+                    You will be redirected to the secure <strong>SSLCommerz</strong> gateway to pay directly with your <strong>bKash App, Nagad, Rocket</strong>, or <strong>Credit/Debit Card</strong>.
+                  </p>
                 </div>
               ) : (
-                <div className="text-xs bg-emerald-50 text-emerald-900 border border-emerald-200 p-4 rounded-2xl">
-                  {t("cashAtChamberNote")}
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl text-xs space-y-1 text-emerald-900">
+                  <div className="font-bold flex items-center gap-1">
+                    <CheckCircle2 size={14} className="text-emerald-700" /> Cash Payment at Reception
+                  </div>
+                  <p>
+                    Your serial number and appointment will be confirmed immediately. Please pay <strong>৳{selectedAppointment.amount} BDT</strong> in cash at the counter before consulting Dr. {selectedAppointment.doctor?.full_name}.
+                  </p>
                 </div>
               )}
 
@@ -959,14 +1248,28 @@ export default function PatientDashboard() {
                   onClick={() => setPaymentModalOpen(false)}
                   className="btn btn-ghost flex-1"
                 >
-                  {t("cancel")}
+                  {t("cancel") || "Cancel"}
                 </button>
                 <button
                   type="submit"
                   disabled={processingPayment}
-                  className="btn btn-success flex-1 text-white shadow-md"
+                  className={`btn flex-1 text-white shadow-md gap-2 ${
+                    paymentMethod === "CASH"
+                      ? "btn-success"
+                      : "btn-primary"
+                  }`}
                 >
-                  {processingPayment ? t("confirming") : t("confirmPayment")}
+                  {processingPayment ? (
+                    <span className="loading loading-spinner loading-sm" />
+                  ) : paymentMethod === "CASH" ? (
+                    <>
+                      <CheckCircle2 size={16} /> Confirm Cash at Chamber
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink size={16} /> Proceed to Payment Gateway ↗
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -980,12 +1283,23 @@ export default function PatientDashboard() {
           <div className="bg-base-100 max-w-lg w-full rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-base-200 pb-3">
               <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
-                <Users className="text-primary" size={20} /> {t("addFamilyMember")}
+                <Users className="text-primary" size={20} />{" "}
+                {editingFamilyMember
+                  ? t("editMember") || "Edit Family Member"
+                  : t("addFamilyMember")}
               </h3>
-              <button onClick={() => setFamilyModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
+              <button
+                onClick={() => {
+                  setFamilyModalOpen(false);
+                  setEditingFamilyMember(null);
+                }}
+                className="btn btn-ghost btn-sm btn-circle"
+              >
+                ✕
+              </button>
             </div>
 
-            <form onSubmit={handleAddFamilyMember} className="space-y-4">
+            <form onSubmit={handleSaveFamilyMember} className="space-y-4">
               <div>
                 <label className="label text-xs font-bold">{t("fullName")} *</label>
                 <input
@@ -1017,27 +1331,78 @@ export default function PatientDashboard() {
                 <div>
                   <label className="label text-xs font-bold">{t("phone")}</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
                     placeholder="01712345678"
+                    maxLength={11}
                     value={familyFormData.phone}
-                    onChange={(e) => setFamilyFormData({ ...familyFormData, phone: e.target.value })}
-                    className="input input-bordered w-full"
+                    onChange={(e) => setFamilyFormData({ ...familyFormData, phone: e.target.value.replace(/\D/g, "").slice(0, 11) })}
+                    className="input input-bordered w-full font-mono text-sm"
                   />
+                  <span className="text-[10px] text-base-content/50 mt-0.5 block">11-digit BD mobile (e.g. 01712345678)</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              {/* Day / Month / Year Dropdown Picker */}
+              <div className="space-y-1">
+                <label className="label text-xs font-bold flex items-center justify-between pb-0.5">
+                  <span>{t("dateOfBirth") || "Date of Birth (Day / Month / Year)"}</span>
+                  {familyFormData.age ? (
+                    <span className="badge badge-primary badge-sm font-semibold">
+                      Calculated: {familyFormData.age} yrs
+                    </span>
+                  ) : null}
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={dobDay || ""}
+                    onChange={(e) => handleDobChange("day", e.target.value)}
+                    className="select select-bordered select-sm w-full text-xs font-medium"
+                  >
+                    <option value="">Day</option>
+                    {DOB_DAYS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={dobMonth || ""}
+                    onChange={(e) => handleDobChange("month", e.target.value)}
+                    className="select select-bordered select-sm w-full text-xs font-medium"
+                  >
+                    <option value="">Month</option>
+                    {DOB_MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={dobYear || ""}
+                    onChange={(e) => handleDobChange("year", e.target.value)}
+                    className="select select-bordered select-sm w-full text-xs font-medium"
+                  >
+                    <option value="">Year</option>
+                    {DOB_YEARS.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label text-xs font-bold">{t("age")}</label>
+                  <label className="label text-xs font-bold">{t("age") || "Age"}</label>
                   <input
                     type="number"
                     placeholder="e.g. 62"
                     value={familyFormData.age}
                     onChange={(e) => setFamilyFormData({ ...familyFormData, age: e.target.value })}
-                    className="input input-bordered w-full"
+                    className="input input-bordered w-full text-sm"
                   />
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label text-xs font-bold">{t("gender")}</label>
                   <select
@@ -1084,7 +1449,10 @@ export default function PatientDashboard() {
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setFamilyModalOpen(false)}
+                  onClick={() => {
+                    setFamilyModalOpen(false);
+                    setEditingFamilyMember(null);
+                  }}
                   className="btn btn-ghost flex-1"
                 >
                   {t("cancel")}
@@ -1094,10 +1462,66 @@ export default function PatientDashboard() {
                   disabled={submittingFamily}
                   className="btn btn-primary flex-1 shadow-md"
                 >
-                  {submittingFamily ? t("saving") : t("saveMember")}
+                  {submittingFamily
+                    ? t("saving") || "Saving..."
+                    : editingFamilyMember
+                    ? t("updateMember") || "Update Member"
+                    : t("saveMember") || "Save Member"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====== DELETE FAMILY MEMBER CONFIRMATION MODAL ====== */}
+      {deleteConfirmModalOpen && memberToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-base-100 max-w-sm w-full rounded-3xl p-6 shadow-2xl border border-base-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-error">
+              <div className="p-3 bg-error/10 rounded-2xl">
+                <Trash2 size={24} />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-base-content text-base">
+                  {t("deleteMember") || "Delete Member"}
+                </h4>
+                <p className="text-xs text-base-content/60">
+                  {memberToDelete.full_name} ({memberToDelete.relationship_display || memberToDelete.relationship})
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-base-content/80">
+              {t("confirmDeleteMember") || "Are you sure you want to remove this family member from your profile?"}
+            </p>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmModalOpen(false);
+                  setMemberToDelete(null);
+                }}
+                disabled={deletingFamily}
+                className="btn btn-ghost btn-sm flex-1"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingFamily}
+                className="btn btn-error btn-sm flex-1 text-white shadow-md gap-1"
+              >
+                {deletingFamily ? (
+                  <span className="loading loading-spinner loading-xs" />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+                {t("deleteMember") || "Delete"}
+              </button>
+            </div>
           </div>
         </div>
       )}

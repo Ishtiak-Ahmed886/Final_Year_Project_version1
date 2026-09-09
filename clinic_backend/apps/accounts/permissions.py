@@ -28,3 +28,11 @@ class IsClinicAdminOrAdmin(BasePermission):
             request.user and request.user.is_authenticated and 
             (request.user.role in [UserRole.ADMIN, UserRole.CLINIC_ADMIN] or request.user.is_superuser)
         )
+
+
+class IsFamilyMemberOwner(BasePermission):
+    """
+    Object-level permission allowing only the owning patient to view, update, or delete their family member.
+    """
+    def has_object_permission(self, request, view, obj):
+        return bool(request.user and request.user.is_authenticated and obj.patient_id == request.user.id)

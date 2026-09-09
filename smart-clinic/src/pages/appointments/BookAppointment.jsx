@@ -205,11 +205,32 @@ export default function BookAppointment() {
     }
   };
 
+  const handleGoBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate("/dashboard");
+    }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      <Link to="/clinics" className="inline-flex items-center gap-2 text-sm text-base-content/60 hover:text-primary font-semibold">
-        <ArrowLeft size={16} /> Back
-      </Link>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="flex items-center justify-between gap-3 bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm">
+        <button
+          type="button"
+          onClick={handleGoBack}
+          className="btn btn-ghost btn-sm gap-2 font-bold text-base-content/80 hover:text-primary"
+        >
+          <ArrowLeft size={18} /> Back
+        </button>
+
+        <Link
+          to="/dashboard"
+          className="btn btn-outline btn-primary btn-sm gap-2 font-bold shadow-xs"
+        >
+          Return to Dashboard
+        </Link>
+      </div>
 
       {/* ====== Nearest Clinics Section ====== */}
       <div className="space-y-3">

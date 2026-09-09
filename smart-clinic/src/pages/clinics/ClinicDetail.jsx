@@ -1,14 +1,25 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import apiClient from "../../api/axios";
-import { MapPin, Phone, Mail, Building2, Stethoscope, CalendarCheck, UserCheck, ArrowLeft, Award, ExternalLink } from "lucide-react";
+import { MapPin, Phone, Mail, Building2, Stethoscope, CalendarCheck, UserCheck, ArrowLeft, Award, ExternalLink, LayoutDashboard } from "lucide-react";
+import { useAuth } from "../../Provider/AuthProvider";
 
 export default function ClinicDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [clinic, setClinic] = useState(null);
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const handleGoBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate("/clinics");
+    }
+  };
 
   useEffect(() => {
     const fetchClinicData = async () => {
@@ -46,18 +57,42 @@ export default function ClinicDetail() {
     return (
       <div className="max-w-md mx-auto py-16 text-center space-y-4">
         <div className="alert alert-error">{error || "Clinic not found."}</div>
-        <Link to="/clinics" className="btn btn-outline btn-sm gap-2">
-          <ArrowLeft size={16} /> Back to Clinics
-        </Link>
+        <button onClick={handleGoBack} className="btn btn-outline btn-sm gap-2">
+          <ArrowLeft size={16} /> Go Back
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      <Link to="/clinics" className="inline-flex items-center gap-2 text-sm text-base-content/60 hover:text-primary font-semibold">
-        <ArrowLeft size={16} /> Back to Clinics
-      </Link>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Smart Back Navigation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm">
+        <button
+          type="button"
+          onClick={handleGoBack}
+          className="btn btn-ghost btn-sm gap-2 font-bold text-base-content/80 hover:text-primary"
+        >
+          <ArrowLeft size={18} /> Back
+        </button>
+
+        <div className="flex items-center gap-2">
+          {user && (
+            <Link
+              to="/dashboard"
+              className="btn btn-outline btn-primary btn-sm gap-2 font-bold shadow-xs"
+            >
+              <LayoutDashboard size={16} /> Return to Dashboard
+            </Link>
+          )}
+          <Link
+            to="/clinics"
+            className="btn btn-ghost btn-sm gap-1.5 font-semibold text-base-content/70 hover:text-primary"
+          >
+            <Building2 size={16} /> All Clinics
+          </Link>
+        </div>
+      </div>
 
       {/* Clinic Header Banner */}
       <div className="bg-base-100 border border-base-200 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">

@@ -27,3 +27,7 @@ class AppointmentCreateSerializer(serializers.Serializer):
     appointment_date = serializers.DateField(required=True)
     appointment_time = serializers.TimeField(required=True)
     problem_description = serializers.CharField(required=False, allow_blank=True, default='')
+    is_walk_in = serializers.BooleanField(required=False, default=False)
+    walk_in_name = serializers.CharField(required=False, allow_blank=True, default='')
+    walk_in_phone = serializers.CharField(required=False, allow_blank=True, default='')
+

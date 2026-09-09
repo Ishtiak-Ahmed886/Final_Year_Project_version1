@@ -1,13 +1,103 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import apiClient from "../../api/axios";
 import {
   Calendar, Clock, User, CheckCircle2, XCircle, AlertCircle,
   Stethoscope, Award, BookOpen, Edit3, Save, X, Loader, MapPin,
   Building2, Send, Play, Pause, FastForward, Navigation, FileText, Plus, Trash2, Heart,
-  FolderHeart, ExternalLink
+  FolderHeart, ExternalLink, RotateCcw, Tv, AlertTriangle, Printer, Sparkles,
+  ShieldAlert, Check, Volume2, RefreshCw
 } from "lucide-react";
 
+// Bangladesh Standard Clinical Prescription Presets
+const RX_PRESETS = [
+  {
+    id: "flu",
+    name: "জ্বর ও সর্দি (Flu & Fever)",
+    icon: "🌡️",
+    diagnosis: "Acute Upper Respiratory Tract Infection (URTI) with Fever",
+    tests: "CBC with ESR (if fever > 3 days)",
+    advice: "পর্যাপ্ত বিশ্রাম নিন। প্রচুর কুসুম গরম পানি ও তরল খাবার খান। ১০১° এর বেশি জ্বর হলে কপালে জলপট্টি দিন।",
+    vitals: { bp: "120/80", pulse: "78", temp: "101.2F", weight: "65kg", blood_sugar: "5.8" },
+    medications: [
+      { medication_name: "Tab. Napa Extra 500mg+65mg (Paracetamol + Caffeine)", dosage: "1 + 0 + 1", timing: "খাবারের পরে", duration: "৫ দিন", instructions: "জ্বর বা ব্যথায়" },
+      { medication_name: "Tab. Fexo 120mg (Fexofenadine)", dosage: "0 + 0 + 1", timing: "খাবারের পরে", duration: "৭ দিন", instructions: "রাতে শোবার আগে" },
+      { medication_name: "Cap. Seclo 20mg (Omeprazole)", dosage: "1 + 0 + 1", timing: "খাবারের ২০ মিনিট আগে", duration: "৭ দিন", instructions: "" }
+    ]
+  },
+  {
+    id: "gerd",
+    name: "গ্যাস্ট্রিক ও বুকজ্বালা (Acidity & GERD)",
+    icon: "🫄",
+    diagnosis: "Gastroesophageal Reflux Disease (GERD) / Dyspepsia",
+    tests: "USG of Whole Abdomen (if symptoms persist)",
+    advice: "তেল, ঝাল, চর্বিযুক্ত ও ভাজাপোড়া খাবার পরিহার করুন। রাতের খাবার খাওয়ার অন্তত ২ ঘণ্টা পর ঘুমাতে যাবেন। ধূমপান ও চা-কফি পরিহার করুন।",
+    vitals: { bp: "120/80", pulse: "74", temp: "98.4F", weight: "68kg", blood_sugar: "5.6" },
+    medications: [
+      { medication_name: "Tab. Sergel 20mg (Esomeprazole)", dosage: "1 + 0 + 1", timing: "খাবারের ২০ মিনিট আগে", duration: "১৪ দিন", instructions: "সকালে ও রাতে" },
+      { medication_name: "Syr. Entacyd Plus 200ml (Magaldrate + Simethicone)", dosage: "২ চামচ করে দিনে ৩ বার", timing: "খাবারের ১ ঘণ্টা পর", duration: "৭ দিন", instructions: "গ্যাসের অস্বস্তিতে" },
+      { medication_name: "Tab. Flatuna 40mg (Simethicone)", dosage: "1 + 1 + 1", timing: "খাবারের পরে", duration: "৫ দিন", instructions: "চিবিয়ে খেতে হবে" }
+    ]
+  },
+  {
+    id: "cough",
+    name: "কাশি ও ব্রঙ্কাইটিস (Cough & Bronchitis)",
+    icon: "🫁",
+    diagnosis: "Acute Bronchitis / Dry Allergic Cough",
+    tests: "Chest X-Ray P/A view, CBC with ESR",
+    advice: "ঠান্ডা পানি ও আইসক্রিম পরিহার করুন। গরম পানির ভাপ নিন। ধুলাবালি এড়িয়ে চলুন ও বাইরে মাস্ক ব্যবহার করুন।",
+    vitals: { bp: "125/82", pulse: "80", temp: "99.0F", weight: "62kg", blood_sugar: "5.4" },
+    medications: [
+      { medication_name: "Syr. Miracof 100ml (Butamirate Citrate)", dosage: "২ চামচ করে দিনে ৩ বার", timing: "খাবারের পরে", duration: "৭ দিন", instructions: "" },
+      { medication_name: "Tab. Monas 10 10mg (Montelukast)", dosage: "0 + 0 + 1", timing: "খাবারের পরে", duration: "১৪ দিন", instructions: "রাতে শোবার আগে" },
+      { medication_name: "Cap. Cef-3 200mg (Cefixime)", dosage: "1 + 0 + 1", timing: "খাবারের পরে", duration: "৭ দিন", instructions: "পুরো কোর্স শেষ করুন" },
+      { medication_name: "Cap. Maxpro 20mg (Esomeprazole)", dosage: "1 + 0 + 1", timing: "খাবারের আগে", duration: "৭ দিন", instructions: "" }
+    ]
+  },
+  {
+    id: "htn",
+    name: "উচ্চ রক্তচাপ (Hypertension)",
+    icon: "🩺",
+    diagnosis: "Essential Hypertension (Primary High Blood Pressure)",
+    tests: "ECG, Serum Creatinine, Serum Electrolytes, Lipid Profile",
+    advice: "খাবারে কাঁচা লবণ একেবারেই পরিহার করুন। প্রতিদিন অন্তত ৩০ মিনিট দ্রুত হাঁটার অভ্যাস করুন। মানসিক চাপ মুক্ত থাকুন ও নিয়মিত রক্তচাপ পরিমাপ করুন।",
+    vitals: { bp: "145/95", pulse: "84", temp: "98.6F", weight: "74kg", blood_sugar: "6.0" },
+    medications: [
+      { medication_name: "Tab. Bislol 5mg (Bisoprolol Fumarate)", dosage: "1 + 0 + 0", timing: "সকালে খাবারের পর", duration: "১ মাস", instructions: "নিয়মিত চলবে" },
+      { medication_name: "Tab. Cardipin 5mg (Amlodipine Besylate)", dosage: "0 + 0 + 1", timing: "রাতে খাবারের পর", duration: "১ মাস", instructions: "নিয়মিত চলবে" },
+      { medication_name: "Tab. A-Card 75mg (Aspirin)", dosage: "0 + 1 + 0", timing: "দুপুরে ভরা পেটে", duration: "১ মাস", instructions: "" }
+    ]
+  },
+  {
+    id: "diabetes",
+    name: "ডায়াবেটিস (Type 2 Diabetes)",
+    icon: "🩸",
+    diagnosis: "Type 2 Diabetes Mellitus (Uncontrolled)",
+    tests: "HbA1c, Fasting Blood Sugar (FBS), 2 Hours After Breakfast (2HABF), Urine R/M/E",
+    advice: "মিষ্টি ও চিনিজাতীয় খাবার সম্পূর্ণ বর্জন করুন। লাল আটার রুটি ও সবুজ শাকসবজি বেশি খান। প্রতিদিন নির্দিষ্ট সময়ে খাবার ও ওষুধ গ্রহণ করুন।",
+    vitals: { bp: "130/85", pulse: "76", temp: "98.6F", weight: "72kg", blood_sugar: "9.2" },
+    medications: [
+      { medication_name: "Tab. Janumet 50mg/500mg (Sitagliptin + Metformin)", dosage: "1 + 0 + 1", timing: "খাবারের সাথে", duration: "১ মাস", instructions: "সকালে ও রাতে" },
+      { medication_name: "Tab. Calbo-D (Calcium + Vit D3)", dosage: "0 + 1 + 0", timing: "দুপুরে খাবারের পর", duration: "১ মাস", instructions: "" }
+    ]
+  },
+  {
+    id: "pain",
+    name: "কোমর ও জয়েন্ট ব্যথা (Back & Joint Pain)",
+    icon: "🦴",
+    diagnosis: "Lumbago / Mechanical Low Back Pain with Muscle Spasm",
+    tests: "X-Ray Lumbosacral Spine (L/S Spine) A/P & Lateral views",
+    advice: "ভারী জিনিস তোলা ও সামনে ঝুঁকে কাজ করা বন্ধ রাখুন। শক্ত ও সমান বিছানায় শয়ন করুন। ব্যথার জায়গায় গরম সেক দিন।",
+    vitals: { bp: "120/80", pulse: "72", temp: "98.4F", weight: "70kg", blood_sugar: "5.5" },
+    medications: [
+      { medication_name: "Tab. Rolac 10mg (Ketorolac Tromethamine)", dosage: "1 + 0 + 1", timing: "খাবারের পরে", duration: "৫ দিন", instructions: "ভরা পেটে সেব্য" },
+      { medication_name: "Cap. Seclo 20mg (Omeprazole)", dosage: "1 + 0 + 1", timing: "খাবারের আগে", duration: "৭ দিন", instructions: "" },
+      { medication_name: "Tab. Coralcal-D (Coral Calcium + Vit D3)", dosage: "0 + 1 + 0", timing: "দুপুরে খাবারের পর", duration: "১ মাস", instructions: "" }
+    ]
+  }
+];
+
 export default function DoctorDashboard() {
+
   const [tab, setTab] = useState("appointments");
   const [appointments, setAppointments] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -43,6 +133,19 @@ export default function DoctorDashboard() {
     room_number: "",
   });
 
+  // Patient Stopwatch & Session Time Management
+  const [patientSeconds, setPatientSeconds] = useState(0);
+
+  // Delay & Announcement Modal
+  const [delayModalOpen, setDelayModalOpen] = useState(false);
+  const [delayMinutes, setDelayMinutes] = useState(15);
+  const [announcementNote, setAnnouncementNote] = useState("");
+  const [broadcastingDelay, setBroadcastingDelay] = useState(false);
+
+  // Rx Print Modal
+  const [rxPrintModalOpen, setRxPrintModalOpen] = useState(false);
+  const [printRxData, setPrintRxData] = useState(null);
+
   // E-Prescription Modal State
   const [rxModalOpen, setRxModalOpen] = useState(false);
   const [selectedRxApt, setSelectedRxApt] = useState(null);
@@ -58,6 +161,7 @@ export default function DoctorDashboard() {
   const [medSearchQuery, setMedSearchQuery] = useState("");
   const [dgdaSearchResults, setDgdaSearchResults] = useState([]);
   const [submittingRx, setSubmittingRx] = useState(false);
+
 
   // Chamber Schedule State
   const [schedules, setSchedules] = useState([]);
@@ -213,10 +317,60 @@ export default function DoctorDashboard() {
     }
   }, [profile, selectedClinicId]);
 
+  // Live Patient Consultation Stopwatch Timer
+  useEffect(() => {
+    let timer;
+    if (chamberSession?.status === "IN_CHAMBER" && (chamberSession?.current_serial || 0) > 0) {
+      timer = setInterval(() => {
+        setPatientSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setPatientSeconds(0);
+    }
+    return () => clearInterval(timer);
+  }, [chamberSession?.status, chamberSession?.current_serial]);
+
+  // Doctor Chamber Keyboard Hotkeys: [N] Next, [S] Skip & Hold, [P] Pause
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger when user is typing inside an input or textarea or modal is open
+      if (
+        ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName) ||
+        rxModalOpen ||
+        delayModalOpen ||
+        rxPrintModalOpen ||
+        tab !== "appointments"
+      ) {
+        return;
+      }
+
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        handleChamberAction("NEXT_SERIAL");
+      } else if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        handleChamberAction("SKIP_SERIAL");
+      } else if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        const nextStat = chamberSession?.status === "PAUSED" ? "IN_CHAMBER" : "PAUSED";
+        handleChamberAction("UPDATE_STATUS", nextStat);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [chamberSession, profile, selectedClinicId, rxModalOpen, delayModalOpen, rxPrintModalOpen, tab]);
+
   const showMsg = (m) => { setActionMsg(m); setTimeout(() => setActionMsg(""), 4000); };
   const showErr = (e) => { setError(e); setTimeout(() => setError(""), 5000); };
 
-  const handleChamberAction = async (action, newStatus = null) => {
+  const formatSeconds = (sec) => {
+    const mins = Math.floor(sec / 60);
+    const remainingSec = sec % 60;
+    return `${mins.toString().padStart(2, "0")}:${remainingSec.toString().padStart(2, "0")}`;
+  };
+
+  const handleChamberAction = async (action, newStatus = null, targetSerial = null) => {
     if (!profile || !selectedClinicId) return;
     setUpdatingChamber(true);
     try {
@@ -226,16 +380,81 @@ export default function DoctorDashboard() {
         action: action,
       };
       if (newStatus) payload.status = newStatus;
+      if (targetSerial !== null) payload.current_serial = targetSerial;
 
       const res = await apiClient.post("/doctors/chamber-session/", payload);
       setChamberSession(res);
-      showMsg(action === "NEXT_SERIAL" ? `Called Serial #${res.current_serial}!` : `Chamber status updated to ${res.status}`);
+
+      if (action === "NEXT_SERIAL" || action === "RECALL_SERIAL" || action === "SKIP_SERIAL") {
+        setPatientSeconds(0);
+      }
+
+      showMsg(
+        action === "NEXT_SERIAL"
+          ? `Called Serial #${res.current_serial}!`
+          : action === "SKIP_SERIAL"
+          ? `Serial held. Advanced to #${res.current_serial}!`
+          : action === "RECALL_SERIAL"
+          ? `Recalled Serial #${res.current_serial} into chamber!`
+          : action === "RESET"
+          ? "Chamber queue reset to start."
+          : `Chamber status updated to ${res.status}`
+      );
     } catch {
       showErr("Failed to update chamber session.");
     } finally {
       setUpdatingChamber(false);
     }
   };
+
+  const handleBroadcastDelay = async (e) => {
+    e.preventDefault();
+    if (!profile || !selectedClinicId) return;
+    setBroadcastingDelay(true);
+    try {
+      const payload = {
+        doctor_id: profile.id,
+        clinic_id: selectedClinicId,
+        action: "UPDATE_STATUS",
+        delay_minutes: parseInt(delayMinutes, 10) || 0,
+        announcement_note: announcementNote,
+      };
+      const res = await apiClient.post("/doctors/chamber-session/", payload);
+      setChamberSession(res);
+      setDelayModalOpen(false);
+      showMsg("Chamber delay announcement broadcasted to waiting room & patients!");
+    } catch {
+      showErr("Failed to broadcast delay notice.");
+    } finally {
+      setBroadcastingDelay(false);
+    }
+  };
+
+  const applyRxPreset = (preset) => {
+    setRxFormData({
+      diagnosis: preset.diagnosis,
+      vitals: preset.vitals || rxFormData.vitals,
+      diagnostic_tests: preset.tests,
+      advice: preset.advice,
+      medications: preset.medications.map((m) => ({ ...m })),
+    });
+    showMsg(`Quick Preset applied: "${preset.name}"!`);
+  };
+
+  const findDuplicateGenerics = () => {
+    const genericCount = {};
+    rxFormData.medications.forEach((m) => {
+      const match = m.medication_name.match(/\(([^)]+)\)/);
+      if (match && match[1]) {
+        const gen = match[1].toLowerCase().trim();
+        genericCount[gen] = (genericCount[gen] || 0) + 1;
+      }
+    });
+    return Object.entries(genericCount)
+      .filter(([_, count]) => count > 1)
+      .map(([gen]) => gen);
+  };
+
 
   const handleSearchDgda = async (query) => {
     setMedSearchQuery(query);
@@ -305,13 +524,27 @@ export default function DoctorDashboard() {
     setRxModalOpen(true);
   };
 
+  const openPrintRxModal = async (apt) => {
+    try {
+      const existing = await apiClient.get(`/prescriptions/appointment/${apt.id}/`);
+      if (existing) {
+        setPrintRxData({ ...existing, appointment: apt });
+        setRxPrintModalOpen(true);
+      } else {
+        showErr("No prescription written for this appointment yet. Click 'Write E-Prescription'.");
+      }
+    } catch {
+      showErr("Prescription not found. Please click 'Write E-Prescription' first.");
+    }
+  };
+
   const handleSavePrescription = async (e) => {
     e.preventDefault();
     if (!selectedRxApt) return;
     setSubmittingRx(true);
     setError("");
     try {
-      await apiClient.post("/prescriptions/", {
+      const res = await apiClient.post("/prescriptions/", {
         appointment_id: selectedRxApt.id,
         diagnosis: rxFormData.diagnosis,
         vitals: rxFormData.vitals,
@@ -322,12 +555,16 @@ export default function DoctorDashboard() {
       showMsg("Digital E-Prescription issued successfully!");
       setRxModalOpen(false);
       fetchAppointments();
+      // Auto open print preview
+      setPrintRxData({ ...res, appointment: selectedRxApt });
+      setRxPrintModalOpen(true);
     } catch {
       showErr("Failed to issue prescription. Check details.");
     } finally {
       setSubmittingRx(false);
     }
   };
+
 
   const handleComplete = async (id) => {
     try {
@@ -507,80 +744,279 @@ export default function DoctorDashboard() {
       {/* ======== APPOINTMENTS & LIVE QUEUE TAB ======== */}
       {tab === "appointments" && (
         <div className="space-y-6">
-          {/* ====== LIVE CHAMBER TOKEN CONTROL PANEL ====== */}
+          {/* ====== LIVE CHAMBER TOKEN & TIME MANAGEMENT CONTROL PANEL ====== */}
           {selectedClinicId && (
-            <div className="bg-gradient-to-r from-primary/10 via-base-100 to-secondary/10 border-2 border-primary/30 p-6 rounded-3xl shadow-lg space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-base-200 pb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="badge badge-primary font-bold text-xs">Live Chamber Tracker</span>
-                    <span className={`badge font-bold text-xs ${
-                      chamberSession?.status === "IN_CHAMBER" ? "badge-success text-white animate-pulse" :
-                      chamberSession?.status === "IN_TRANSIT" ? "badge-warning" :
-                      chamberSession?.status === "PAUSED" ? "badge-secondary" : "badge-ghost"
-                    }`}>
-                      Status: {chamberSession?.status || "NOT_STARTED"}
+            <div className="bg-gradient-to-r from-primary/10 via-base-100 to-secondary/10 border-2 border-primary/40 p-6 rounded-3xl shadow-xl space-y-5">
+              {/* Header row */}
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-base-200 pb-4">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="badge badge-primary font-black text-xs uppercase tracking-wider">
+                      Live Chamber Control Desk
                     </span>
+                    <span
+                      className={`badge font-bold text-xs ${
+                        chamberSession?.status === "IN_CHAMBER"
+                          ? "badge-success text-white animate-pulse"
+                          : chamberSession?.status === "IN_TRANSIT"
+                          ? "badge-warning font-black text-black"
+                          : chamberSession?.status === "PRAYER_BREAK"
+                          ? "badge-info text-white font-bold"
+                          : chamberSession?.status === "EMERGENCY"
+                          ? "badge-error text-white font-black animate-pulse"
+                          : chamberSession?.status === "PAUSED"
+                          ? "badge-secondary"
+                          : "badge-ghost"
+                      }`}
+                    >
+                      {chamberSession?.status === "IN_CHAMBER"
+                        ? "🟢 In Chamber (রোগী দেখা হচ্ছে)"
+                        : chamberSession?.status === "IN_TRANSIT"
+                        ? "🟡 In Transit (ডাক্তার পথে আছেন)"
+                        : chamberSession?.status === "PRAYER_BREAK"
+                        ? "🔵 Namaz / Prayer Break (নামাজের বিরতি)"
+                        : chamberSession?.status === "EMERGENCY"
+                        ? "🔴 Emergency Round / OT"
+                        : chamberSession?.status === "PAUSED"
+                        ? "⏸️ Paused (সাময়িক বিরতি)"
+                        : chamberSession?.status === "ENDED"
+                        ? "⬛ Session Ended"
+                        : "⚪ Not Started"}
+                    </span>
+
+                    {chamberSession?.delay_minutes > 0 && (
+                      <span className="badge badge-warning badge-outline text-xs font-bold gap-1 animate-pulse">
+                        <AlertTriangle size={12} />
+                        Delayed: ~{chamberSession.delay_minutes} mins
+                      </span>
+                    )}
                   </div>
-                  <h2 className="text-xl font-extrabold text-base-content mt-1">
-                    Serial Tracker Control
+                  <h2 className="text-xl font-black text-base-content flex items-center gap-2">
+                    <span>Token Serial Tracker & Chamber Timekeeper</span>
                   </h2>
                 </div>
 
-                <div className="bg-base-100 px-6 py-2 rounded-2xl border border-base-200 shadow-sm flex items-center gap-3">
-                  <div className="text-xs text-base-content/60 font-semibold uppercase">Currently Called</div>
-                  <div className="text-3xl font-black text-primary">
+                {/* TV Display & Broadcast Delay Launcher */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={`/queue-display/${selectedClinicId}/${profile?.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-outline btn-secondary btn-sm gap-2 font-bold shadow-sm"
+                    title="Launch Waiting Room TV Display in New Window"
+                  >
+                    <Tv size={16} /> Open Waiting Room TV Screen
+                  </a>
+
+                  <button
+                    onClick={() => setDelayModalOpen(true)}
+                    className="btn btn-outline btn-warning btn-sm gap-1.5 font-bold shadow-sm"
+                  >
+                    <Clock size={15} /> Broadcast Delay / Note
+                  </button>
+                </div>
+              </div>
+
+              {/* Time Management & Queue Stats Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {/* Active Calling Serial */}
+                <div className="bg-base-100 p-3 rounded-2xl border-2 border-primary/40 shadow-sm text-center">
+                  <div className="text-[11px] text-base-content/60 font-black uppercase tracking-wider">
+                    Calling Serial
+                  </div>
+                  <div className="text-3xl font-black text-primary mt-0.5">
                     #{chamberSession?.current_serial || 0}
+                  </div>
+                </div>
+
+                {/* Patient Consultation Stopwatch */}
+                <div className={`bg-base-100 p-3 rounded-2xl border shadow-sm text-center ${
+                  patientSeconds > 900 ? "border-error bg-error/5" : "border-base-200"
+                }`}>
+                  <div className="text-[11px] text-base-content/60 font-black uppercase tracking-wider">
+                    Current Patient Time
+                  </div>
+                  <div className={`text-2xl font-black font-mono mt-1 ${
+                    patientSeconds > 900 ? "text-error" : "text-secondary"
+                  }`}>
+                    {formatSeconds(patientSeconds)}
+                  </div>
+                </div>
+
+                {/* Total Booked */}
+                <div className="bg-base-100 p-3 rounded-2xl border border-base-200 shadow-sm text-center">
+                  <div className="text-[11px] text-base-content/60 font-black uppercase tracking-wider">
+                    Total Booked
+                  </div>
+                  <div className="text-2xl font-black text-base-content mt-1">
+                    {appointments.length}
+                  </div>
+                </div>
+
+                {/* Remaining In Queue */}
+                <div className="bg-base-100 p-3 rounded-2xl border border-base-200 shadow-sm text-center">
+                  <div className="text-[11px] text-base-content/60 font-black uppercase tracking-wider">
+                    Waiting in Lobby
+                  </div>
+                  <div className="text-2xl font-black text-info mt-1">
+                    {Math.max(0, appointments.filter(a => a.status === "CONFIRMED" && a.serial_number > (chamberSession?.current_serial || 0)).length)}
+                  </div>
+                </div>
+
+                {/* Skipped / On Hold */}
+                <div className="bg-base-100 p-3 rounded-2xl border border-base-200 shadow-sm text-center col-span-2 sm:col-span-1">
+                  <div className="text-[11px] text-base-content/60 font-black uppercase tracking-wider">
+                    On Hold (Skipped)
+                  </div>
+                  <div className="text-2xl font-black text-warning mt-1">
+                    {chamberSession?.skipped_serials?.length || 0}
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3 pt-1">
-                <button
-                  onClick={() => handleChamberAction("NEXT_SERIAL")}
-                  disabled={updatingChamber}
-                  className="btn btn-primary font-bold gap-2 text-base shadow-md flex-1 md:flex-initial"
-                >
-                  <FastForward size={18} /> Call Next Serial (#{(chamberSession?.current_serial || 0) + 1})
-                </button>
+              {/* Skipped Serials Chips (Quick Recall) */}
+              {chamberSession?.skipped_serials?.length > 0 && (
+                <div className="bg-base-200/50 p-3 rounded-2xl border border-warning/30 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-warning-content flex items-center gap-1">
+                    <AlertTriangle size={14} /> Skipped Serials on Hold:
+                  </span>
+                  {chamberSession.skipped_serials.map((sn) => (
+                    <button
+                      key={sn}
+                      onClick={() => handleChamberAction("RECALL_SERIAL", "IN_CHAMBER", sn)}
+                      disabled={updatingChamber}
+                      className="btn btn-warning btn-xs font-black gap-1 shadow-sm"
+                      title={`Recall Serial #${sn} into Chamber`}
+                    >
+                      Recall #{sn}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-                <button
-                  onClick={() => handleChamberAction("UPDATE_STATUS", "IN_TRANSIT")}
-                  disabled={updatingChamber}
-                  className="btn btn-warning btn-outline font-bold gap-1"
-                >
-                  <Navigation size={16} /> In Transit
-                </button>
+              {/* Action Buttons: Primary Serial Control */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {/* Call Next Serial */}
+                  <button
+                    onClick={() => handleChamberAction("NEXT_SERIAL")}
+                    disabled={updatingChamber}
+                    className="btn btn-primary font-black gap-2 text-base shadow-md flex-1 md:flex-initial"
+                    title="Call Next Serial (Keyboard Shortcut: N)"
+                  >
+                    <FastForward size={18} /> Call Next Serial (#{(chamberSession?.current_serial || 0) + 1})
+                    <kbd className="kbd kbd-xs bg-primary-focus text-white border-white/30 hidden sm:inline-block">N</kbd>
+                  </button>
 
-                <button
-                  onClick={() => handleChamberAction("UPDATE_STATUS", "IN_CHAMBER")}
-                  disabled={updatingChamber}
-                  className="btn btn-success btn-outline font-bold gap-1"
-                >
-                  <Play size={16} /> In Chamber
-                </button>
+                  {/* Skip and Hold Current */}
+                  <button
+                    onClick={() => handleChamberAction("SKIP_SERIAL")}
+                    disabled={updatingChamber || (chamberSession?.current_serial || 0) === 0}
+                    className="btn btn-warning btn-outline font-bold gap-1.5 flex-1 md:flex-initial"
+                    title="Hold current serial and call next patient (Keyboard Shortcut: S)"
+                  >
+                    <Pause size={16} /> Skip & Hold (#{chamberSession?.current_serial || 0})
+                    <kbd className="kbd kbd-xs border-warning hidden sm:inline-block">S</kbd>
+                  </button>
 
-                <button
-                  onClick={() => handleChamberAction("UPDATE_STATUS", "PAUSED")}
-                  disabled={updatingChamber}
-                  className="btn btn-secondary btn-outline font-bold gap-1"
-                >
-                  <Pause size={16} /> Pause
-                </button>
+                  {/* Previous Serial */}
+                  <button
+                    onClick={() => handleChamberAction("PREV_SERIAL")}
+                    disabled={updatingChamber || (chamberSession?.current_serial || 0) === 0}
+                    className="btn btn-ghost btn-outline btn-sm font-bold gap-1"
+                    title="Step back to previous serial"
+                  >
+                    <RotateCcw size={15} /> Prev Serial
+                  </button>
 
-                <button
-                  onClick={() => handleChamberAction("UPDATE_STATUS", "ENDED")}
-                  disabled={updatingChamber}
-                  className="btn btn-error btn-outline font-bold gap-1"
-                >
-                  <XCircle size={16} /> End Session
-                </button>
+                  {/* Reset Queue */}
+                  <button
+                    onClick={() => {
+                      if (window.confirm("Reset chamber queue to Serial #0 for today?")) {
+                        handleChamberAction("RESET");
+                      }
+                    }}
+                    disabled={updatingChamber}
+                    className="btn btn-ghost btn-xs text-base-content/50 hover:text-error self-center ml-auto"
+                    title="Reset chamber session"
+                  >
+                    Reset Queue
+                  </button>
+                </div>
+
+                {/* Doctor Chamber Status Presets */}
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-base-200">
+                  <span className="text-xs font-bold text-base-content/60 self-center mr-1">
+                    Quick Status:
+                  </span>
+
+                  <button
+                    onClick={() => handleChamberAction("UPDATE_STATUS", "IN_CHAMBER")}
+                    disabled={updatingChamber}
+                    className={`btn btn-xs rounded-lg font-bold gap-1 ${
+                      chamberSession?.status === "IN_CHAMBER" ? "btn-success text-white" : "btn-outline btn-success"
+                    }`}
+                  >
+                    <Play size={12} /> In Chamber (রোগী দেখা)
+                  </button>
+
+                  <button
+                    onClick={() => handleChamberAction("UPDATE_STATUS", "PRAYER_BREAK")}
+                    disabled={updatingChamber}
+                    className={`btn btn-xs rounded-lg font-bold gap-1 ${
+                      chamberSession?.status === "PRAYER_BREAK" ? "btn-info text-white" : "btn-outline btn-info"
+                    }`}
+                  >
+                    <Clock size={12} /> Namaz Break (নামাজ)
+                  </button>
+
+                  <button
+                    onClick={() => handleChamberAction("UPDATE_STATUS", "IN_TRANSIT")}
+                    disabled={updatingChamber}
+                    className={`btn btn-xs rounded-lg font-bold gap-1 ${
+                      chamberSession?.status === "IN_TRANSIT" ? "btn-warning text-black" : "btn-outline btn-warning"
+                    }`}
+                  >
+                    <Navigation size={12} /> In Transit (পথে / জ্যাম)
+                  </button>
+
+                  <button
+                    onClick={() => handleChamberAction("UPDATE_STATUS", "EMERGENCY")}
+                    disabled={updatingChamber}
+                    className={`btn btn-xs rounded-lg font-bold gap-1 ${
+                      chamberSession?.status === "EMERGENCY" ? "btn-error text-white" : "btn-outline btn-error"
+                    }`}
+                  >
+                    <AlertTriangle size={12} /> Emergency Round
+                  </button>
+
+                  <button
+                    onClick={() => handleChamberAction("UPDATE_STATUS", "PAUSED")}
+                    disabled={updatingChamber}
+                    className={`btn btn-xs rounded-lg font-bold gap-1 ${
+                      chamberSession?.status === "PAUSED" ? "btn-secondary text-white" : "btn-outline btn-secondary"
+                    }`}
+                    title="Pause or Resume (Keyboard Shortcut: P)"
+                  >
+                    <Pause size={12} /> Pause (বিরতি)
+                    <kbd className="kbd kbd-xs border-secondary hidden sm:inline-block">P</kbd>
+                  </button>
+
+
+                  <button
+                    onClick={() => handleChamberAction("UPDATE_STATUS", "ENDED")}
+                    disabled={updatingChamber}
+                    className="btn btn-ghost btn-xs text-error font-bold"
+                  >
+                    End Session (সমাপ্ত)
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {/* Appointments List */}
+
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
@@ -666,6 +1102,15 @@ export default function DoctorDashboard() {
                         >
                           <FileText size={16} /> Write E-Prescription
                         </button>
+
+                        <button
+                          onClick={() => openPrintRxModal(apt)}
+                          className="btn btn-outline btn-sm gap-1 flex-1 md:flex-initial"
+                          title="Print or view Bangladesh standard A4 prescription"
+                        >
+                          <Printer size={15} /> Print Rx
+                        </button>
+
 
                         {apt.status === "CONFIRMED" && (
                           <button
@@ -1104,13 +1549,46 @@ export default function DoctorDashboard() {
             </div>
 
             <form onSubmit={handleSavePrescription} className="space-y-5">
+              {/* 1-Click BD Clinical Presets Bar */}
+              <div className="bg-gradient-to-r from-primary/10 via-base-200/50 to-secondary/10 p-3.5 rounded-2xl border border-primary/20 space-y-2">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1">
+                  <span className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                    <Sparkles size={14} /> 1-Click Prescription Presets (এক ক্লিকে প্রেসক্রিপশন)
+                  </span>
+                  <span className="text-[11px] text-base-content/60">Auto-fills diagnosis, standard BD medications & advice</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {RX_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => applyRxPreset(preset)}
+                      className="btn btn-xs rounded-xl bg-base-100 hover:bg-primary/20 border border-base-300 font-bold gap-1 text-xs shadow-xs transition-transform active:scale-95"
+                    >
+                      <span>{preset.icon}</span>
+                      <span>{preset.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Duplicate Generic Molecule Warning Alert */}
+              {findDuplicateGenerics().length > 0 && (
+                <div className="alert alert-warning py-2.5 px-4 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-sm animate-pulse">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-warning-content" />
+                  <span>
+                    Duplicate Generic Molecule Detected: <strong>{findDuplicateGenerics().join(", ")}</strong>. Please review selected drugs to avoid accidental double dosage.
+                  </span>
+                </div>
+              )}
+
               {/* Diagnosis */}
               <div>
                 <label className="label text-xs font-bold uppercase tracking-wider">Clinical Diagnosis *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Acute Upper Respiratory Tract Infection, Type-2 Diabetes"
+                  placeholder="e.g. Acute Upper Respiratory Tract Infection, Type-2 Diabetes, Hypertension"
                   value={rxFormData.diagnosis}
                   onChange={(e) => setRxFormData({ ...rxFormData, diagnosis: e.target.value })}
                   className="input input-bordered w-full font-medium text-sm"
@@ -1119,7 +1597,7 @@ export default function DoctorDashboard() {
 
               {/* Patient Vitals */}
               <div className="bg-base-200/50 p-4 rounded-2xl space-y-2">
-                <label className="label text-xs font-bold uppercase tracking-wider">Patient Vitals</label>
+                <label className="label text-xs font-bold uppercase tracking-wider">Patient Vitals (চেম্বার চেকআপ)</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
                     <span className="text-[11px] font-semibold text-base-content/60">BP (mmHg)</span>
@@ -1167,21 +1645,21 @@ export default function DoctorDashboard() {
               {/* DGDA Bangladesh Drug Search */}
               <div className="space-y-2">
                 <label className="label text-xs font-bold uppercase tracking-wider flex justify-between items-center">
-                  <span>Prescribed Medications (Rx)</span>
-                  <span className="text-secondary text-[11px]">Search DGDA BD Drug Catalog below</span>
+                  <span>Prescribed Medications (Rx ওষুধসমূহ)</span>
+                  <span className="text-secondary text-[11px] font-bold">Search DGDA Catalog (80+ BD Brands)</span>
                 </label>
 
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Type to search BD medicines (e.g. Napa, Seclo, Maxpro, Sergel, Ace, Cef-3)..."
+                    placeholder="Type to search BD medicines (e.g. Napa, Seclo, Maxpro, Sergel, Cef-3, Fexo, Bislol, Janumet)..."
                     value={medSearchQuery}
                     onChange={(e) => handleSearchDgda(e.target.value)}
                     className="input input-bordered w-full text-sm bg-base-100 shadow-inner"
                   />
 
                   {dgdaSearchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 z-50 bg-base-100 border border-base-300 rounded-2xl shadow-2xl mt-1 max-h-48 overflow-y-auto divide-y divide-base-200">
+                    <div className="absolute top-full left-0 right-0 z-50 bg-base-100 border border-base-300 rounded-2xl shadow-2xl mt-1 max-h-56 overflow-y-auto divide-y divide-base-200">
                       {dgdaSearchResults.map((m) => (
                         <button
                           key={m.id}
@@ -1190,10 +1668,12 @@ export default function DoctorDashboard() {
                           className="w-full text-left p-3 hover:bg-primary/10 transition-colors flex justify-between items-center"
                         >
                           <div>
-                            <span className="font-extrabold text-sm text-base-content">{m.brand_name} {m.strength}</span>
-                            <span className="text-xs text-base-content/60 ml-2">({m.generic_name})</span>
+                            <span className="font-black text-sm text-base-content">
+                              {m.form === 'TABLET' ? 'Tab.' : m.form === 'CAPSULE' ? 'Cap.' : m.form === 'SYRUP' ? 'Syr.' : m.form === 'INHALER' ? 'Inhaler' : 'Med.'} {m.brand_name} {m.strength}
+                            </span>
+                            <span className="text-xs text-base-content/60 ml-2 font-mono">({m.generic_name})</span>
                           </div>
-                          <span className="badge badge-sm badge-outline">{m.manufacturer}</span>
+                          <span className="badge badge-sm badge-outline font-semibold">{m.manufacturer}</span>
                         </button>
                       ))}
                     </div>
@@ -1203,56 +1683,94 @@ export default function DoctorDashboard() {
                 {/* Prescribed Medications Table */}
                 <div className="space-y-3 pt-2">
                   {rxFormData.medications.map((item, index) => (
-                    <div key={index} className="p-3 bg-base-200/60 rounded-2xl border border-base-200 space-y-2">
+                    <div key={index} className="p-3.5 bg-base-200/60 rounded-2xl border border-base-200 space-y-2.5 shadow-sm">
                       <div className="flex justify-between items-center gap-2">
                         <input
                           type="text"
                           required
-                          placeholder="Medicine Brand & Strength"
+                          placeholder="Medicine Brand, Strength & Generic"
                           value={item.medication_name}
                           onChange={(e) => updateMedicationItem(index, "medication_name", e.target.value)}
-                          className="input input-bordered input-sm flex-1 font-bold text-sm"
+                          className="input input-bordered input-sm flex-1 font-extrabold text-sm"
                         />
                         <button
                           type="button"
                           onClick={() => removeMedication(index)}
                           className="btn btn-ghost btn-xs text-error btn-circle"
+                          title="Remove this medicine"
                         >
                           <Trash2 size={16} />
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
-                          <span className="text-[10px] text-base-content/60 font-semibold">Dose (Morning+Noon+Night)</span>
+                          <span className="text-[10px] text-base-content/60 font-bold uppercase">Dose (সকাল+দুপুর+রাত)</span>
                           <input
                             type="text"
                             placeholder="1 + 0 + 1"
                             value={item.dosage}
                             onChange={(e) => updateMedicationItem(index, "dosage", e.target.value)}
-                            className="input input-bordered input-sm w-full text-xs font-mono"
+                            className="input input-bordered input-sm w-full text-xs font-mono font-bold"
                           />
                         </div>
                         <div>
-                          <span className="text-[10px] text-base-content/60 font-semibold">Timing</span>
+                          <span className="text-[10px] text-base-content/60 font-bold uppercase">Timing (কখন খাবে)</span>
                           <input
                             type="text"
                             placeholder="After Meal"
                             value={item.timing}
                             onChange={(e) => updateMedicationItem(index, "timing", e.target.value)}
-                            className="input input-bordered input-sm w-full text-xs"
+                            className="input input-bordered input-sm w-full text-xs font-medium"
                           />
                         </div>
                         <div>
-                          <span className="text-[10px] text-base-content/60 font-semibold">Duration</span>
+                          <span className="text-[10px] text-base-content/60 font-bold uppercase">Duration (কতদিন)</span>
                           <input
                             type="text"
                             placeholder="7 Days"
                             value={item.duration}
                             onChange={(e) => updateMedicationItem(index, "duration", e.target.value)}
-                            className="input input-bordered input-sm w-full text-xs"
+                            className="input input-bordered input-sm w-full text-xs font-medium"
                           />
                         </div>
+                      </div>
+
+                      {/* Quick Dosage, Timing & Duration Presets for Bangladesh */}
+                      <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-base-200/60">
+                        <span className="text-[10px] font-bold text-base-content/50 mr-1">Doses:</span>
+                        {["1 + 0 + 1", "1 + 1 + 1", "1 + 0 + 0", "0 + 0 + 1", "1 + 1 + 1 + 1", "২ চামচ ৩ বার"].map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => updateMedicationItem(index, "dosage", d)}
+                            className="btn btn-ghost btn-xs text-[10px] px-1.5 py-0 h-5 min-h-5 rounded-md bg-base-100 border border-base-300 font-mono font-bold"
+                          >
+                            {d}
+                          </button>
+                        ))}
+                        <span className="text-[10px] font-bold text-base-content/50 ml-2 mr-1">Timing:</span>
+                        {["খাবারের আগে", "খাবারের পরে", "ভরা পেটে"].map((tm) => (
+                          <button
+                            key={tm}
+                            type="button"
+                            onClick={() => updateMedicationItem(index, "timing", tm)}
+                            className="btn btn-ghost btn-xs text-[10px] px-1.5 py-0 h-5 min-h-5 rounded-md bg-base-100 border border-base-300 font-medium"
+                          >
+                            {tm}
+                          </button>
+                        ))}
+                        <span className="text-[10px] font-bold text-base-content/50 ml-2 mr-1">Duration:</span>
+                        {["৩ দিন", "৫ দিন", "৭ দিন", "১৪ দিন", "১ মাস", "চলবে"].map((dur) => (
+                          <button
+                            key={dur}
+                            type="button"
+                            onClick={() => updateMedicationItem(index, "duration", dur)}
+                            className="btn btn-ghost btn-xs text-[10px] px-1.5 py-0 h-5 min-h-5 rounded-md bg-base-100 border border-base-300 font-medium"
+                          >
+                            {dur}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -1276,7 +1794,7 @@ export default function DoctorDashboard() {
                   <label className="label text-xs font-bold uppercase tracking-wider">Diagnostic Tests (Lab Orders)</label>
                   <textarea
                     rows={2}
-                    placeholder="e.g. CBC, Lipid Profile, USG of Whole Abdomen"
+                    placeholder="e.g. CBC with ESR, Lipid Profile, USG of Whole Abdomen, ECG"
                     value={rxFormData.diagnostic_tests}
                     onChange={(e) => setRxFormData({ ...rxFormData, diagnostic_tests: e.target.value })}
                     className="textarea textarea-bordered w-full text-xs"
@@ -1284,10 +1802,10 @@ export default function DoctorDashboard() {
                 </div>
 
                 <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">Special Advice & Instructions</label>
+                  <label className="label text-xs font-bold uppercase tracking-wider">Special Advice & Lifestyle (পরামর্শ)</label>
                   <textarea
                     rows={2}
-                    placeholder="e.g. Avoid oily food, complete 7 day course"
+                    placeholder="e.g. পর্যাপ্ত বিশ্রাম নিন, তেল-ঝাল কম খান, দিনে ৩০ মিনিট হাঁটুন"
                     value={rxFormData.advice}
                     onChange={(e) => setRxFormData({ ...rxFormData, advice: e.target.value })}
                     className="textarea textarea-bordered w-full text-xs"
@@ -1306,9 +1824,9 @@ export default function DoctorDashboard() {
                 <button
                   type="submit"
                   disabled={submittingRx}
-                  className="btn btn-secondary text-white flex-1 shadow-lg"
+                  className="btn btn-secondary text-white flex-1 shadow-lg font-bold"
                 >
-                  {submittingRx ? "Generating Rx..." : "Issue E-Prescription & Complete"}
+                  {submittingRx ? "Saving E-Prescription..." : "Issue E-Prescription & Complete Visit"}
                 </button>
               </div>
             </form>
@@ -1316,90 +1834,276 @@ export default function DoctorDashboard() {
         </div>
       )}
 
-      {/* ====== PATIENT HEALTH VAULT MODAL (FOR DOCTOR REVIEW) ====== */}
-      {vaultModalOpen && selectedVaultApt && (
+      {/* ====== BROADCAST CHAMBER DELAY & ANNOUNCEMENT MODAL ====== */}
+      {delayModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-base-100 max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
+          <div className="bg-base-100 max-w-md w-full rounded-3xl p-6 shadow-2xl border border-base-200 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-base-200 pb-3">
-              <div>
-                <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
-                  <FolderHeart className="text-secondary" size={22} /> Patient Health Vault & Lab Reports
-                </h3>
-                <p className="text-xs text-base-content/60">
-                  Patient: <strong>{selectedVaultApt.family_member ? selectedVaultApt.family_member.full_name : `${selectedVaultApt.patient?.first_name} ${selectedVaultApt.patient?.last_name}`}</strong>
-                  {selectedVaultApt.family_member && ` (${selectedVaultApt.family_member.relationship_display}, ${selectedVaultApt.family_member.age || ''} yrs)`}
-                </p>
-              </div>
-              <button onClick={() => setVaultModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
+              <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
+                <AlertTriangle className="text-warning" size={20} /> Chamber Delay & Notice Broadcast
+              </h3>
+              <button onClick={() => setDelayModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
             </div>
 
-            {loadingVault ? (
-              <div className="py-12 text-center text-xs text-base-content/60 flex items-center justify-center gap-2">
-                <Loader size={16} className="animate-spin text-primary" /> Loading patient diagnostic history...
-              </div>
-            ) : vaultReports.length === 0 ? (
-              <div className="text-center py-12 bg-base-200/40 rounded-2xl space-y-2">
-                <FolderHeart size={36} className="mx-auto text-base-content/30" />
-                <div className="font-bold text-sm text-base-content">No Lab Reports in Vault</div>
-                <div className="text-xs text-base-content/60">
-                  The patient has not uploaded diagnostic test reports or previous scans yet.
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="text-xs font-bold text-base-content/70">
-                  Found {vaultReports.length} Historical Report(s) / Scans:
-                </div>
+            <p className="text-xs text-base-content/70">
+              Broadcast expected delay or real-time chamber status to all patients currently waiting in the clinic lobby and mobile dashboards.
+            </p>
 
-                <div className="grid grid-cols-1 gap-3">
-                  {vaultReports.map((r) => (
-                    <div key={r.id} className="p-4 bg-base-100 rounded-2xl border border-base-200 shadow-sm space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="badge badge-sm badge-primary badge-soft font-bold text-[10px]">
-                            {r.report_type_display || r.report_type}
-                          </span>
-                          <h4 className="font-extrabold text-sm text-base-content mt-1">{r.title}</h4>
-                        </div>
-                        <a
-                          href={r.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-outline btn-secondary btn-xs gap-1"
-                        >
-                          <ExternalLink size={12} /> View Full Scan ↗
-                        </a>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs text-base-content/70">
-                        <div>
-                          <span className="font-semibold">Center:</span> {r.diagnostic_center || "Diagnostic Center"}
-                        </div>
-                        <div>
-                          <span className="font-semibold">Test Date:</span> {r.test_date}
-                        </div>
-                      </div>
-
-                      {r.summary_notes && (
-                        <div className="text-xs bg-base-200/60 p-2.5 rounded-xl text-base-content/90 font-medium">
-                          <span className="font-bold text-primary">Findings / Values: </span>
-                          {r.summary_notes}
-                        </div>
-                      )}
-                    </div>
+            <form onSubmit={handleBroadcastDelay} className="space-y-4">
+              <div>
+                <label className="label text-xs font-bold uppercase tracking-wider">Expected Delay (Minutes)</label>
+                <div className="flex gap-2">
+                  {[15, 30, 45, 60].map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setDelayMinutes(mins)}
+                      className={`btn btn-sm flex-1 rounded-xl font-bold ${
+                        delayMinutes === mins ? "btn-warning text-black" : "btn-outline btn-warning"
+                      }`}
+                    >
+                      +{mins}m
+                    </button>
                   ))}
                 </div>
+                <input
+                  type="number"
+                  min="0"
+                  max="240"
+                  value={delayMinutes}
+                  onChange={(e) => setDelayMinutes(parseInt(e.target.value, 10) || 0)}
+                  className="input input-bordered input-sm w-full mt-2 text-xs font-bold"
+                  placeholder="Custom delay in minutes"
+                />
               </div>
-            )}
 
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setVaultModalOpen(false)}
-                className="btn btn-ghost btn-sm"
-              >
-                Close Vault
-              </button>
+              <div>
+                <label className="label text-xs font-bold uppercase tracking-wider">Chamber Notice / Reason (বার্তা)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Stuck in Mohakhali traffic, arriving at 6:30 PM / Performing Emergency OT"
+                  value={announcementNote}
+                  onChange={(e) => setAnnouncementNote(e.target.value)}
+                  className="input input-bordered w-full text-xs font-medium"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDelayMinutes(0);
+                    setAnnouncementNote("");
+                    handleBroadcastDelay({ preventDefault: () => {} });
+                  }}
+                  className="btn btn-ghost btn-sm"
+                >
+                  Clear Delay
+                </button>
+                <button
+                  type="submit"
+                  disabled={broadcastingDelay}
+                  className="btn btn-warning text-black font-bold flex-1 shadow-md"
+                >
+                  {broadcastingDelay ? "Broadcasting..." : "Broadcast Notice to Patients"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====== BANGLADESH STANDARD A4 PRINTABLE E-PRESCRIPTION MODAL ====== */}
+      {rxPrintModalOpen && printRxData && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white text-slate-900 max-w-4xl w-full rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6 my-auto animate-in fade-in zoom-in-95">
+            {/* Modal Controls (Hidden in Print) */}
+            <div className="flex justify-between items-center border-b border-slate-200 pb-4 print:hidden">
+              <div className="flex items-center gap-2 text-emerald-600 font-black text-base">
+                <Printer size={20} />
+                <span>Bangladesh Standard E-Prescription Preview</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="btn btn-primary btn-sm font-bold gap-1.5 shadow-md"
+                >
+                  <Printer size={16} /> Print Prescription (A4)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRxPrintModalOpen(false)}
+                  className="btn btn-ghost btn-sm btn-circle"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Prescription Body (A4 Styled) */}
+            <div className="space-y-6 print:p-0">
+              {/* Rx Header: Clinic & Doctor Details */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-emerald-600 pb-4">
+                <div>
+                  <h2 className="text-2xl font-black text-emerald-800">
+                    Dr. {printRxData.doctor?.full_name || profile?.full_name}
+                  </h2>
+                  <p className="text-xs font-bold text-slate-700">
+                    {printRxData.doctor?.qualification || profile?.qualification || "MBBS, Specialist Physician"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    BMDC Reg. No: {profile?.id?.slice(0, 8).toUpperCase() || "A-78902"}
+                  </p>
+                </div>
+
+                <div className="text-left sm:text-right space-y-0.5">
+                  <h3 className="text-lg font-black text-slate-800">
+                    {printRxData.appointment?.clinic?.name || "Smart Clinic BD"}
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    {printRxData.appointment?.clinic?.address || "Dhaka, Bangladesh"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Serial #{printRxData.appointment?.serial_number || 1} • Date: {printRxData.appointment?.appointment_date || new Date().toISOString().split("T")[0]}
+                  </p>
+                </div>
+              </div>
+
+              {/* Patient Demographics & Vitals Bar */}
+              <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Patient Name</span>
+                  <div className="font-extrabold text-slate-900">
+                    {printRxData.appointment?.family_member?.full_name ||
+                      `${printRxData.appointment?.patient?.first_name || ""} ${printRxData.appointment?.patient?.last_name || ""}`}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Age / Gender</span>
+                  <div className="font-extrabold text-slate-900">
+                    {printRxData.appointment?.family_member?.age || "Adult"} yrs / {printRxData.appointment?.family_member?.gender || "Patient"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Blood Pressure</span>
+                  <div className="font-mono font-bold text-slate-900">
+                    {printRxData.vitals?.bp || "120/80"} mmHg
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Weight / Sugar</span>
+                  <div className="font-mono font-bold text-slate-900">
+                    {printRxData.vitals?.weight || "—"} | {printRxData.vitals?.blood_sugar || "—"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Clinical Columns: Diagnosis & Tests (Left) vs Medications (Right) */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 min-h-[320px]">
+                {/* Left 4 Cols: Findings, Diagnosis, Tests */}
+                <div className="md:col-span-4 border-r border-slate-200 pr-4 space-y-4">
+                  {printRxData.diagnosis && (
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 border-b pb-1 mb-1">
+                        Clinical Diagnosis
+                      </h4>
+                      <p className="text-xs font-extrabold text-slate-900">
+                        {printRxData.diagnosis}
+                      </p>
+                    </div>
+                  )}
+
+                  {printRxData.diagnostic_tests && (
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 border-b pb-1 mb-1">
+                        Investigations Advised (ল্যাব টেস্ট)
+                      </h4>
+                      <div className="text-xs text-slate-700 whitespace-pre-line font-medium leading-relaxed">
+                        {printRxData.diagnostic_tests}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-4 text-[11px] text-slate-400">
+                    <div>Ref No: {printRxData.id?.slice(0, 8)}</div>
+                    <div>Issued: {new Date().toLocaleDateString("en-GB")}</div>
+                  </div>
+                </div>
+
+                {/* Right 8 Cols: Rx Medications */}
+                <div className="md:col-span-8 space-y-4">
+                  <div className="text-3xl font-serif font-black text-emerald-700 select-none">
+                    ℞
+                  </div>
+
+                  <div className="space-y-4">
+                    {printRxData.medications?.map((m, idx) => (
+                      <div key={idx} className="border-b border-slate-100 pb-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-black text-sm text-slate-900">
+                              {idx + 1}. {m.medication_name}
+                            </span>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {m.dosage}
+                          </span>
+                        </div>
+                        <div className="flex gap-4 text-xs text-slate-600 mt-1 pl-4">
+                          <span>Timing: <strong>{m.timing}</strong></span>
+                          <span>Duration: <strong>{m.duration}</strong></span>
+                          {m.instructions && <span className="text-slate-500">({m.instructions})</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {printRxData.advice && (
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 mt-4 space-y-1">
+                      <div className="text-xs font-black uppercase tracking-wider text-slate-700">
+                        Advice & Instructions (পরামর্শ):
+                      </div>
+                      <p className="text-xs text-slate-800 leading-relaxed font-medium whitespace-pre-line">
+                        {printRxData.advice}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Rx Footer: QR Token Verification & Doctor Signature */}
+              <div className="border-t-2 border-slate-200 pt-6 flex flex-col sm:flex-row justify-between items-end gap-4">
+                <div className="text-left space-y-1">
+                  <div className="text-[10px] font-mono text-slate-500 uppercase">
+                    Verification QR Token: {printRxData.qr_token || "AUTHENTICATED"}
+                  </div>
+                  <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                    Verify authenticity online at{" "}
+                    {printRxData.qr_token ? (
+                      <a
+                        href={`/verify-prescription/${printRxData.qr_token}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-emerald-700 underline font-semibold hover:text-emerald-800"
+                      >
+                        smartclinic.bd/verify/{printRxData.qr_token.slice(0, 8)}... ↗
+                      </a>
+                    ) : (
+                      <span>smartclinic.bd/verify</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-center sm:text-right border-t border-slate-400 pt-1 min-w-[200px]">
+                  <div className="font-serif italic text-sm font-bold text-slate-800">
+                    Dr. {printRxData.doctor?.full_name || profile?.full_name}
+                  </div>
+                  <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                    Authorized Medical Signature
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1407,4 +2111,5 @@ export default function DoctorDashboard() {
     </div>
   );
 }
+
 

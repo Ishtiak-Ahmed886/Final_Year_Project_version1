@@ -34,6 +34,9 @@ class Payment(BaseModel):
         default=PaymentMethod.BKASH
     )
     transaction_id = models.CharField(max_length=255, blank=True, default='')
+    val_id = models.CharField(max_length=255, blank=True, default='', help_text='SSLCommerz validation ID')
+    bank_tran_id = models.CharField(max_length=255, blank=True, default='', help_text='Bank transaction ID')
+    card_type = models.CharField(max_length=100, blank=True, default='', help_text='Card or MFS type (e.g. BKASH-BKash)')
     payment_status = models.CharField(
         max_length=20,
         choices=PaymentStatus.choices,

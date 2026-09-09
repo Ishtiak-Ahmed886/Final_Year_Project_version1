@@ -18,5 +18,5 @@ urlpatterns = [
     path('reports/<uuid:pk>/', MedicalReportDetailView.as_view(), name='medical_report_detail'),
     path('<uuid:pk>/', PrescriptionDetailView.as_view(), name='prescription_detail'),
     path('appointment/<uuid:appointment_id>/', PrescriptionByAppointmentView.as_view(), name='prescription_by_appointment'),
-    path('verify/<uuid:qr_token>/', PrescriptionVerifyView.as_view(), name='prescription_verify'),
+    path('verify/<str:qr_token>/', PrescriptionVerifyView.as_view(), name='prescription_verify'),
 ]
