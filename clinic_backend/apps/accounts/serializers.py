@@ -51,17 +51,40 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        if self.username_field in attrs and isinstance(attrs[self.username_field], str):
-            attrs[self.username_field] = attrs[self.username_field].strip().lower()
+        login_id = attrs.get(self.username_field, '')
+        if login_id and isinstance(login_id, str):
+            cleaned = login_id.strip()
+            if '@' not in cleaned:
+                # User provided phone number instead of email
+                digits = ''.join(c for c in cleaned if c.isdigit())
+                if digits:
+                    from django.db.models import Q
+                    phone_11 = '0' + digits[-10:] if len(digits) >= 10 else digits
+                    user_match = User.objects.filter(
+                        Q(phone=cleaned) |
+                        Q(phone=digits) |
+                        Q(phone=phone_11) |
+                        Q(phone=f"+88{phone_11}") |
+                        Q(phone=f"88{phone_11}")
+                    ).first()
+                    if user_match:
+                        attrs[self.username_field] = user_match.email
+                    else:
+                        attrs[self.username_field] = cleaned.lower()
+            else:
+                attrs[self.username_field] = cleaned.lower()
+
         data = super().validate(attrs)
         data['user'] = {
             'id': str(self.user.id),
             'email': self.user.email,
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
+            'phone': self.user.phone or '',
             'role': self.user.role,
         }
         return data
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

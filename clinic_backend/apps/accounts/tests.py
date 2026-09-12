@@ -64,8 +64,27 @@ class AccountsAPITestCase(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data["email"], "john@example.com")
 
+    def test_login_with_phone_number(self):
+        User.objects.create_user(
+            email="phoneuser@example.com",
+            password="Password123!",
+            first_name="Phone",
+            last_name="User",
+            phone="01799887766",
+            role=UserRole.PATIENT
+        )
+        # Login using mobile phone number
+        login_res = self.client.post(self.login_url, {
+            "email": "01799887766",
+            "password": "Password123!"
+        }, format="json")
+        self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+        self.assertIn("access", login_res.data)
+        self.assertEqual(login_res.data["user"]["email"], "phoneuser@example.com")
+
 
 class FamilyMemberCRUDTestCase(TestCase):
+
     def setUp(self):
         self.client = APIClient()
         self.patient1 = User.objects.create_user(
