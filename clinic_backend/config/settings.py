@@ -183,3 +183,10 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@smartclinic.com')
+
+# Bangladesh SMS Gateway Configuration (GreenwebBD / BulkSMSBD / Onnorokom / Twilio)
+SMS_GATEWAY_PROVIDER = os.getenv('SMS_GATEWAY_PROVIDER', 'GREENWEB_BD')  # GREENWEB_BD or SIMULATED
+SMS_API_KEY = os.getenv('SMS_API_KEY', 'demo_greenweb_token')
+SMS_SENDER_ID = os.getenv('SMS_SENDER_ID', 'SmartClinic')
+SMS_ENDPOINT_URL = os.getenv('SMS_ENDPOINT_URL', 'http://api.greenweb.com.bd/api.php')
+

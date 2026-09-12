@@ -488,10 +488,44 @@ class ChamberSessionView(APIView):
                             f"Your Serial is #{apt.serial_number} (3 patients away). "
                             f"Please be near {session.room_number or 'the chamber door'}."
                         ),
-                        notification_type=NotificationType.SERIAL_PROXIMITY_ALERT
+                        notification_type=NotificationType.SERIAL_PROXIMITY_ALERT,
+                        phone=apt.patient.phone
                     )
             except Exception:
                 pass  # Non-blocking notification dispatch
+
+        # Delay Broadcast Trigger: When delay_minutes is updated and > 0, send SMS to all pending patients
+        if data.get('delay_minutes', 0) > 0 and (action == 'UPDATE_STATUS' or 'delay_minutes' in data):
+            try:
+                from apps.appointments.models import Appointment, AppointmentStatus
+                from apps.notifications.sms_service import send_sms_notification
+                from apps.notifications.models import NotificationType
+
+                pending_apts = Appointment.objects.filter(
+                    doctor_id=session.doctor_id,
+                    clinic_id=session.clinic_id,
+                    appointment_date=session.session_date,
+                    serial_number__gt=session.current_serial,
+                    status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING]
+                ).select_related('patient', 'family_member', 'doctor', 'clinic')
+
+                delay_mins = data['delay_minutes']
+                note = data.get('announcement_note') or 'Traffic/Clinical Emergency'
+
+                for apt in pending_apts:
+                    patient_name = apt.family_member.full_name if apt.family_member else f"{apt.patient.first_name} {apt.patient.last_name}".strip()
+                    send_sms_notification(
+                        recipient=apt.patient,
+                        title=f"Chamber Delay Notice ({delay_mins}m) ⚠️",
+                        message=(
+                            f"Dear {patient_name}, Dr. {apt.doctor.full_name} at {apt.clinic.name} is running {delay_mins}m delayed ({note}). "
+                            f"Your serial is #{apt.serial_number}. You can track live queue on your phone."
+                        ),
+                        notification_type=NotificationType.SYSTEM,
+                        phone=apt.patient.phone
+                    )
+            except Exception:
+                pass  # Non-blocking SMS dispatch
 
         return Response(ChamberSessionSerializer(session).data, status=status.HTTP_200_OK)
 
