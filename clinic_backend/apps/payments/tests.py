@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
@@ -122,3 +122,40 @@ class PaymentSSLCommerzTestCase(TestCase):
         self.appointment.refresh_from_db()
         self.assertEqual(payment.payment_status, PaymentStatus.COMPLETED)
         self.assertEqual(self.appointment.status, AppointmentStatus.CONFIRMED)
+
+    def test_payment_detail_view(self):
+        self.client.force_authenticate(user=self.patient)
+        payment = Payment.objects.create(
+            appointment=self.appointment,
+            amount=1000.00,
+            payment_method=PaymentMethod.BKASH,
+            payment_status=PaymentStatus.PENDING
+        )
+        url = f"/api/v1/payments/{payment.id}/"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["id"], str(payment.id))
+        self.assertEqual(res.data["payment_method"], "BKASH")
+        self.assertEqual(res.data["appointment"]["doctor"]["full_name"], "Dr. Karim Chowdhury")
+
+    def test_bkash_mfs_processing_with_method(self):
+        self.client.force_authenticate(user=self.patient)
+        payment = Payment.objects.create(
+            appointment=self.appointment,
+            amount=1000.00,
+            payment_method=PaymentMethod.SSLCOMMERZ,
+            payment_status=PaymentStatus.PENDING
+        )
+        process_url = f"/api/v1/payments/{payment.id}/process/"
+        res = self.client.post(process_url, {
+            "transaction_id": "BKASH_SIM_987654321",
+            "payment_method": "BKASH",
+            "card_type": "bKash-App-Transfer"
+        }, format="json")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.payment_status, PaymentStatus.COMPLETED)
+        self.assertEqual(payment.payment_method, PaymentMethod.BKASH)
+        self.assertEqual(payment.transaction_id, "BKASH_SIM_987654321")
+

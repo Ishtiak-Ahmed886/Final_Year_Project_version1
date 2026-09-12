@@ -26,3 +26,5 @@ class ProcessPaymentSerializer(serializers.Serializer):
     val_id = serializers.CharField(required=False, default='')
     bank_tran_id = serializers.CharField(required=False, default='')
     card_type = serializers.CharField(required=False, default='')
+    payment_method = serializers.CharField(required=False, default='')
+

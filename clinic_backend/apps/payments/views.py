@@ -50,6 +50,23 @@ class PaymentListCreateView(generics.ListCreateAPIView):
         return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
 
 @extend_schema(tags=['Payments'])
+class PaymentDetailView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = PaymentSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Payment.objects.select_related(
+            'appointment', 'appointment__patient', 'appointment__doctor',
+            'appointment__clinic', 'appointment__family_member'
+        ).all()
+        if user.role == 'PATIENT':
+            return queryset.filter(appointment__patient=user)
+        elif user.role == 'CLINIC_ADMIN':
+            return queryset.filter(appointment__clinic__owner=user)
+        return queryset
+
+@extend_schema(tags=['Payments'])
 class ProcessPaymentView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = ProcessPaymentSerializer
@@ -66,15 +83,18 @@ class ProcessPaymentView(generics.GenericAPIView):
         val_id = serializer.validated_data.get('val_id', '')
         bank_tran_id = serializer.validated_data.get('bank_tran_id', '')
         card_type = serializer.validated_data.get('card_type', '')
+        payment_method = serializer.validated_data.get('payment_method', '')
 
         payment = process_payment_success(
             payment=payment,
             transaction_id=txn_id,
             val_id=val_id,
             bank_tran_id=bank_tran_id,
-            card_type=card_type
+            card_type=card_type,
+            payment_method=payment_method
         )
         return Response(PaymentSerializer(payment).data, status=status.HTTP_200_OK)
+
 
 @extend_schema(tags=['Payments'])
 class SSLCommerzInitiateView(APIView):

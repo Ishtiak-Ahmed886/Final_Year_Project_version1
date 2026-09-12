@@ -4,8 +4,10 @@ import apiClient from "../../api/axios";
 import {
   CalendarCheck, Building2, Stethoscope, Clock, FileText,
   CheckCircle2, AlertCircle, ArrowLeft, Navigation, Loader,
-  ChevronRight, MapPin, Users, Heart, Calendar
+  ChevronRight, MapPin, Users, Heart, Calendar,
+  Smartphone, CreditCard, ShieldCheck
 } from "lucide-react";
+
 import { useLanguage } from "../../context/LanguageContext";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -46,8 +48,10 @@ export default function BookAppointment() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [geoError, setGeoError] = useState("");
+  const [paymentPreference, setPaymentPreference] = useState("ONLINE"); // "ONLINE" | "CASH"
 
   const fallbackTimeSlots = [
+
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
     "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"
   ];
@@ -184,7 +188,7 @@ export default function BookAppointment() {
     setError("");
     setSuccess("");
     try {
-      await apiClient.post("/appointments/", {
+      const aptRes = await apiClient.post("/appointments/", {
         clinic_id: formData.clinic_id,
         doctor_id: formData.doctor_id,
         family_member_id: formData.family_member_id || null,
@@ -192,8 +196,39 @@ export default function BookAppointment() {
         appointment_time: formData.appointment_time,
         problem_description: formData.problem_description,
       });
-      setSuccess("Appointment booked successfully! Redirecting to dashboard...");
-      setTimeout(() => navigate("/dashboard"), 1500);
+
+      if (paymentPreference === "ONLINE") {
+        setSuccess("Appointment booked! Redirecting to secure bKash / Payment Gateway...");
+        try {
+          const paymentRes = await apiClient.post("/payments/", {
+            appointment_id: aptRes.id,
+            payment_method: "SSLCOMMERZ",
+          });
+          setTimeout(() => {
+            navigate(`/checkout/${paymentRes.id}`);
+          }, 800);
+        } catch {
+          // Fallback directly to dashboard if payment initiation had a glitch
+          navigate(`/dashboard?payment=pending&apt_id=${aptRes.id}`);
+        }
+      } else {
+        // Cash at Chamber payment
+        try {
+          const paymentRes = await apiClient.post("/payments/", {
+            appointment_id: aptRes.id,
+            payment_method: "CASH",
+          });
+          await apiClient.post(`/payments/${paymentRes.id}/process/`, {
+            transaction_id: `CASH_DESK_${Date.now().toString().slice(-6)}`,
+            payment_method: "CASH",
+          });
+        } catch {}
+
+        setSuccess("Appointment confirmed with Cash at Chamber! Redirecting to dashboard...");
+        setTimeout(() => {
+          navigate(`/dashboard?payment=success&apt_id=${aptRes.id}`);
+        }, 1200);
+      }
     } catch (err) {
       if (typeof err === "object") {
         setError(Object.values(err).flat().join(" ") || "Failed to book appointment.");
@@ -203,6 +238,7 @@ export default function BookAppointment() {
     } finally {
       setSubmitting(false);
     }
+
   };
 
   const handleGoBack = () => {
@@ -550,6 +586,63 @@ export default function BookAppointment() {
             </div>
           )}
 
+          {/* Payment & Confirmation Preference Card */}
+          <div className="space-y-2.5 pt-1">
+            <label className="label text-sm font-bold flex items-center gap-1.5 p-0">
+              <CreditCard size={16} className="text-primary" /> Payment & Confirmation Preference
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentPreference("ONLINE")}
+                className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                  paymentPreference === "ONLINE"
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-base-200 bg-base-100 hover:border-primary/40"
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="font-black text-sm text-base-content flex items-center gap-1.5">
+                    <Smartphone size={16} className="text-primary" /> Pay Online
+                  </span>
+                  <span className="badge badge-primary badge-sm font-bold">Instant Serial</span>
+                </div>
+                <div className="text-xs text-base-content/60 mt-1">
+                  Pay via bKash, Nagad, Rocket, or Cards.
+                </div>
+                <div className="flex gap-1 mt-2.5">
+                  <span className="badge bg-[#E2136E] text-white text-[9px] border-none font-bold">bKash</span>
+                  <span className="badge bg-[#F7941D] text-white text-[9px] border-none font-bold">Nagad</span>
+                  <span className="badge bg-[#8C3494] text-white text-[9px] border-none font-bold">Rocket</span>
+                  <span className="badge bg-slate-700 text-white text-[9px] border-none font-bold">Cards</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentPreference("CASH")}
+                className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                  paymentPreference === "CASH"
+                    ? "border-emerald-600 bg-emerald-50/70 shadow-sm"
+                    : "border-base-200 bg-base-100 hover:border-emerald-500/40"
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="font-black text-sm text-base-content flex items-center gap-1.5">
+                    <Building2 size={16} className="text-emerald-600" /> Cash at Chamber
+                  </span>
+                  <span className="badge badge-success badge-soft badge-sm font-bold text-emerald-800">Pay at Counter</span>
+                </div>
+                <div className="text-xs text-base-content/60 mt-1">
+                  Pay at clinic counter before consulting the doctor.
+                </div>
+                <div className="text-[10px] text-emerald-700 font-bold mt-2.5 flex items-center gap-1">
+                  <CheckCircle2 size={12} /> Instant reservation confirmed
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Submit Button */}
           <div className="pt-2">
             <button
@@ -559,13 +652,18 @@ export default function BookAppointment() {
             >
               {submitting ? (
                 <Loader size={18} className="animate-spin" />
+              ) : paymentPreference === "ONLINE" ? (
+                <>
+                  <Smartphone size={20} /> Proceed to Online Payment (bKash/Nagad) ➔
+                </>
               ) : (
                 <>
-                  <CalendarCheck size={20} /> Confirm Booking
+                  <CalendarCheck size={20} /> Confirm Booking (Cash at Chamber)
                 </>
               )}
             </button>
           </div>
+
         </form>
       </div>
     </div>

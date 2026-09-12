@@ -51,6 +51,8 @@ export default function PatientDashboard() {
   const [paymentMethod, setPaymentMethod] = useState("SSLCOMMERZ");
   const [trxId, setTrxId] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [receiptModalData, setReceiptModalData] = useState(null);
+
 
   // Family Member Modal & CRUD States
   const [familyModalOpen, setFamilyModalOpen] = useState(false);
@@ -810,6 +812,16 @@ export default function PatientDashboard() {
                             </button>
                           )}
 
+                          {(apt.status === "CONFIRMED" || apt.status === "COMPLETED") && (
+                            <button
+                              onClick={() => setReceiptModalData(apt)}
+                              className="btn btn-outline btn-primary btn-sm gap-1 flex-1 md:flex-initial"
+                              title="View and print confirmed token slip with QR code"
+                            >
+                              <Printer size={15} /> Receipt Slip
+                            </button>
+                          )}
+
                           {apt.status === "PENDING" && (
                             <button
                               onClick={() => openPaymentModal(apt)}
@@ -818,6 +830,7 @@ export default function PatientDashboard() {
                               <CreditCard size={16} /> {t("payAndConfirm")}
                             </button>
                           )}
+
 
                           {apt.status !== "CANCELLED" && apt.status !== "COMPLETED" && (
                             <button
@@ -1336,7 +1349,96 @@ export default function PatientDashboard() {
         </div>
       )}
 
+      {/* ===== PRINTABLE THERMAL TOKEN & RECEIPT MODAL ===== */}
+      {receiptModalData && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white text-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 print:hidden">
+              <span className="font-bold text-xs uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
+                <Printer size={15} /> Patient Token Slip
+              </span>
+              <button onClick={() => setReceiptModalData(null)} className="btn btn-ghost btn-xs btn-circle">✕</button>
+            </div>
+
+            <div className="border-2 border-dashed border-slate-300 rounded-2xl p-5 text-center space-y-3 font-mono text-xs bg-slate-50">
+              <div className="space-y-0.5 border-b border-slate-200 pb-2">
+                <div className="font-black text-sm uppercase tracking-wide">{receiptModalData.clinic?.name || "Smart Clinic BD"}</div>
+                <div className="text-[10px] text-slate-500">{receiptModalData.clinic?.address || ""}, {receiptModalData.clinic?.city || "Dhaka"}</div>
+                <div className="text-[10px] text-slate-500">Phone: {receiptModalData.clinic?.phone || "01700-000000"}</div>
+              </div>
+
+              <div className="py-2 bg-emerald-50 rounded-xl border border-emerald-200">
+                <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">PATIENT SERIAL TOKEN</div>
+                <div className="text-5xl font-black text-emerald-600 my-1">
+                  #{receiptModalData.serial_number || 1}
+                </div>
+                <div className="text-[10px] text-emerald-700 font-bold">Date: {receiptModalData.appointment_date}</div>
+              </div>
+
+              <div className="text-left space-y-1 bg-white p-3 rounded-xl border border-slate-200 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Patient:</span>
+                  <span className="font-bold">{receiptModalData.family_member?.full_name || `${receiptModalData.patient?.first_name || ''} ${receiptModalData.patient?.last_name || ''}`.trim() || "Self"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Doctor:</span>
+                  <span className="font-bold">Dr. {receiptModalData.doctor?.full_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Consultation Fee:</span>
+                  <span className="font-bold text-emerald-600">৳{receiptModalData.amount} BDT (CONFIRMED)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Scheduled Time:</span>
+                  <span className="font-bold">{receiptModalData.appointment_time}</span>
+                </div>
+              </div>
+
+              {/* Scannable Live Queue QR Code */}
+              <div className="pt-2 border-t border-slate-200 flex flex-col items-center justify-center space-y-1.5">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                    `${window.location.origin}/track-queue/${receiptModalData.id}`
+                  )}`}
+                  alt="Track Queue QR"
+                  className="w-24 h-24 border border-slate-300 rounded-lg p-1 bg-white"
+                />
+                <span className="text-[10px] font-bold text-emerald-700 tracking-tight">
+                  Scan QR with Phone to Track Live Queue
+                </span>
+                <span className="text-[9px] text-slate-400 font-mono">
+                  {window.location.origin}/track-queue/{receiptModalData.id.slice(0, 8)}
+                </span>
+              </div>
+
+              <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-200">
+                Please be present in clinic lobby before your serial is announced.
+              </div>
+            </div>
+
+            <div className="flex gap-2 print:hidden">
+              <Link
+                to={`/track-queue/${receiptModalData.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-outline btn-sm flex-1 gap-1 font-bold text-xs"
+              >
+                Track Live
+              </Link>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="btn btn-primary btn-sm flex-1 gap-1.5 font-bold shadow-md"
+              >
+                <Printer size={15} /> Print Slip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ====== ADD FAMILY MEMBER MODAL ====== */}
+
       {familyModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-base-100 max-w-lg w-full rounded-3xl p-6 shadow-2xl border border-base-200 space-y-5 animate-in fade-in zoom-in-95">
