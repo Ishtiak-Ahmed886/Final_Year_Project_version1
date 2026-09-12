@@ -109,26 +109,27 @@ export default function Footer() {
             </h4>
             <ul className="space-y-2.5 text-xs sm:text-sm text-slate-500">
               <li>
-                <a href="#privacy" className="hover:text-indigo-600 transition-colors">
+                <Link to="/privacy" className="hover:text-indigo-600 transition-colors">
                   Privacy Policy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#terms" className="hover:text-indigo-600 transition-colors">
+                <Link to="/terms" className="hover:text-indigo-600 transition-colors">
                   Terms of Service
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#security" className="hover:text-indigo-600 transition-colors">
+                <Link to="/security" className="hover:text-indigo-600 transition-colors">
                   Security Overview
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#consent" className="hover:text-indigo-600 transition-colors">
+                <Link to="/privacy#consent" className="hover:text-indigo-600 transition-colors">
                   Consent Agreements
-                </a>
+                </Link>
               </li>
             </ul>
+
           </div>
 
         </div>

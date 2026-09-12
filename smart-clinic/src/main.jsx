@@ -17,9 +17,11 @@ import { PrivateRoute, RoleRoute } from "./components/shared/PrivateRoute";
 import WaitingRoomDisplay from "./pages/queue/WaitingRoomDisplay";
 import PatientQueueTracker from "./pages/queue/PatientQueueTracker";
 import PrescriptionVerify from "./pages/prescriptions/PrescriptionVerify";
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
 import "./App.css";
 
 const root = document.getElementById("root");
+
 
 ReactDOM.createRoot(root).render(
   <BrowserRouter>
@@ -59,8 +61,13 @@ ReactDOM.createRoot(root).render(
               }
             />
             <Route path="checkout/:paymentId" element={<CheckoutGateway />} />
+            <Route path="privacy" element={<PrivacyPolicy initialTab="privacy" />} />
+            <Route path="terms" element={<PrivacyPolicy initialTab="terms" />} />
+            <Route path="security" element={<PrivacyPolicy initialTab="security" />} />
+            <Route path="legal" element={<PrivacyPolicy initialTab="privacy" />} />
           </Route>
         </Routes>
+
       </AuthProvider>
     </LanguageProvider>
   </BrowserRouter>

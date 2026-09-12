@@ -1,16 +1,26 @@
-import { useState } from "react";
-import { NavLink } from "react-router";
+import { useState, useEffect } from "react";
+import { NavLink, useLocation } from "react-router";
 import { useAuth } from "../../Provider/AuthProvider";
-import { LayoutDashboard, Calendar, Stethoscope, Building2, ShieldCheck, UserCheck, User } from "lucide-react";
+import { LayoutDashboard, Calendar, Stethoscope, Building2, ShieldCheck, UserCheck, User, Lock } from "lucide-react";
 import PatientDashboard from "./PatientDashboard";
 import DoctorDashboard from "./DoctorDashboard";
 import ClinicAdminDashboard from "./ClinicAdminDashboard";
 import SuperAdminDashboard from "./SuperAdminDashboard";
 import ProfileSettings from "./ProfileSettings";
+import PrivacyPolicy from "../legal/PrivacyPolicy";
 
 export default function DashboardLayout() {
   const { user } = useAuth();
+  const location = useLocation();
   const [currentView, setCurrentView] = useState("overview");
+
+  useEffect(() => {
+    const hash = location.hash?.toLowerCase();
+    if (hash === "#privacy" || hash === "#terms" || hash === "#security" || hash === "#consent") {
+      setCurrentView("privacy");
+    }
+  }, [location.hash]);
+
 
   const renderDashboardView = () => {
     if (!user) return null;
@@ -82,6 +92,18 @@ export default function DashboardLayout() {
               <User size={18} /> My Profile & Security
             </button>
 
+            <button
+              type="button"
+              onClick={() => setCurrentView("privacy")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold transition-colors ${
+                currentView === "privacy"
+                  ? "bg-primary text-primary-content shadow-md"
+                  : "text-base-content/70 hover:bg-base-200"
+              }`}
+            >
+              <ShieldCheck size={18} /> Privacy & Compliance
+            </button>
+
             {user?.role === "PATIENT" && (
               <NavLink
                 to="/book"
@@ -115,9 +137,19 @@ export default function DashboardLayout() {
 
         {/* Main Content Area */}
         <main className="flex-1">
-          {currentView === "profile" ? <ProfileSettings /> : renderDashboardView()}
+          {currentView === "profile" ? (
+            <ProfileSettings />
+          ) : currentView === "privacy" ? (
+            <PrivacyPolicy
+              embedded={true}
+              initialTab={location.hash ? location.hash.replace("#", "") : "privacy"}
+            />
+          ) : (
+            renderDashboardView()
+          )}
         </main>
       </div>
     </div>
   );
 }
+
