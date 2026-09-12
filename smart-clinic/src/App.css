@@ -2,3 +2,11 @@
 @plugin "daisyui" {
     themes: light --default;
 }
+
+/* Fix: daisyUI 5 anchor-positioning can flip dropdowns upward near viewport edge.
+   Force all navbar dropdowns to always open downward. */
+.navbar .dropdown .dropdown-content {
+  top: 100% !important;
+  bottom: auto !important;
+  position: absolute !important;
+}

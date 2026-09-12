@@ -5,9 +5,7 @@ import Navbar from "./components/shared/Navbar";
 function App() {
   return (
     <div className="">
-      <div className="top-0 sticky z-10">
-        <Navbar />
-      </div>
+      <Navbar />
       <div className="">
         <Outlet />
       </div>

@@ -7,6 +7,7 @@ import Register from "./pages/register/Register";
 import ClinicList from "./pages/clinics/ClinicList";
 import ClinicDetail from "./pages/clinics/ClinicDetail";
 import DoctorList from "./pages/doctors/DoctorList";
+import DoctorDetail from "./pages/doctors/DoctorDetail";
 import BookAppointment from "./pages/appointments/BookAppointment";
 import DashboardLayout from "./pages/dashboard/DashboardLayout";
 import CheckoutGateway from "./pages/checkout/CheckoutGateway";
@@ -37,6 +38,7 @@ ReactDOM.createRoot(root).render(
             <Route path="clinics" element={<ClinicList />} />
             <Route path="clinics/:id" element={<ClinicDetail />} />
             <Route path="doctors" element={<DoctorList />} />
+            <Route path="doctors/:id" element={<DoctorDetail />} />
             <Route
               path="book"
               element={

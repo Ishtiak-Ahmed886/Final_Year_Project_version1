@@ -48,6 +48,12 @@ class Clinic(BaseModel):
     email = models.EmailField()
     logo_url = models.URLField(blank=True, null=True)
     certificate_url = models.URLField(blank=True, null=True, help_text="Cloudinary URL of clinic registration certificate")
+    description = models.TextField(blank=True, default='', help_text="About the clinic, overview and patient care mission")
+    opening_hours = models.CharField(max_length=255, blank=True, default='Open 24/7', help_text="Operating hours display")
+    facilities = models.JSONField(default=list, blank=True, help_text="List of amenities/facilities e.g. 24/7 Emergency, Pharmacy, Parking")
+    gallery = models.JSONField(default=list, blank=True, help_text="List of clinic photos with id, image_url, title, category, description, is_featured")
+    emergency_contact = models.CharField(max_length=50, blank=True, default='', help_text="Emergency hotline number")
+    website = models.URLField(blank=True, null=True, help_text="Official website URL")
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     subscription_plan = models.CharField(
@@ -93,3 +99,24 @@ class ClinicDepartment(BaseModel):
 
     def __str__(self):
         return f"{self.clinic.name} - {self.department.name}"
+
+class ClinicService(BaseModel):
+    """
+    Clinical service / diagnostic test / treatment offered by a specific clinic.
+    """
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='services')
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='clinic_services')
+    name = models.CharField(max_length=200, db_index=True)
+    description = models.TextField(blank=True, default='')
+    fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Fee / price in BDT")
+    duration_minutes = models.PositiveIntegerField(default=15, help_text="Estimated duration in minutes")
+    preparation_instructions = models.TextField(blank=True, default='', help_text="e.g. Overnight fasting required")
+    is_available = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Clinic Service'
+        verbose_name_plural = 'Clinic Services'
+
+    def __str__(self):
+        return f"{self.name} - {self.clinic.name} (৳{self.fee})"

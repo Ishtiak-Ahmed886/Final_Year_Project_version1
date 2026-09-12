@@ -49,35 +49,7 @@ export default function DoctorList() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* Smart Back Navigation Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-base-100 p-4 rounded-2xl border border-base-200 shadow-sm">
-        <button
-          type="button"
-          onClick={handleGoBack}
-          className="btn btn-ghost btn-sm gap-2 font-bold text-base-content/80 hover:text-primary"
-        >
-          <ArrowLeft size={18} /> Back
-        </button>
-
-        <div className="flex items-center gap-2">
-          {user && (
-            <Link
-              to="/dashboard"
-              className="btn btn-outline btn-primary btn-sm gap-2 font-bold shadow-xs"
-            >
-              <LayoutDashboard size={16} /> Return to Dashboard
-            </Link>
-          )}
-          <Link
-            to="/clinics"
-            className="btn btn-ghost btn-sm gap-1.5 font-semibold text-base-content/70 hover:text-primary"
-          >
-            <Building2 size={16} /> View Clinics
-          </Link>
-        </div>
-      </div>
-
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-secondary/90 via-primary to-accent text-white p-8 md:p-12 rounded-3xl shadow-2xl space-y-4">
         <div className="badge badge-lg bg-white/20 text-white border-none gap-2 font-medium">
@@ -111,7 +83,20 @@ export default function DoctorList() {
       </div>
 
       {/* Doctor Cards */}
-      {loading ? (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-base-200">
+          <div className="text-sm font-bold text-base-content/70">
+            Showing <span className="text-primary font-black">{doctors.length}</span> registered medical specialists
+          </div>
+          <Link
+            to="/clinics"
+            className="btn btn-ghost btn-sm gap-1.5 text-xs font-bold text-primary hover:bg-primary/10"
+          >
+            <Building2 size={14} /> View All Partner Clinics
+          </Link>
+        </div>
+
+        {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="skeleton h-64 w-full rounded-2xl"></div>
@@ -134,12 +119,20 @@ export default function DoctorList() {
             >
               <div className="card-body p-6 space-y-4">
                 <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary font-extrabold flex items-center justify-center text-2xl shrink-0 border border-primary/20">
-                    {doctor.full_name[0].toUpperCase()}
-                  </div>
+                  {doctor.avatar_url ? (
+                    <img
+                      src={doctor.avatar_url}
+                      alt={doctor.full_name}
+                      className="w-16 h-16 rounded-2xl object-cover shadow-sm shrink-0 border border-base-200"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-black flex items-center justify-center text-2xl shrink-0 border border-primary/20 shadow-xs">
+                      {doctor.full_name ? doctor.full_name[0].toUpperCase() : "D"}
+                    </div>
+                  )}
                   <div>
                     <h2 className="card-title text-xl font-bold text-base-content group-hover:text-primary transition-colors">
-                      Dr. {doctor.full_name}
+                      <Link to={`/doctors/${doctor.id}`}>Dr. {doctor.full_name}</Link>
                     </h2>
                     <p className="text-xs text-primary font-semibold">{doctor.qualification || "Medical Specialist"}</p>
                     <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-base-content/60">
@@ -188,12 +181,18 @@ export default function DoctorList() {
                   </div>
                 )}
 
-                <div className="card-actions justify-end pt-3 border-t border-base-200">
+                <div className="card-actions justify-end pt-3 border-t border-base-200 flex gap-2">
+                  <Link
+                    to={`/doctors/${doctor.id}`}
+                    className="btn btn-outline btn-sm flex-1 text-xs"
+                  >
+                    View Profile
+                  </Link>
                   <Link
                     to={`/book?doctor=${doctor.id}`}
-                    className="btn btn-primary btn-sm w-full gap-2 shadow-sm"
+                    className="btn btn-primary btn-sm flex-1 text-xs gap-1.5 shadow-sm"
                   >
-                    <CalendarCheck size={16} /> Book Appointment
+                    <CalendarCheck size={15} /> Book
                   </Link>
                 </div>
               </div>
@@ -201,6 +200,7 @@ export default function DoctorList() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

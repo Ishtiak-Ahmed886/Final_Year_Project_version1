@@ -4,12 +4,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 from apps.accounts.permissions import IsAdmin, IsClinicAdminOrAdmin
-from .models import Department, Clinic, VerificationStatus
+from .models import Department, Clinic, VerificationStatus, ClinicService
 from .serializers import (
     DepartmentSerializer,
     ClinicSerializer,
     ClinicCreateUpdateSerializer,
     ClinicDepartmentSerializer,
+    ClinicServiceSerializer,
 )
 from .selectors import list_departments, list_clinics, get_clinic_by_id
 from .services import create_department, create_clinic, add_department_to_clinic
@@ -107,7 +108,32 @@ class ClinicDetailView(generics.RetrieveUpdateAPIView):
         clinic = self.get_object()
         if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
             return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # If clinic was REJECTED and owner updates it, reset to PENDING for admin review
+        if request.user.role == 'CLINIC_ADMIN' and clinic.verification_status == VerificationStatus.REJECTED:
+            clinic.verification_status = VerificationStatus.PENDING
+            clinic.save(update_fields=['verification_status', 'updated_at'])
+
         return super().update(request, *args, **kwargs)
+
+
+@extend_schema(tags=['Clinics'])
+class MyClinicView(APIView):
+    """
+    GET /api/v1/clinics/my-clinic/
+    Returns the owned clinic for the authenticated Clinic Admin.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'CLINIC_ADMIN':
+            return Response({'detail': 'Only Clinic Admin can access this endpoint.'}, status=status.HTTP_403_FORBIDDEN)
+
+        clinic = Clinic.objects.filter(owner=request.user).first()
+        if not clinic:
+            return Response(None, status=status.HTTP_200_OK)
+
+        return Response(ClinicSerializer(clinic).data, status=status.HTTP_200_OK)
 
 
 @extend_schema(tags=['Clinics'])
@@ -187,6 +213,19 @@ class ClinicVerifyView(APIView):
                     )
             except Exception:
                 pass
+        elif new_status == VerificationStatus.REJECTED:
+            try:
+                from apps.notifications.models import Notification, NotificationType
+                if clinic.owner:
+                    rejection_reason = request.data.get('reason', 'Certificate or details require updates.')
+                    Notification.objects.create(
+                        recipient=clinic.owner,
+                        title="Clinic Registration Needs Attention",
+                        message=f"Your clinic registration for '{clinic.name}' requires updates. Note: {rejection_reason}. Please update your clinic registration details.",
+                        notification_type=NotificationType.SYSTEM
+                    )
+            except Exception:
+                pass
 
         return Response(ClinicSerializer(clinic).data, status=status.HTTP_200_OK)
 
@@ -234,3 +273,90 @@ class NearbyClinicListView(APIView):
         results.sort(key=lambda c: c['distance_km'])
 
         return Response(results)
+
+
+@extend_schema(tags=['Clinic Services'])
+class ClinicServiceListCreateView(APIView):
+    """
+    GET  /api/v1/clinics/<clinic_id>/services/ -> List services
+    POST /api/v1/clinics/<clinic_id>/services/ -> Create service (ClinicAdmin / Admin)
+    """
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsClinicAdminOrAdmin()]
+        return [permissions.AllowAny()]
+
+    def get(self, request, clinic_id):
+        clinic = get_clinic_by_id(clinic_id)
+        if not clinic:
+            return Response({'detail': 'Clinic not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # ClinicAdmin/Admin see all; patients/public see only available
+        user = request.user
+        if user and user.is_authenticated and (user == clinic.owner or user.role == 'ADMIN' or user.is_superuser):
+            services = clinic.services.all()
+        else:
+            services = clinic.services.filter(is_available=True)
+
+        serializer = ClinicServiceSerializer(services, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, clinic_id):
+        clinic = get_clinic_by_id(clinic_id)
+        if not clinic:
+            return Response({'detail': 'Clinic not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = ClinicServiceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        service = serializer.save(clinic=clinic)
+        return Response(ClinicServiceSerializer(service).data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=['Clinic Services'])
+class ClinicServiceDetailView(APIView):
+    """
+    GET, PATCH, DELETE /api/v1/clinics/<clinic_id>/services/<pk>/
+    """
+    def get_permissions(self):
+        if self.request.method in ['PATCH', 'PUT', 'DELETE']:
+            return [IsClinicAdminOrAdmin()]
+        return [permissions.AllowAny()]
+
+    def get_object(self, clinic_id, pk):
+        try:
+            return ClinicService.objects.select_related('clinic', 'department').get(clinic_id=clinic_id, pk=pk)
+        except ClinicService.DoesNotExist:
+            return None
+
+    def get(self, request, clinic_id, pk):
+        service = self.get_object(clinic_id, pk)
+        if not service:
+            return Response({'detail': 'Service not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ClinicServiceSerializer(service).data, status=status.HTTP_200_OK)
+
+    def patch(self, request, clinic_id, pk):
+        service = self.get_object(clinic_id, pk)
+        if not service:
+            return Response({'detail': 'Service not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and service.clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = ClinicServiceSerializer(service, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request, clinic_id, pk):
+        service = self.get_object(clinic_id, pk)
+        if not service:
+            return Response({'detail': 'Service not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and service.clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        service.delete()
+        return Response({'detail': 'Service deleted successfully.'}, status=status.HTTP_200_OK)

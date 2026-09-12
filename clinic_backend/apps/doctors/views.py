@@ -284,6 +284,8 @@ class DoctorClinicRequestRespondView(APIView):
         elif user.role == 'CLINIC_ADMIN':
             if mapping.clinic.owner != user:
                 return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+            if mapping.clinic.verification_status != VerificationStatus.VERIFIED:
+                return Response({'detail': 'Your clinic has not been approved by Admin yet.'}, status=status.HTTP_403_FORBIDDEN)
         elif user.role != 'ADMIN':
             return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -381,6 +383,14 @@ class ChamberSessionView(APIView):
         serializer = ChamberSessionUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        user = request.user
+        if user and user.is_authenticated and user.role == 'CLINIC_ADMIN':
+            clinic = Clinic.objects.filter(id=data['clinic_id'], owner=user).first()
+            if not clinic:
+                return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+            if clinic.verification_status != VerificationStatus.VERIFIED:
+                return Response({'detail': 'Your clinic has not been approved by Admin yet.'}, status=status.HTTP_403_FORBIDDEN)
 
         session_date = data.get('session_date') or date.today()
         session, created = ChamberSession.objects.get_or_create(

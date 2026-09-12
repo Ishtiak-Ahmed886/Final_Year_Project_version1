@@ -137,6 +137,76 @@ export default function Login() {
             </Link>
           </div>
         </form>
+
+        {/* ⚡ Quick Demo Accounts Picker for Real-Life Evaluation */}
+        <div className="mt-6 pt-6 border-t border-base-200">
+          <div className="text-xs font-bold uppercase tracking-wider text-base-content/50 mb-3 flex items-center justify-between">
+            <span>⚡ Quick Demo Login (1-Click)</span>
+            <span className="text-[10px] lowercase font-normal bg-base-200 px-2 py-0.5 rounded-full">Pass: Password123!</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({ email: "alif@gmail.com", password: "Password123!" });
+                setError("");
+              }}
+              className="btn btn-outline btn-xs h-9 justify-start font-semibold text-left border-base-300 hover:bg-emerald-50 hover:border-emerald-500 hover:text-emerald-700 transition-all"
+            >
+              <span className="text-sm">👤</span>
+              <div className="truncate">
+                <div className="text-[11px] leading-tight font-bold">Patient</div>
+                <div className="text-[9px] opacity-60 truncate">alif@gmail.com</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({ email: "mohosina@gmail.com", password: "Password123!" });
+                setError("");
+              }}
+              className="btn btn-outline btn-xs h-9 justify-start font-semibold text-left border-base-300 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-700 transition-all"
+            >
+              <span className="text-sm">🩺</span>
+              <div className="truncate">
+                <div className="text-[11px] leading-tight font-bold">Doctor</div>
+                <div className="text-[9px] opacity-60 truncate">mohosina@gmail.com</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({ email: "monira@gmail.com", password: "Password123!" });
+                setError("");
+              }}
+              className="btn btn-outline btn-xs h-9 justify-start font-semibold text-left border-base-300 hover:bg-purple-50 hover:border-purple-500 hover:text-purple-700 transition-all"
+            >
+              <span className="text-sm">🏥</span>
+              <div className="truncate">
+                <div className="text-[11px] leading-tight font-bold">Clinic Admin</div>
+                <div className="text-[9px] opacity-60 truncate">monira@gmail.com</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({ email: "admin@clinic.com", password: "Password123!" });
+                setError("");
+              }}
+              className="btn btn-outline btn-xs h-9 justify-start font-semibold text-left border-base-300 hover:bg-rose-50 hover:border-rose-500 hover:text-rose-700 transition-all"
+            >
+              <span className="text-sm">🛡️</span>
+              <div className="truncate">
+                <div className="text-[11px] leading-tight font-bold">Super Admin</div>
+                <div className="text-[9px] opacity-60 truncate">admin@clinic.com</div>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

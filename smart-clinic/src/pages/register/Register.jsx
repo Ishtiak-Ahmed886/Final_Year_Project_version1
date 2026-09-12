@@ -114,6 +114,9 @@ export default function Register() {
         }));
         setStep(2);
         setSuccess("");
+      } else if (formData.role === "CLINIC_ADMIN") {
+        setSuccess("Account created! Redirecting to Clinic Setup...");
+        setTimeout(() => navigate("/dashboard", { replace: true }), 1000);
       } else {
         setSuccess("Account created successfully! Redirecting...");
         setTimeout(() => navigate("/dashboard", { replace: true }), 1200);

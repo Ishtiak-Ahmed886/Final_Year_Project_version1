@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { NavLink } from "react-router";
 import { useAuth } from "../../Provider/AuthProvider";
-import { LayoutDashboard, Calendar, Stethoscope, Building2, ShieldCheck, UserCheck } from "lucide-react";
+import { LayoutDashboard, Calendar, Stethoscope, Building2, ShieldCheck, UserCheck, User } from "lucide-react";
 import PatientDashboard from "./PatientDashboard";
 import DoctorDashboard from "./DoctorDashboard";
 import ClinicAdminDashboard from "./ClinicAdminDashboard";
 import SuperAdminDashboard from "./SuperAdminDashboard";
+import ProfileSettings from "./ProfileSettings";
 
 export default function DashboardLayout() {
   const { user } = useAuth();
+  const [currentView, setCurrentView] = useState("overview");
 
   const renderDashboardView = () => {
     if (!user) return null;
@@ -55,19 +58,29 @@ export default function DashboardLayout() {
           </div>
 
           <nav className="space-y-1">
-            <NavLink
-              to="/dashboard"
-              end
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold transition-colors ${
-                  isActive
-                    ? "bg-primary text-primary-content shadow-md"
-                    : "text-base-content/70 hover:bg-base-200"
-                }`
-              }
+            <button
+              type="button"
+              onClick={() => setCurrentView("overview")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold transition-colors ${
+                currentView === "overview"
+                  ? "bg-primary text-primary-content shadow-md"
+                  : "text-base-content/70 hover:bg-base-200"
+              }`}
             >
               <LayoutDashboard size={18} /> Overview
-            </NavLink>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentView("profile")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold transition-colors ${
+                currentView === "profile"
+                  ? "bg-primary text-primary-content shadow-md"
+                  : "text-base-content/70 hover:bg-base-200"
+              }`}
+            >
+              <User size={18} /> My Profile & Security
+            </button>
 
             {user?.role === "PATIENT" && (
               <NavLink
@@ -102,7 +115,7 @@ export default function DashboardLayout() {
 
         {/* Main Content Area */}
         <main className="flex-1">
-          {renderDashboardView()}
+          {currentView === "profile" ? <ProfileSettings /> : renderDashboardView()}
         </main>
       </div>
     </div>
