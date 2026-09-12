@@ -360,3 +360,109 @@ class ClinicServiceDetailView(APIView):
 
         service.delete()
         return Response({'detail': 'Service deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Clinics'])
+class ClinicFinancialAnalyticsView(APIView):
+    """
+    GET /api/v1/clinics/<clinic_id>/analytics/
+    Daily Counter Cash Register, Revenue Breakdown, and Doctor Fee Payout Settlements.
+    Strictly authorized to the clinic owner or platform super admin.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsClinicAdminOrAdmin]
+
+    def get(self, request, clinic_id, *args, **kwargs):
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from apps.payments.models import Payment, PaymentStatus, PaymentMethod
+        from apps.doctors.models import DoctorClinic
+        from django.db.models import Sum, Count, Q
+        from datetime import date
+
+        try:
+            clinic = Clinic.objects.get(pk=clinic_id)
+        except Clinic.DoesNotExist:
+            return Response({'detail': 'Clinic not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        query_date_str = request.query_params.get('date')
+        if query_date_str:
+            try:
+                from datetime import datetime
+                query_date = datetime.strptime(query_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                query_date = date.today()
+        else:
+            query_date = date.today()
+
+        # Filter appointments for this clinic
+        all_clinic_apts = Appointment.objects.filter(clinic=clinic)
+        today_apts = all_clinic_apts.filter(appointment_date=query_date)
+
+        # Revenue computations
+        confirmed_or_completed = today_apts.filter(
+            status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]
+        )
+
+        today_cash_revenue = Payment.objects.filter(
+            appointment__in=today_apts,
+            payment_method=PaymentMethod.CASH,
+            payment_status=PaymentStatus.COMPLETED
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        today_digital_revenue = Payment.objects.filter(
+            appointment__in=today_apts,
+            payment_status=PaymentStatus.COMPLETED
+        ).exclude(payment_method=PaymentMethod.CASH).aggregate(total=Sum('amount'))['total'] or 0
+
+        today_total_revenue = float(today_cash_revenue) + float(today_digital_revenue)
+
+        # Lifetime metrics
+        lifetime_total_revenue = Payment.objects.filter(
+            appointment__in=all_clinic_apts,
+            payment_status=PaymentStatus.COMPLETED
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        # Doctor payout calculation breakdown: Standard 80% Doctor / 20% Clinic facility fee
+        doctor_mappings = DoctorClinic.objects.filter(clinic=clinic, is_active=True).select_related('doctor')
+        doctor_settlements = []
+
+        for mapping in doctor_mappings:
+            doc = mapping.doctor
+            doc_today_apts = confirmed_or_completed.filter(doctor=doc)
+            count = doc_today_apts.count()
+            gross_fees = doc_today_apts.aggregate(total=Sum('amount'))['total'] or 0
+            gross_val = float(gross_fees)
+
+            # Clinic platform deduction: 20% facility commission, 80% payable to Doctor
+            clinic_commission = round(gross_val * 0.20, 2)
+            doctor_payable = round(gross_val * 0.80, 2)
+
+            doctor_settlements.append({
+                'doctor_id': str(doc.id),
+                'doctor_name': doc.full_name,
+                'specialization': doc.specializations.first().name if doc.specializations.exists() else 'Specialist',
+                'consultation_fee': float(mapping.consultation_fee),
+                'patients_seen_today': count,
+                'gross_collected': gross_val,
+                'clinic_facility_cut': clinic_commission,
+                'doctor_net_payout': doctor_payable,
+            })
+
+        return Response({
+            'date': str(query_date),
+            'summary': {
+                'today_total_appointments': today_apts.count(),
+                'today_confirmed_appointments': confirmed_or_completed.count(),
+                'today_cash_collected': float(today_cash_revenue),
+                'today_digital_collected': float(today_digital_revenue),
+                'today_gross_revenue': today_total_revenue,
+                'today_clinic_net_share': round(today_total_revenue * 0.20, 2),
+                'today_doctors_total_payout': round(today_total_revenue * 0.80, 2),
+                'lifetime_total_revenue': float(lifetime_total_revenue),
+                'total_services_offered': clinic.services.filter(is_available=True).count(),
+            },
+            'doctor_settlements': doctor_settlements,
+        }, status=status.HTTP_200_OK)
+

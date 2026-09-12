@@ -9,7 +9,7 @@ import {
   Play, Pause, Navigation, AlertTriangle, RotateCcw, Printer, CreditCard,
   UserPlus, Activity, Sparkles, Edit3, Trash2, Globe, PhoneCall, ExternalLink,
   Tag, CheckSquare, Square, Camera, Image, Upload, Star, Eye, X, ZoomIn,
-  Lock, Server, HeartHandshake
+  Lock, Server, HeartHandshake, DollarSign, FileText, Download
 } from "lucide-react";
 
 const GALLERY_CATEGORIES = [
@@ -177,6 +177,11 @@ export default function ClinicAdminDashboard() {
     appointment_time: "",
     problem_description: "",
   });
+
+  // Financial Accounts & Settlement State
+  const [financialAnalytics, setFinancialAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [analyticsDate, setAnalyticsDate] = useState(() => new Date().toISOString().split("T")[0]);
 
 
 
@@ -619,7 +624,27 @@ export default function ClinicAdminDashboard() {
     }
   };
 
+  const fetchFinancialAnalytics = async (dateOverride = null) => {
+    if (!clinic) return;
+    setLoadingAnalytics(true);
+    try {
+      const d = dateOverride || analyticsDate;
+      const res = await apiClient.get(`/clinics/${clinic.id}/analytics/?date=${d}`);
+      setFinancialAnalytics(res.data || res);
+    } catch {
+      // Graceful fallback
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (clinic && activeTab === "finance") {
+      fetchFinancialAnalytics();
+    }
+  }, [clinic, activeTab, analyticsDate]);
 
   const fetchReceptionChamberSession = async () => {
     if (!clinic || !selectedDoctorId) return;
@@ -837,6 +862,7 @@ export default function ClinicAdminDashboard() {
     { key: "clinic", label: "My Clinic", icon: <Building2 size={16} /> },
     { key: "doctors", label: "Doctors & Requests", icon: <Stethoscope size={16} />, count: assignedDoctors.length + requests.length },
     { key: "appointments", label: "Appointments", icon: <Calendar size={16} />, count: appointments.length },
+    { key: "finance", label: "Accounts & Settlements", icon: <DollarSign size={16} />, badge: "Daily", badgeClass: "badge-success text-white" },
     { key: "taxonomy", label: "Specializations", icon: <Award size={16} /> },
   ];
 
@@ -1965,10 +1991,19 @@ export default function ClinicAdminDashboard() {
                             {checkingInId === apt.id ? "Checking in..." : "Mark Paid (Cash)"}
                           </button>
                         )}
+                        <a
+                          href={`/track-queue/${apt.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-outline btn-primary btn-xs gap-1 font-bold"
+                          title="Open Live Patient Queue Tracker"
+                        >
+                          <Activity size={12} /> Track Live
+                        </a>
                         <button
                           onClick={() => setPrintTokenData(apt)}
-                          className="btn btn-outline btn-xs gap-1"
-                          title="Print thermal token slip"
+                          className="btn btn-outline btn-xs gap-1 font-semibold"
+                          title="Print thermal token slip with QR code"
                         >
                           <Printer size={12} /> Print Token
                         </button>
@@ -1979,6 +2014,148 @@ export default function ClinicAdminDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ===== FINANCIAL ACCOUNTS & DOCTOR SETTLEMENTS TAB ===== */}
+      {activeTab === "finance" && (
+        <div className="space-y-6">
+          {/* Header Controls & Date Picker */}
+          <div className="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="space-y-1">
+              <h2 className="text-xl font-black text-base-content flex items-center gap-2">
+                <DollarSign className="text-emerald-500" /> Daily Cash Register &amp; Doctor Settlements
+              </h2>
+              <p className="text-xs text-base-content/60">
+                Audit counter cash collected, digital payments, 20% clinic facility commissions, and 80% doctor net payouts.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-2 bg-base-200/50 px-3 py-1.5 rounded-xl border border-base-200 text-xs">
+                <Calendar size={14} className="text-primary shrink-0" />
+                <input
+                  type="date"
+                  value={analyticsDate}
+                  onChange={(e) => {
+                    setAnalyticsDate(e.target.value);
+                    fetchFinancialAnalytics(e.target.value);
+                  }}
+                  className="bg-transparent font-mono font-bold focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fetchFinancialAnalytics()}
+                className="btn btn-outline btn-sm gap-1.5 font-bold"
+                title="Refresh financial data"
+              >
+                <RefreshCw size={13} className={loadingAnalytics ? "animate-spin" : ""} /> Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="btn btn-primary btn-sm gap-1.5 font-bold shadow-md print:hidden"
+                title="Print Daily Settlement Sheet for cash register audit"
+              >
+                <Printer size={14} /> Print Audit Sheet
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Financial KPI Stat Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
+              <span className="text-xs text-base-content/60 font-semibold block">Gross Revenue (Today)</span>
+              <div className="text-2xl font-black text-emerald-600 font-mono">
+                ৳{parseFloat(financialAnalytics?.summary?.today_gross_revenue || 0).toLocaleString()}
+              </div>
+              <span className="text-[11px] text-base-content/50 block">
+                {financialAnalytics?.summary?.today_confirmed_appointments || 0} Paid Appointments
+              </span>
+            </div>
+
+            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
+              <span className="text-xs text-base-content/60 font-semibold block">Counter Cash Collected</span>
+              <div className="text-2xl font-black text-primary font-mono">
+                ৳{parseFloat(financialAnalytics?.summary?.today_cash_collected || 0).toLocaleString()}
+              </div>
+              <span className="text-[11px] text-base-content/50 block">Direct in cash drawer</span>
+            </div>
+
+            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
+              <span className="text-xs text-base-content/60 font-semibold block">Clinic Net Share (20%)</span>
+              <div className="text-2xl font-black text-indigo-600 font-mono">
+                ৳{parseFloat(financialAnalytics?.summary?.today_clinic_net_share || 0).toLocaleString()}
+              </div>
+              <span className="text-[11px] text-indigo-500 font-bold block">Clinic Operational Income</span>
+            </div>
+
+            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
+              <span className="text-xs text-base-content/60 font-semibold block">Doctors Total Payout (80%)</span>
+              <div className="text-2xl font-black text-amber-600 font-mono">
+                ৳{parseFloat(financialAnalytics?.summary?.today_doctors_total_payout || 0).toLocaleString()}
+              </div>
+              <span className="text-[11px] text-amber-600 font-bold block">Payable to Practitioners</span>
+            </div>
+          </div>
+
+          {/* Doctor Settlement Table */}
+          <div className="bg-base-100 border border-base-200 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex justify-between items-center border-b border-base-200 pb-3">
+              <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
+                <Users size={18} className="text-primary" /> Doctor Payout Settlement Ledger
+              </h3>
+              <span className="text-xs text-base-content/50">
+                Settlement Formula: Gross Fees × 80%
+              </span>
+            </div>
+
+            {!financialAnalytics?.doctor_settlements || financialAnalytics.doctor_settlements.length === 0 ? (
+              <div className="text-center py-10 text-base-content/50 text-xs">
+                No active doctor mappings found for this clinic.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table w-full">
+                  <thead>
+                    <tr className="text-xs text-base-content/60 border-b border-base-200 uppercase">
+                      <th>Doctor Name</th>
+                      <th>Specialty</th>
+                      <th>Slot Fee</th>
+                      <th>Patients (Today)</th>
+                      <th>Gross Collected</th>
+                      <th>Clinic Cut (20%)</th>
+                      <th className="text-right">Net Payable to Doctor (80%)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {financialAnalytics.doctor_settlements.map((doc) => (
+                      <tr key={doc.doctor_id} className="hover:bg-base-200/40 border-b border-base-200 text-xs">
+                        <td>
+                          <div className="font-bold text-base-content">{doc.doctor_name}</div>
+                        </td>
+                        <td>
+                          <span className="badge badge-ghost badge-xs">{doc.specialization}</span>
+                        </td>
+                        <td className="font-mono">৳{doc.consultation_fee}</td>
+                        <td className="font-bold text-center">{doc.patients_seen_today}</td>
+                        <td className="font-bold font-mono">৳{doc.gross_collected.toLocaleString()}</td>
+                        <td className="font-mono text-indigo-600 font-semibold">
+                          ৳{doc.clinic_facility_cut.toLocaleString()}
+                        </td>
+                        <td className="text-right font-black font-mono text-emerald-600 text-sm">
+                          ৳{doc.doctor_net_payout.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2162,12 +2339,37 @@ export default function ClinicAdminDashboard() {
                 </div>
               </div>
 
+              {/* Scannable Live Queue QR Code */}
+              <div className="pt-2 border-t border-slate-200 flex flex-col items-center justify-center space-y-1.5">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                    `${window.location.origin}/track-queue/${printTokenData.id}`
+                  )}`}
+                  alt="Track Queue QR"
+                  className="w-24 h-24 border border-slate-300 rounded-lg p-1 bg-white"
+                />
+                <span className="text-[10px] font-bold text-emerald-700 tracking-tight">
+                  Scan QR with Phone to Track Live Queue
+                </span>
+                <span className="text-[9px] text-slate-400 font-mono">
+                  {window.location.origin}/track-queue/{printTokenData.id.slice(0, 8)}
+                </span>
+              </div>
+
               <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-200">
                 Please wait in lobby until your serial is called on the TV screen.
               </div>
             </div>
 
             <div className="flex gap-2 print:hidden">
+              <a
+                href={`/track-queue/${printTokenData.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-outline btn-sm flex-1 gap-1 font-bold text-xs"
+              >
+                <span>Live Preview</span>
+              </a>
               <button
                 onClick={() => window.print()}
                 className="btn btn-primary btn-sm flex-1 gap-1.5 font-bold shadow-md"

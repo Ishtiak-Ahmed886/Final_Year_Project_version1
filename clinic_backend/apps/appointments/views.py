@@ -1,5 +1,6 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 from .models import Appointment
 from .serializers import AppointmentSerializer, AppointmentCreateSerializer
@@ -208,3 +209,103 @@ class AppointmentCompleteView(generics.GenericAPIView):
 
         appointment = complete_appointment(appointment=appointment)
         return Response(AppointmentSerializer(appointment).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Appointments'])
+class PublicLiveQueueTrackView(APIView):
+    """
+    Public Live Patient Queue Tracking endpoint.
+    Accessible without login (via QR code scan or direct URL from token slip).
+    Returns appointment token info, doctor chamber live serial, delay notes,
+    and calculates estimated wait time and remaining patients ahead.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk, *args, **kwargs):
+        try:
+            appointment = Appointment.objects.select_related(
+                'clinic', 'doctor', 'patient', 'family_member', 'department'
+            ).get(pk=pk)
+        except Appointment.DoesNotExist:
+            return Response({'detail': 'Token record not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.doctors.models import ChamberSession, ChamberSessionStatus
+        from datetime import date
+
+        # Fetch today's chamber session for this doctor at this clinic
+        session = ChamberSession.objects.filter(
+            doctor=appointment.doctor,
+            clinic=appointment.clinic,
+            session_date=appointment.appointment_date
+        ).first()
+
+        current_serving_serial = session.current_serial if session else 0
+        chamber_status = session.status if session else ChamberSessionStatus.NOT_STARTED
+        delay_minutes = session.delay_minutes if session else 0
+        announcement_note = session.announcement_note if session else ''
+        room_number = session.room_number if session and session.room_number else 'Chamber Room'
+        est_mins_per_patient = session.estimated_mins_per_patient if session else 12
+
+        patient_serial = appointment.serial_number or 1
+
+        # Calculate queue position metrics
+        if patient_serial <= current_serving_serial:
+            patients_ahead = 0
+            is_turn_now = (patient_serial == current_serving_serial)
+            is_passed = (patient_serial < current_serving_serial)
+            estimated_wait_mins = 0
+        else:
+            patients_ahead = patient_serial - current_serving_serial
+            is_turn_now = False
+            is_passed = False
+            estimated_wait_mins = (patients_ahead * est_mins_per_patient) + delay_minutes
+
+        patient_display_name = (
+            appointment.family_member.full_name if appointment.family_member
+            else f"{appointment.patient.first_name} {appointment.patient.last_name}".strip()
+        )
+        if not patient_display_name:
+            patient_display_name = "Walk-in Patient"
+
+        return Response({
+            'appointment': {
+                'id': str(appointment.id),
+                'serial_number': patient_serial,
+                'patient_name': patient_display_name,
+                'appointment_date': str(appointment.appointment_date),
+                'appointment_time': str(appointment.appointment_time)[:5],
+                'status': appointment.status,
+                'amount': str(appointment.amount),
+                'problem_description': appointment.problem_description,
+                'clinic': {
+                    'id': str(appointment.clinic.id),
+                    'name': appointment.clinic.name,
+                    'address': appointment.clinic.address,
+                    'city': appointment.clinic.city,
+                    'phone': appointment.clinic.phone,
+                    'emergency_contact': appointment.clinic.emergency_contact,
+                    'logo_url': appointment.clinic.logo_url,
+                },
+                'doctor': {
+                    'id': str(appointment.doctor.id),
+                    'full_name': appointment.doctor.full_name,
+                    'qualification': appointment.doctor.qualification,
+                    'specialization_name': appointment.doctor.specializations.first().name if appointment.doctor.specializations.exists() else 'General Practitioner',
+                    'profile_image_url': appointment.doctor.avatar_url,
+                },
+                'department_name': appointment.department.name if appointment.department else None,
+            },
+            'live_queue': {
+                'current_serving_serial': current_serving_serial,
+                'chamber_status': chamber_status,
+                'room_number': room_number,
+                'delay_minutes': delay_minutes,
+                'announcement_note': announcement_note,
+                'patients_ahead': patients_ahead,
+                'estimated_wait_mins': estimated_wait_mins,
+                'is_turn_now': is_turn_now,
+                'is_passed': is_passed,
+                'skipped_serials': session.skipped_serials if session else [],
+            }
+        }, status=status.HTTP_200_OK)
+

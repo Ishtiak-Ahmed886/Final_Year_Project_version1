@@ -15,6 +15,7 @@ import { AuthProvider } from "./Provider/AuthProvider";
 import { LanguageProvider } from "./context/LanguageContext";
 import { PrivateRoute, RoleRoute } from "./components/shared/PrivateRoute";
 import WaitingRoomDisplay from "./pages/queue/WaitingRoomDisplay";
+import PatientQueueTracker from "./pages/queue/PatientQueueTracker";
 import PrescriptionVerify from "./pages/prescriptions/PrescriptionVerify";
 import "./App.css";
 
@@ -25,6 +26,8 @@ ReactDOM.createRoot(root).render(
     <LanguageProvider>
       <AuthProvider>
         <Routes>
+          <Route path="/track-queue/:appointmentId" element={<PatientQueueTracker />} />
+          <Route path="/queue-token/:appointmentId" element={<PatientQueueTracker />} />
           <Route path="/queue-display/:clinicId/:doctorId" element={<WaitingRoomDisplay />} />
           <Route path="/queue-display" element={<WaitingRoomDisplay />} />
           <Route path="/verify-prescription/:qrToken" element={<PrescriptionVerify />} />
