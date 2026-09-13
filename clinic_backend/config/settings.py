@@ -73,12 +73,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration
-DATABASES = {
-    'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),
-        'NAME': BASE_DIR / os.getenv('DB_NAME', 'db.sqlite3'),
+db_engine = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
+if 'sqlite' in db_engine.lower():
+    DATABASES = {
+        'default': {
+            'ENGINE': db_engine,
+            'NAME': BASE_DIR / os.getenv('DB_NAME', 'db.sqlite3'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': db_engine,
+            'NAME': os.getenv('DB_NAME', 'smartclinic'),
+            'USER': os.getenv('DB_USER', 'clinic_user'),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
+    }
 
 # User Authentication Model
 AUTH_USER_MODEL = 'accounts.User'
