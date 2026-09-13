@@ -73,3 +73,12 @@ class PrescriptionsTestCase(TestCase):
         self.assertEqual(report.title, "Complete Blood Count (CBC)")
         self.assertEqual(report.report_type, ReportCategory.BLOOD_TEST)
         self.assertEqual(MedicalReport.objects.filter(patient=self.patient_user).count(), 1)
+
+    def test_medications_list_unauthenticated(self):
+        """Public users can query the DGDA drug catalog without credentials."""
+        from rest_framework.test import APIClient
+        client = APIClient()  # Unauthenticated
+        response = client.get('/api/v1/prescriptions/medications/')
+        self.assertEqual(response.status_code, 200)
+        data = response.data.get('data', response.data)
+        self.assertTrue(len(data) > 0)

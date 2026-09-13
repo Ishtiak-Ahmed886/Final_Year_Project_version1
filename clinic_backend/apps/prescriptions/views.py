@@ -18,7 +18,7 @@ class MedicationListView(generics.ListAPIView):
     GET /api/v1/prescriptions/medications/
     Search DGDA Bangladesh drug master catalog by brand or generic name.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     serializer_class = MedicationSerializer
 
     def get_queryset(self):

@@ -16,6 +16,7 @@ from .services import change_user_password
 @extend_schema(tags=['Auth'])
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_scope = 'auth_login'
 
 @extend_schema(tags=['Auth'])
 class CustomTokenRefreshView(TokenRefreshView):
@@ -25,6 +26,7 @@ class CustomTokenRefreshView(TokenRefreshView):
 class UserRegistrationView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = 'auth_login'
 
 @extend_schema(tags=['Users'])
 class UserProfileView(generics.RetrieveUpdateAPIView):

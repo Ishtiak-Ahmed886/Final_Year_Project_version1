@@ -81,13 +81,26 @@ export default function PatientQueueTracker() {
     }
   }, [appointmentId]);
 
-  // Live Auto-Refresh every 4 seconds (Real-Time Live Queue Polling)
+  // Live Auto-Refresh every 4 seconds (Real-Time Live Queue Polling with Tab Visibility Awareness)
   useEffect(() => {
     if (!appointmentId) return;
     const interval = setInterval(() => {
-      fetchTrackData();
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        fetchTrackData();
+      }
     }, 4000);
-    return () => clearInterval(interval);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchTrackData(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [appointmentId, soundEnabled]);
 
   if (loading) {

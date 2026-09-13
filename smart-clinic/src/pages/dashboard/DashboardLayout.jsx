@@ -1,13 +1,21 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import { NavLink, useLocation } from "react-router";
 import { useAuth } from "../../Provider/AuthProvider";
 import { LayoutDashboard, Calendar, Stethoscope, Building2, ShieldCheck, UserCheck, User, Lock } from "lucide-react";
-import PatientDashboard from "./PatientDashboard";
-import DoctorDashboard from "./DoctorDashboard";
-import ClinicAdminDashboard from "./ClinicAdminDashboard";
-import SuperAdminDashboard from "./SuperAdminDashboard";
-import ProfileSettings from "./ProfileSettings";
-import PrivacyPolicy from "../legal/PrivacyPolicy";
+
+const PatientDashboard = lazy(() => import("./PatientDashboard"));
+const DoctorDashboard = lazy(() => import("./DoctorDashboard"));
+const ClinicAdminDashboard = lazy(() => import("./ClinicAdminDashboard"));
+const SuperAdminDashboard = lazy(() => import("./SuperAdminDashboard"));
+const ProfileSettings = lazy(() => import("./ProfileSettings"));
+const PrivacyPolicy = lazy(() => import("../legal/PrivacyPolicy"));
+
+const DashboardLoader = () => (
+  <div className="flex flex-col items-center justify-center p-16 text-center">
+    <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+    <span className="mt-3 text-xs font-semibold tracking-wider text-slate-400">Loading dashboard...</span>
+  </div>
+);
 
 export default function DashboardLayout() {
   const { user } = useAuth();
@@ -24,17 +32,23 @@ export default function DashboardLayout() {
 
   const renderDashboardView = () => {
     if (!user) return null;
+    let content = null;
     switch (user.role) {
       case "DOCTOR":
-        return <DoctorDashboard />;
+        content = <DoctorDashboard />;
+        break;
       case "CLINIC_ADMIN":
-        return <ClinicAdminDashboard />;
+        content = <ClinicAdminDashboard />;
+        break;
       case "ADMIN":
-        return <SuperAdminDashboard />;
+        content = <SuperAdminDashboard />;
+        break;
       case "PATIENT":
       default:
-        return <PatientDashboard />;
+        content = <PatientDashboard />;
+        break;
     }
+    return <Suspense fallback={<DashboardLoader />}>{content}</Suspense>;
   };
 
   const getRoleBadge = (role) => {

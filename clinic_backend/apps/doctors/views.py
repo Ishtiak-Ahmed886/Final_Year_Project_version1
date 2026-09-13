@@ -362,6 +362,7 @@ from .serializers import ChamberSessionSerializer, ChamberSessionUpdateSerialize
 @extend_schema(tags=['Chamber Sessions'])
 class ChamberSessionView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    throttle_scope = 'sms_broadcast'
 
     def get(self, request, *args, **kwargs):
         doctor_id = request.query_params.get('doctor_id')

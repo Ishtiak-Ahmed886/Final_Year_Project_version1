@@ -153,10 +153,16 @@ Frontend client will run at: `http://localhost:5173/`
 
 ## 📑 Default Credentials (Development)
 
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **Super Admin** | `admin@clinic.com` | `AdminPassword123!` |
-| **Clinic Admin** | `alia12bhhatt122@gmail.com` | `your_password` |
+All seeded development accounts across the 8 administrative divisions share the standard development password: `Password123!`.
+
+| Role | Email | Password | Division / Region |
+| :--- | :--- | :--- | :--- |
+| **Super Admin** | `admin@clinic.com` | `Password123!` | Nationwide |
+| **Clinic Admin** | `metro_dhaka@clinic.com` | `Password123!` | Dhaka (Uttara) |
+| **Clinic Admin** | `nexus_mymensingh@clinic.com` | `Password123!` | Mymensingh |
+| **Specialist Doctor** | `nurul_rangpur@doctor.com` | `Password123!` | Rangpur |
+| **Specialist Doctor** | `tariqul_ctg@doctor.com` | `Password123!` | Chattogram |
+| **Patient** | `test_patient_e2e@example.com` | `Password123!` | Dhaka |
 
 ---
 

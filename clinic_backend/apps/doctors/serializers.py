@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Specialization, Doctor, DoctorClinic, DoctorSchedule, DayOfWeek
-from apps.clinics.serializers import ClinicSerializer, DepartmentSerializer
+from apps.clinics.serializers import ClinicSerializer, DepartmentSerializer, LightweightClinicSerializer
 
 
 class SpecializationSerializer(serializers.ModelSerializer):
@@ -11,7 +11,7 @@ class SpecializationSerializer(serializers.ModelSerializer):
 
 
 class DoctorClinicSerializer(serializers.ModelSerializer):
-    clinic = ClinicSerializer(read_only=True)
+    clinic = LightweightClinicSerializer(read_only=True)
     clinic_id = serializers.UUIDField(write_only=True)
     department = DepartmentSerializer(read_only=True)
     department_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
@@ -47,11 +47,15 @@ class DoctorSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'created_at')
 
     def get_average_rating(self, obj):
+        if hasattr(obj, 'annotated_avg_rating'):
+            return round(float(obj.annotated_avg_rating), 1) if obj.annotated_avg_rating is not None else None
         from django.db.models import Avg
         avg = obj.reviews.aggregate(Avg('rating'))['rating__avg']
         return round(float(avg), 1) if avg is not None else None
 
     def get_review_count(self, obj):
+        if hasattr(obj, 'annotated_review_count'):
+            return obj.annotated_review_count or 0
         return obj.reviews.count()
 
 

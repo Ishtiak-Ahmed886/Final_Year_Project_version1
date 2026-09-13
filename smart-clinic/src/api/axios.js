@@ -62,12 +62,29 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const errorMessage =
+    let errorMessage = "An unexpected error occurred.";
+    const errData =
       error.response?.data?.errors ||
       error.response?.data?.detail ||
-      error.message ||
-      "An unexpected error occurred.";
-    return Promise.reject(errorMessage);
+      error.message;
+
+    if (typeof errData === "string") {
+      errorMessage = errData;
+    } else if (Array.isArray(errData)) {
+      errorMessage = errData.join(" ");
+    } else if (typeof errData === "object" && errData !== null) {
+      // Flatten DRF validation error maps e.g. { phone: ["Already in use"] } into readable strings
+      errorMessage = Object.entries(errData)
+        .map(([field, msgs]) => {
+          const detail = Array.isArray(msgs) ? msgs.join(" ") : String(msgs);
+          return field && field !== "detail" && field !== "non_field_errors"
+            ? `${field.charAt(0).toUpperCase() + field.slice(1)}: ${detail}`
+            : detail;
+        })
+        .join(" | ");
+    }
+
+    return Promise.reject(errorMessage || "An unexpected error occurred.");
   }
 );
 

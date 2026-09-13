@@ -28,6 +28,17 @@ class ClinicServiceSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'clinic', 'created_at')
 
+class LightweightClinicSerializer(serializers.ModelSerializer):
+    """Minimal clinic representation for nesting within doctor-clinic lists to avoid N+1 queries."""
+    class Meta:
+        model = Clinic
+        fields = (
+            'id', 'name', 'slug', 'address', 'city', 'phone', 'email',
+            'logo_url', 'verification_status', 'is_active'
+        )
+        read_only_fields = fields
+
+
 class ClinicSerializer(serializers.ModelSerializer):
     departments = DepartmentSerializer(many=True, read_only=True)
     services = serializers.SerializerMethodField()
@@ -47,16 +58,23 @@ class ClinicSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'verification_status', 'created_at')
 
     def get_services(self, obj):
-        # Return all active services for this clinic
-        active_services = obj.services.filter(is_available=True)
+        # Return all active services for this clinic, utilizing prefetch cache if available
+        if hasattr(obj, '_prefetched_objects_cache') and 'services' in obj._prefetched_objects_cache:
+            active_services = [s for s in obj.services.all() if getattr(s, 'is_available', True)]
+        else:
+            active_services = obj.services.filter(is_available=True)
         return ClinicServiceSerializer(active_services, many=True).data
 
     def get_average_rating(self, obj):
+        if hasattr(obj, 'annotated_avg_rating'):
+            return round(float(obj.annotated_avg_rating), 1) if obj.annotated_avg_rating is not None else None
         from django.db.models import Avg
         avg = obj.reviews.aggregate(Avg('rating'))['rating__avg']
         return round(float(avg), 1) if avg is not None else None
 
     def get_review_count(self, obj):
+        if hasattr(obj, 'annotated_review_count'):
+            return obj.annotated_review_count or 0
         return obj.reviews.count()
 
 class ClinicCreateUpdateSerializer(serializers.ModelSerializer):

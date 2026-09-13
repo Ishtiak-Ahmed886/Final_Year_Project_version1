@@ -309,3 +309,61 @@ class PublicLiveQueueTrackView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
+
+@extend_schema(tags=['Appointments'])
+class PublicWaitingRoomQueueView(APIView):
+    """
+    Public Unauthenticated Waiting Room Display Queue Endpoint.
+    Powers lobby kiosks and public TV screens showing real-time chamber serials,
+    currently serving patient, and upcoming patient list with masked names (privacy protected).
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        doctor_id = request.query_params.get('doctor_id')
+        clinic_id = request.query_params.get('clinic_id')
+        date_str = request.query_params.get('date') or request.query_params.get('appointment_date')
+
+        if not doctor_id or not clinic_id:
+            return Response(
+                {'detail': 'doctor_id and clinic_id query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from datetime import date as dt_date
+        session_date = date_str or str(dt_date.today())
+
+        appointments = Appointment.objects.filter(
+            doctor_id=doctor_id,
+            clinic_id=clinic_id,
+            appointment_date=session_date
+        ).select_related('patient', 'family_member').order_by('serial_number')
+
+        results = []
+        for apt in appointments:
+            if apt.family_member:
+                raw_name = apt.family_member.full_name
+            elif apt.patient:
+                raw_name = apt.patient.full_name or apt.patient.first_name
+            else:
+                raw_name = "Patient"
+
+            parts = raw_name.strip().split()
+            if len(parts) >= 2:
+                masked_name = f"{parts[0][:1]}*** {parts[-1][:1]}***"
+            elif parts:
+                masked_name = f"{parts[0][:1]}***"
+            else:
+                masked_name = "Patient"
+
+            results.append({
+                'id': str(apt.id),
+                'serial_number': apt.serial_number,
+                'patient_name': masked_name,
+                'status': apt.status,
+                'appointment_time': str(apt.appointment_time)[:5],
+            })
+
+        return Response(results, status=status.HTTP_200_OK)
+
+

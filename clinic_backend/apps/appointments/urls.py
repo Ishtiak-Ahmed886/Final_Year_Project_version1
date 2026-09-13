@@ -6,12 +6,14 @@ from .views import (
     AppointmentCompleteView,
     AppointmentCheckInView,
     PublicLiveQueueTrackView,
+    PublicWaitingRoomQueueView,
 )
 
 app_name = 'appointments'
 
 urlpatterns = [
     path('', AppointmentListCreateView.as_view(), name='appointment_list_create'),
+    path('queue/public/', PublicWaitingRoomQueueView.as_view(), name='appointment_public_queue'),
     path('<uuid:pk>/', AppointmentDetailView.as_view(), name='appointment_detail'),
     path('<uuid:pk>/track/', PublicLiveQueueTrackView.as_view(), name='appointment_track_queue'),
     path('<uuid:pk>/cancel/', AppointmentCancelView.as_view(), name='appointment_cancel'),

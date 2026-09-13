@@ -156,3 +156,27 @@ class AppointmentsTestCase(TestCase):
         apt.refresh_from_db()
         self.assertEqual(apt.status, AppointmentStatus.CONFIRMED)
 
+    def test_public_waiting_room_queue_endpoint_unauthenticated(self):
+        """Public lobby TV screen can fetch live upcoming queue without login, with masked patient initials."""
+        from rest_framework.test import APIClient
+        client = APIClient()  # Unauthenticated
+
+        apt = book_appointment(
+            patient=self.patient,
+            clinic_id=self.clinic.id,
+            doctor_id=self.doctor.id,
+            appointment_date=date(2026, 8, 17),
+            appointment_time=time(15, 0)
+        )
+
+        response = client.get(
+            f'/api/v1/appointments/queue/public/?doctor_id={self.doctor.id}&clinic_id={self.clinic.id}&date=2026-08-17'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.data.get('data', response.data) if isinstance(response.data, dict) else response.data
+        self.assertTrue(len(data) >= 1)
+        # Verify masked name format: starts with initial
+        first_item = data[0]
+        self.assertEqual(first_item['serial_number'], 1)
+        self.assertTrue(first_item['patient_name'].startswith('J***'))
+

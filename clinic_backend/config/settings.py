@@ -125,6 +125,17 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '120/min',
+        'user': '1200/min',
+        'auth_login': '20/min',
+        'sms_broadcast': '10/min',
+    },
 }
 
 # SimpleJWT Settings
@@ -150,12 +161,21 @@ SPECTACULAR_SETTINGS = {
 }
 
 # CORS Settings
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https?://localhost:\d+$",
     r"^https?://127\.0\.0\.1:\d+$",
 ]
+if not DEBUG:
+    frontend_url = os.getenv('FRONTEND_URL')
+    if frontend_url:
+        CORS_ALLOWED_ORIGINS = [frontend_url.rstrip('/')]
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',

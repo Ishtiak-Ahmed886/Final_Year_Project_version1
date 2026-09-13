@@ -112,10 +112,10 @@ export default function WaitingRoomDisplay() {
         setIsConnected(true);
         setLastSyncTime(new Date());
 
-        // Fetch appointments for this doctor & clinic
+        // Fetch appointments for this doctor & clinic via public privacy-safe endpoint
         try {
           const aptRes = await apiClient.get(
-            `/appointments/?doctor_id=${doctorId}&clinic_id=${clinicId}&appointment_date=${todayStr}`
+            `/appointments/queue/public/?doctor_id=${doctorId}&clinic_id=${clinicId}&date=${todayStr}`
           );
           setAppointments(aptRes.results || aptRes || []);
         } catch {}
@@ -256,6 +256,14 @@ export default function WaitingRoomDisplay() {
 
         {/* Control toggles: Chime, Voice, Fullscreen */}
         <div className="flex items-center gap-2">
+          {/* Live Sync Pulse Indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs font-mono">
+            <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-rose-500"}`}></span>
+            <span className={isConnected ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+              {isConnected ? "LIVE" : "RECONNECTING"}
+            </span>
+          </div>
+
           <button
             onClick={() => {
               setSoundEnabled(!soundEnabled);
@@ -358,8 +366,10 @@ export default function WaitingRoomDisplay() {
               </div>
               <div className="text-xl md:text-2xl font-extrabold text-white truncate">
                 {currentPatient
-                  ? currentPatient.family_member?.full_name ||
-                    `${currentPatient.patient?.first_name} ${currentPatient.patient?.last_name}`
+                  ? currentPatient.patient_name ||
+                    currentPatient.family_member?.full_name ||
+                    `${currentPatient.patient?.first_name || ''} ${currentPatient.patient?.last_name || ''}`.trim() ||
+                    `Serial #${currentSerial}`
                   : currentSerial > 0
                   ? `Serial Holder #${currentSerial}`
                   : "Chamber session waiting to call"}
@@ -406,7 +416,7 @@ export default function WaitingRoomDisplay() {
                       </div>
                       <div>
                         <div className="font-bold text-sm text-white truncate max-w-[150px]">
-                          {apt.family_member?.full_name || `${apt.patient?.first_name} ${apt.patient?.last_name}`}
+                          {apt.patient_name || apt.family_member?.full_name || `${apt.patient?.first_name || ''} ${apt.patient?.last_name || ''}`.trim() || `Patient #${apt.serial_number}`}
                         </div>
                         <div className="text-xs text-slate-400">
                           {idx === 0 ? "👉 Up Next" : `${idx + 1} patients away`}
