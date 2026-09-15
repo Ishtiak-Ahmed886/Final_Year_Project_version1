@@ -37,8 +37,13 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Handle Token Expiry & Automatic Refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Handle Token Expiry & Automatic Refresh (skip for authentication endpoints)
+    const isAuthEndpoint =
+      originalRequest?.url?.includes("/accounts/login/") ||
+      originalRequest?.url?.includes("/accounts/token/refresh/") ||
+      originalRequest?.url?.includes("/accounts/register/");
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem("refreshToken");
 
@@ -57,7 +62,9 @@ apiClient.interceptors.response.use(
           localStorage.removeItem("accessToken");
           localStorage.removeItem("refreshToken");
           localStorage.removeItem("user");
-          window.location.href = "/login";
+          if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
         }
       }
     }
