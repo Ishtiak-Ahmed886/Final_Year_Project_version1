@@ -111,16 +111,23 @@ export default function Login() {
     }
   };
 
-  const handle1ClickAutofill = (roleKey, directSubmit = false) => {
+  // Autofill demo credentials into form without auto-submitting
+  const handleAutofill = (roleKey) => {
     setActiveRole(roleKey);
     const target = ROLE_PROFILES[roleKey];
     setLoginId(target.email);
     setPassword(target.pass);
     setError("");
+  };
 
-    if (directSubmit) {
-      executeLogin(target.email, target.pass);
-    }
+  // Instant 1-Click demo login when explicitly requested
+  const handleInstantDemoLogin = (roleKey) => {
+    setActiveRole(roleKey);
+    const target = ROLE_PROFILES[roleKey];
+    setLoginId(target.email);
+    setPassword(target.pass);
+    setError("");
+    executeLogin(target.email, target.pass);
   };
 
   const executeLogin = async (idToUse, passToUse) => {
@@ -279,11 +286,11 @@ export default function Login() {
             </div>
             <button
               type="button"
-              onClick={() => handle1ClickAutofill(activeRole, true)}
+              onClick={() => handleInstantDemoLogin(activeRole)}
               className="btn btn-xs bg-white text-slate-800 hover:bg-slate-50 border border-slate-300 font-extrabold shrink-0 shadow-xs gap-1"
-              title="1-Click Instant Demo Login for this role"
+              title={`Instant demo login as ${currentProfile.name}`}
             >
-              <Sparkles size={12} className="text-amber-500" /> 1-Click Login
+              <Sparkles size={12} className="text-amber-500" /> Instant Demo
             </button>
           </div>
 
@@ -343,11 +350,14 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => {
-                    setLoginId(currentProfile.email);
+                    if (!loginId.trim()) {
+                      setLoginId(currentProfile.email);
+                    }
                     setPassword(currentProfile.pass);
                     setError("");
                   }}
                   className="text-[11px] font-bold text-primary hover:underline"
+                  title="Autofills demo password (Password123!) without overwriting your typed email"
                 >
                   Fill Demo Pass
                 </button>
@@ -440,8 +450,15 @@ export default function Login() {
           {/* ⚡ Quick Switcher Bar for Reviewers */}
           <div className="pt-3 border-t border-slate-200/80">
             <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
-              <span>⚡ Rapid Evaluation Demo Switcher</span>
-              <span className="text-[9px] lowercase font-normal bg-slate-100 px-2 py-0.5 rounded-full font-mono">Password123!</span>
+              <span>⚡ Demo Credentials Autofill</span>
+              <button
+                type="button"
+                onClick={() => setPassword("Password123!")}
+                className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-mono transition-colors"
+                title="Click to fill Password123!"
+              >
+                Password123!
+              </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
@@ -449,8 +466,9 @@ export default function Login() {
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => handle1ClickAutofill(r.id, true)}
-                  className="btn btn-outline btn-xs h-8 justify-start font-bold text-left border-slate-200 hover:border-slate-400 transition-all truncate"
+                  onClick={() => handleAutofill(r.id)}
+                  className="btn btn-outline btn-xs h-8 justify-start font-bold text-left border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-all truncate"
+                  title={`Fill form with ${r.name} (${r.email})`}
                 >
                   <span className="text-xs">
                     {r.id === "PATIENT" ? "👤" : r.id === "DOCTOR" ? "🩺" : r.id === "CLINIC_ADMIN" ? "🏥" : "🛡️"}
