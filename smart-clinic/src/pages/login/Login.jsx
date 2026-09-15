@@ -154,9 +154,14 @@ export default function Login() {
 
           {/* Alerts */}
           {error && (
-            <div className="alert alert-error text-white text-xs font-bold rounded-2xl shadow-sm animate-in fade-in flex items-center gap-2">
-              <AlertCircle size={16} className="shrink-0" />
-              <span>{error}</span>
+            <div className="alert alert-error text-white text-xs font-bold rounded-2xl shadow-sm animate-in fade-in flex items-start gap-2.5">
+              <AlertCircle size={18} className="shrink-0 mt-0.5" />
+              <div>
+                <div>{error}</div>
+                <div className="text-[11px] font-normal opacity-90 mt-1">
+                  Did your browser autofill an old password? Try typing <span className="font-mono font-bold bg-white/25 px-1.5 py-0.5 rounded text-white select-all">Password123!</span> or click the eye icon (👁️) to check.
+                </div>
+              </div>
             </div>
           )}
 

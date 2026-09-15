@@ -89,6 +89,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 attrs['password'] = alt_pwd
                 data = super().validate(attrs)
             else:
+                try:
+                    with open('login_debug.log', 'a') as f:
+                        f.write(f"FAILED_LOGIN: email={attrs.get(self.username_field)} | password={raw_pwd} | len={len(raw_pwd)}\n")
+                except Exception:
+                    pass
                 raise
 
         data['user'] = {
