@@ -1175,12 +1175,16 @@ export default function ClinicAdminDashboard() {
                 onClick: () => setActiveTab("chamber"),
               },
               {
-                label: "Pending Requests",
-                value: overviewStats?.doctors?.pending_requests ?? pendingIncomingRequests.length,
-                sub: overviewStats?.doctors?.pending_requests > 0 ? "Action required" : "All clear",
-                icon: <Send size={22} />,
-                color: overviewStats?.doctors?.pending_requests > 0 ? "warning" : "secondary",
-                onClick: () => setActiveTab("doctors"),
+                label: "Today's Revenue",
+                value: overviewStats?.financial_snapshot?.today_total != null
+                  ? `৳${overviewStats.financial_snapshot.today_total.toLocaleString("en-BD")}`
+                  : "৳0",
+                sub: overviewStats?.appointments?.completed != null
+                  ? `${overviewStats.appointments.completed} paid appointment${overviewStats.appointments.completed !== 1 ? "s" : ""}`
+                  : "No payments yet",
+                icon: <DollarSign size={22} />,
+                color: overviewStats?.financial_snapshot?.today_total > 0 ? "success" : "secondary",
+                onClick: () => setActiveTab("appointments"),
               },
               {
                 label: "Today's Appointments",
@@ -1312,86 +1316,6 @@ export default function ClinicAdminDashboard() {
               })()}
             </div>
           </div>
-
-          {/* ── E. LIVE CLINIC STATUS ── */}
-          {overviewStats?.live_chambers && overviewStats.live_chambers.length > 0 && (
-            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-base text-base-content flex items-center gap-2">
-                  <Tv size={18} className="text-primary" /> Live Clinic Status
-                </h3>
-                <button onClick={() => setActiveTab("chamber")} className="btn btn-ghost btn-xs gap-1 text-primary">
-                  Open Live Reception <ChevronRight size={13} />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {overviewStats.live_chambers.map((ch) => {
-                  const statusColors = {
-                    IN_CHAMBER: "success",
-                    PRAYER_BREAK: "warning",
-                    IN_TRANSIT: "info",
-                    EMERGENCY: "error",
-                    PAUSED: "warning",
-                    NOT_STARTED: "ghost",
-                    ENDED: "neutral",
-                  };
-                  const statusLabels = {
-                    IN_CHAMBER: "In Chamber",
-                    PRAYER_BREAK: "Prayer Break",
-                    IN_TRANSIT: "In Transit",
-                    EMERGENCY: "Emergency",
-                    PAUSED: "Paused",
-                    NOT_STARTED: "Not Started",
-                    ENDED: "Session Ended",
-                  };
-                  const color = statusColors[ch.session_status] || "neutral";
-                  return (
-                    <div key={ch.doctor_id} className="p-4 border border-base-200 rounded-xl bg-base-50 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                          {ch.avatar_url
-                            ? <img src={ch.avatar_url} alt={ch.doctor_name} className="w-8 h-8 rounded-full object-cover" />
-                            : ch.doctor_name?.charAt(0)?.toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-bold text-sm text-base-content truncate">Dr. {ch.doctor_name}</div>
-                          {ch.specialization && <div className="text-xs text-base-content/50 truncate">{ch.specialization}</div>}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className={`badge badge-${color} badge-sm font-bold`}>{statusLabels[ch.session_status] || ch.session_status}</span>
-                        {ch.session_status === "IN_CHAMBER" && (
-                          <span className="text-base-content/70 font-medium">Token #{ch.current_serial}</span>
-                        )}
-                      </div>
-                      {ch.session_status !== "NOT_STARTED" && ch.session_status !== "ENDED" && (
-                        <div className="text-xs text-base-content/60">
-                          {ch.waiting} patient{ch.waiting !== 1 ? "s" : ""} waiting
-                          {ch.delay_minutes > 0 && <span className="text-warning font-bold"> · +{ch.delay_minutes}m delay</span>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Empty live status state */}
-          {overviewStats && overviewStats.live_chambers?.length === 0 && (
-            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Tv size={20} className="text-base-content/30" />
-                <div>
-                  <div className="font-semibold text-sm text-base-content">No active chambers today</div>
-                  <div className="text-xs text-base-content/50">Doctors can start their sessions from Live Reception</div>
-                </div>
-              </div>
-              <button onClick={() => setActiveTab("chamber")} className="btn btn-outline btn-sm gap-1 shrink-0">
-                Live Reception <ChevronRight size={13} />
-              </button>
-            </div>
-          )}
 
           {/* ── F. APPOINTMENT TREND ── */}
           {overviewStats?.appointment_trend && overviewStats.appointment_trend.some(d => d.total > 0) && (
