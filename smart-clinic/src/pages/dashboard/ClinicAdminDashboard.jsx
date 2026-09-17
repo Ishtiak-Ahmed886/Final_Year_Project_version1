@@ -1368,70 +1368,36 @@ export default function ClinicAdminDashboard() {
             </div>
           )}
 
-          {/* ── G & H. SPECIALIZATION ACTIVITY + DOCTOR ACTIVITY ── */}
-          {(overviewStats?.specialization_activity?.length > 0 || overviewStats?.doctor_activity?.length > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-              {/* Specialization Activity */}
-              {overviewStats?.specialization_activity?.length > 0 && (
-                <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-3">
-                  <h3 className="font-bold text-sm text-base-content flex items-center gap-2">
-                    <Award size={16} className="text-primary" /> Service / Specialization Activity
-                  </h3>
-                  <div className="space-y-2">
-                    {overviewStats.specialization_activity.slice(0, 6).map((s) => {
-                      const max = overviewStats.specialization_activity[0]?.count || 1;
-                      return (
-                        <div key={s.name} className="space-y-0.5">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-base-content/80 font-medium truncate">{s.name}</span>
-                            <span className="text-base-content/60 font-bold ml-2 shrink-0">{s.count}</span>
-                          </div>
-                          <div className="w-full bg-base-200 rounded-full h-1.5">
-                            <div
-                              className="bg-primary h-1.5 rounded-full transition-all"
-                              style={{ width: `${Math.round((s.count / max) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Doctor Activity Today */}
-              {overviewStats?.doctor_activity?.length > 0 && (
-                <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-3">
-                  <h3 className="font-bold text-sm text-base-content flex items-center gap-2">
-                    <Stethoscope size={16} className="text-primary" /> Doctor Activity — Today
-                  </h3>
-                  <div className="space-y-2">
-                    {overviewStats.doctor_activity.slice(0, 8).map((d) => (
-                      <div key={d.doctor_id} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold shrink-0">
-                            {d.doctor_name?.charAt(0)?.toUpperCase()}
-                          </div>
-                          <span className="text-base-content/80 truncate">Dr. {d.doctor_name}</span>
-                        </div>
-                        <span className="font-bold text-base-content/70 shrink-0">{d.count} appt{d.count !== 1 ? "s" : ""}</span>
+          {/* ── G. DOCTOR ACTIVITY TODAY (Optional) ── */}
+          {overviewStats?.doctor_activity?.length > 0 && (
+            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-3">
+              <h3 className="font-bold text-sm text-base-content flex items-center gap-2">
+                <Stethoscope size={16} className="text-primary" /> Doctor Activity — Today
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {overviewStats.doctor_activity.slice(0, 8).map((d) => (
+                  <div key={d.doctor_id} className="flex items-center justify-between p-3 rounded-xl bg-base-200/40 text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold shrink-0">
+                        {d.doctor_name?.charAt(0)?.toUpperCase()}
                       </div>
-                    ))}
+                      <span className="text-base-content/80 font-medium truncate">Dr. {d.doctor_name}</span>
+                    </div>
+                    <span className="font-bold text-xs badge badge-ghost shrink-0">{d.count} appt{d.count !== 1 ? "s" : ""}</span>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
 
-          {/* ── I. FINANCIAL SNAPSHOT ── */}
+          {/* ── H. FINANCIAL SNAPSHOT ── */}
           {overviewStats?.financial_snapshot?.today_total > 0 && (
             <div className="bg-base-100 border border-base-200 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-sm text-base-content flex items-center gap-2">
                   <DollarSign size={16} className="text-primary" /> Today&apos;s Revenue Snapshot
                 </h3>
-                <button onClick={() => setActiveTab("finance")} className="btn btn-ghost btn-xs gap-1 text-primary">
+                <button onClick={() => setActiveTab("appointments")} className="btn btn-ghost btn-xs gap-1 text-primary">
                   View Accounts <ChevronRight size={13} />
                 </button>
               </div>
