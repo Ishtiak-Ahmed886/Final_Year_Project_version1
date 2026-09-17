@@ -698,6 +698,8 @@ export default function ClinicAdminDashboard() {
   useEffect(() => {
     if (clinic && activeTab === "overview") {
       fetchOverviewStats(clinic);
+    }
+    if (clinic && (activeTab === "clinic" || activeTab === "overview")) {
       fetchAnnouncements(clinic);
     }
     if (clinic && activeTab === "appointments") {
@@ -1287,7 +1289,7 @@ export default function ClinicAdminDashboard() {
                     icon: <Megaphone size={15} className="text-base-content/40" />,
                     text: "No active announcements",
                     why: "Inform patients about upcoming visits or schedule changes",
-                    action: () => setActiveTab("announcements"),
+                    action: () => setActiveTab("clinic"),
                     actionLabel: "Add Announcement",
                     color: "ghost",
                   });
@@ -1415,79 +1417,6 @@ export default function ClinicAdminDashboard() {
               </div>
             </div>
           )}
-
-          {/* ── J. INLINE ANNOUNCEMENTS WIDGET ── */}
-          <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <h3 className="font-bold text-base text-base-content flex items-center gap-2">
-                <Megaphone size={18} className="text-primary" />
-                Announcements
-                {announcements.filter(a => a.is_active).length > 0 && (
-                  <span className="badge badge-primary badge-sm font-bold">{announcements.filter(a => a.is_active).length} active</span>
-                )}
-              </h3>
-              <button onClick={handleOpenAddAnnouncement} className="btn btn-primary btn-sm gap-1.5 font-bold shadow-sm">
-                <Plus size={14} /> New Announcement
-              </button>
-            </div>
-
-            {announcements.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-3 text-center bg-base-200/30 rounded-xl border border-dashed border-base-300">
-                <Megaphone size={32} className="text-base-content/20" />
-                <div>
-                  <div className="text-sm font-semibold text-base-content/60">No announcements yet</div>
-                  <div className="text-xs text-base-content/40 mt-0.5 max-w-xs">Inform patients about upcoming doctor visits, schedule changes, or holiday notices.</div>
-                </div>
-                <button onClick={handleOpenAddAnnouncement} className="btn btn-outline btn-sm gap-1.5">
-                  <Plus size={13} /> Create First Announcement
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {announcements.slice(0, 4).map((a) => {
-                  const typeColors = {
-                    DOCTOR_VISIT: "badge-primary", SCHEDULE_CHANGE: "badge-warning",
-                    NEW_SERVICE: "badge-success", CLINIC_NOTICE: "badge-info",
-                    HOLIDAY: "badge-error", GENERAL: "badge-neutral",
-                  };
-                  const typeLabels = {
-                    DOCTOR_VISIT: "Doctor Visit", SCHEDULE_CHANGE: "Schedule Change",
-                    NEW_SERVICE: "New Service", CLINIC_NOTICE: "Notice",
-                    HOLIDAY: "Holiday", GENERAL: "General",
-                  };
-                  return (
-                    <div key={a.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${a.is_active ? "border-base-200 bg-base-50" : "border-base-200 opacity-50"}`}>
-                      <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${a.is_active ? "bg-primary/10" : "bg-base-200"}`}>
-                        <Megaphone size={13} className={a.is_active ? "text-primary" : "text-base-content/40"} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                          <span className="text-sm font-bold text-base-content truncate">{a.title}</span>
-                          <span className={`badge badge-xs font-bold ${typeColors[a.announcement_type] || "badge-neutral"}`}>
-                            {typeLabels[a.announcement_type] || a.announcement_type}
-                          </span>
-                          {!a.is_active && <span className="badge badge-ghost badge-xs">Inactive</span>}
-                        </div>
-                        <p className="text-xs text-base-content/60 leading-relaxed line-clamp-1">{a.message}</p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => handleToggleAnnouncementActive(a)} className={`btn btn-xs ${a.is_active ? "btn-success" : "btn-ghost btn-outline"}`}>
-                          {a.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                        </button>
-                        <button onClick={() => handleOpenEditAnnouncement(a)} className="btn btn-ghost btn-xs"><Edit3 size={12} /></button>
-                        <button onClick={() => handleDeleteAnnouncement(a.id)} className="btn btn-ghost btn-xs text-error"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {announcements.length > 4 && (
-                  <div className="text-xs text-base-content/50 text-center pt-1">
-                    +{announcements.length - 4} more announcements — scroll up to see all
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
         </div>
       )}
@@ -2309,6 +2238,133 @@ export default function ClinicAdminDashboard() {
                 {specializations.map((s) => (
                   <span key={s.id} className="badge badge-outline badge-sm font-semibold">{s.name}</span>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* 7. Clinic Announcements & Patient Notices (নোটিশ বোর্ড) */}
+          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                  <Megaphone size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-extrabold text-base-content">
+                      Clinic Announcements &amp; Public Notices (নোটিশ বোর্ড)
+                    </h2>
+                    {announcements.filter(a => a.is_active).length > 0 && (
+                      <span className="badge badge-primary badge-sm font-bold">
+                        {announcements.filter(a => a.is_active).length} active
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-base-content/50">
+                    Publish notices on your public clinic page for doctor visits, schedule changes, or holiday closures.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddAnnouncement}
+                className="btn btn-primary btn-sm gap-1.5 font-bold shadow-sm rounded-xl"
+              >
+                <Plus size={14} /> New Announcement
+              </button>
+            </div>
+
+            {announcements.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3 text-center bg-base-200/30 rounded-2xl border border-dashed border-base-300">
+                <Megaphone size={32} className="text-base-content/20" />
+                <div>
+                  <div className="text-sm font-semibold text-base-content/60">No announcements yet</div>
+                  <div className="text-xs text-base-content/40 mt-0.5 max-w-sm">
+                    Inform patients about upcoming doctor visits, schedule changes, or holiday notices.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddAnnouncement}
+                  className="btn btn-outline btn-sm gap-1.5 rounded-xl font-bold"
+                >
+                  <Plus size={13} /> Create First Announcement
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {announcements.map((a) => {
+                  const typeColors = {
+                    DOCTOR_VISIT: "badge-primary",
+                    SCHEDULE_CHANGE: "badge-warning",
+                    NEW_SERVICE: "badge-success",
+                    CLINIC_NOTICE: "badge-info",
+                    HOLIDAY: "badge-error",
+                    GENERAL: "badge-neutral",
+                  };
+                  const typeLabels = {
+                    DOCTOR_VISIT: "Doctor Visit",
+                    SCHEDULE_CHANGE: "Schedule Change",
+                    NEW_SERVICE: "New Service",
+                    CLINIC_NOTICE: "Notice",
+                    HOLIDAY: "Holiday",
+                    GENERAL: "General",
+                  };
+                  return (
+                    <div
+                      key={a.id}
+                      className={`p-4 rounded-2xl border transition-all space-y-2.5 ${
+                        a.is_active ? "border-base-200 bg-base-50/60 shadow-xs" : "border-base-200 opacity-60 bg-base-100"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                            <span className="font-bold text-sm text-base-content truncate">{a.title}</span>
+                            <span className={`badge badge-xs font-bold ${typeColors[a.announcement_type] || "badge-neutral"}`}>
+                              {typeLabels[a.announcement_type] || a.announcement_type}
+                            </span>
+                            {!a.is_active && <span className="badge badge-ghost badge-xs">Inactive</span>}
+                          </div>
+                          {a.scheduled_date && (
+                            <div className="text-[11px] text-base-content/50 flex items-center gap-1">
+                              <Calendar size={11} /> {a.scheduled_date}{a.scheduled_time ? ` at ${a.scheduled_time.slice(0, 5)}` : ""}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAnnouncementActive(a)}
+                            className={`btn btn-xs ${a.is_active ? "btn-success" : "btn-ghost btn-outline"}`}
+                            title={a.is_active ? "Deactivate" : "Activate"}
+                          >
+                            {a.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditAnnouncement(a)}
+                            className="btn btn-ghost btn-xs"
+                            title="Edit"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAnnouncement(a.id)}
+                            className="btn btn-ghost btn-xs text-error"
+                            title="Delete"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-base-content/70 leading-relaxed whitespace-pre-line line-clamp-3">
+                        {a.message}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
