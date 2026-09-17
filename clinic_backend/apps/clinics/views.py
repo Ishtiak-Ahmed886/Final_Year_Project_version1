@@ -4,13 +4,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
 from apps.accounts.permissions import IsAdmin, IsClinicAdminOrAdmin
-from .models import Department, Clinic, VerificationStatus, ClinicService
+from .models import Department, Clinic, VerificationStatus, ClinicService, Announcement
 from .serializers import (
     DepartmentSerializer,
     ClinicSerializer,
     ClinicCreateUpdateSerializer,
     ClinicDepartmentSerializer,
     ClinicServiceSerializer,
+    AnnouncementSerializer,
 )
 from .selectors import list_departments, list_clinics, get_clinic_by_id
 from .services import create_department, create_clinic, add_department_to_clinic
@@ -466,3 +467,280 @@ class ClinicFinancialAnalyticsView(APIView):
             'doctor_settlements': doctor_settlements,
         }, status=status.HTTP_200_OK)
 
+
+@extend_schema(tags=['Clinics'])
+class ClinicOverviewStatsView(APIView):
+    """
+    GET /api/v1/clinics/<clinic_id>/overview-stats/
+    Returns all data needed for the Clinic Admin Overview command center.
+    Scoped strictly to the clinic owner or platform admin.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsClinicAdminOrAdmin]
+
+    def get(self, request, clinic_id, *args, **kwargs):
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from apps.doctors.models import DoctorClinic, ChamberSession, DoctorClinicStatus
+        from django.db.models import Count, Q, Sum
+        from django.db.models.functions import TruncDate
+        from datetime import date, timedelta
+
+        try:
+            clinic = Clinic.objects.get(pk=clinic_id)
+        except Clinic.DoesNotExist:
+            return Response({'detail': 'Clinic not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        today = date.today()
+
+        # ── Doctors ──────────────────────────────────────────────────────────
+        all_mappings = DoctorClinic.objects.filter(clinic=clinic).select_related('doctor')
+        active_doctors = all_mappings.filter(status=DoctorClinicStatus.ACCEPTED, is_active=True)
+        inactive_doctors = all_mappings.filter(
+            Q(is_active=False) | Q(status=DoctorClinicStatus.REJECTED)
+        )
+        pending_requests = all_mappings.filter(
+            status__in=[DoctorClinicStatus.PENDING_DOCTOR_APPROVAL, DoctorClinicStatus.PENDING_CLINIC_APPROVAL]
+        )
+
+        active_doctor_ids = list(active_doctors.values_list('doctor_id', flat=True))
+
+        # Doctors working today = have an active ChamberSession for today
+        working_today_ids = ChamberSession.objects.filter(
+            clinic=clinic,
+            session_date=today,
+            doctor_id__in=active_doctor_ids,
+        ).exclude(status='ENDED').values_list('doctor_id', flat=True)
+
+        # ── Today's Appointments ─────────────────────────────────────────────
+        today_apts = Appointment.objects.filter(clinic=clinic, appointment_date=today)
+        apt_total = today_apts.count()
+        apt_completed = today_apts.filter(status=AppointmentStatus.COMPLETED).count()
+        apt_cancelled = today_apts.filter(status=AppointmentStatus.CANCELLED).count()
+        apt_confirmed = today_apts.filter(status=AppointmentStatus.CONFIRMED).count()
+        apt_pending = today_apts.filter(status=AppointmentStatus.PENDING).count()
+
+        # ── Live Chambers ────────────────────────────────────────────────────
+        today_sessions = ChamberSession.objects.filter(
+            clinic=clinic,
+            session_date=today,
+        ).select_related('doctor').prefetch_related('doctor__specializations')
+
+        live_chambers = []
+        for session in today_sessions:
+            # Count how many appointments are still confirmed/pending after current serial
+            waiting_count = Appointment.objects.filter(
+                clinic=clinic,
+                doctor=session.doctor,
+                appointment_date=today,
+                status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING],
+                serial_number__gt=session.current_serial,
+            ).count()
+            total_serials = Appointment.objects.filter(
+                clinic=clinic,
+                doctor=session.doctor,
+                appointment_date=today,
+            ).exclude(status=AppointmentStatus.CANCELLED).count()
+            spec = session.doctor.specializations.first()
+            live_chambers.append({
+                'doctor_id': str(session.doctor.id),
+                'doctor_name': session.doctor.full_name,
+                'avatar_url': session.doctor.avatar_url,
+                'specialization': spec.name if spec else None,
+                'session_status': session.status,
+                'current_serial': session.current_serial,
+                'total_serials': total_serials,
+                'waiting': waiting_count,
+                'room_number': session.room_number,
+                'delay_minutes': session.delay_minutes,
+            })
+
+        # ── Appointment Trend (last 30 days) ─────────────────────────────────
+        thirty_days_ago = today - timedelta(days=29)
+        trend_qs = (
+            Appointment.objects.filter(
+                clinic=clinic,
+                appointment_date__gte=thirty_days_ago,
+                appointment_date__lte=today,
+            )
+            .values('appointment_date', 'status')
+            .annotate(count=Count('id'))
+        )
+        # Build dict keyed by date
+        trend_dict = {}
+        for row in trend_qs:
+            d_str = str(row['appointment_date'])
+            if d_str not in trend_dict:
+                trend_dict[d_str] = {'date': d_str, 'total': 0, 'completed': 0, 'cancelled': 0, 'confirmed': 0}
+            trend_dict[d_str]['total'] += row['count']
+            if row['status'] == AppointmentStatus.COMPLETED:
+                trend_dict[d_str]['completed'] += row['count']
+            elif row['status'] == AppointmentStatus.CANCELLED:
+                trend_dict[d_str]['cancelled'] += row['count']
+            elif row['status'] == AppointmentStatus.CONFIRMED:
+                trend_dict[d_str]['confirmed'] += row['count']
+
+        # Fill in missing dates with zeros
+        appointment_trend = []
+        for i in range(30):
+            d = thirty_days_ago + timedelta(days=i)
+            d_str = str(d)
+            appointment_trend.append(trend_dict.get(d_str, {
+                'date': d_str, 'total': 0, 'completed': 0, 'cancelled': 0, 'confirmed': 0
+            }))
+
+        # ── Specialization Activity (all-time for this clinic) ───────────────
+        from apps.doctors.models import Doctor
+        spec_activity = (
+            Appointment.objects.filter(clinic=clinic)
+            .exclude(department=None)
+            .values('department__name')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:8]
+        )
+        specialization_activity = [
+            {'name': row['department__name'], 'count': row['count']}
+            for row in spec_activity
+        ]
+
+        # ── Doctor Activity (today) ──────────────────────────────────────────
+        doctor_activity_qs = (
+            Appointment.objects.filter(clinic=clinic, appointment_date=today)
+            .values('doctor__full_name', 'doctor__id')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:10]
+        )
+        doctor_activity = [
+            {'doctor_id': str(row['doctor__id']), 'doctor_name': row['doctor__full_name'], 'count': row['count']}
+            for row in doctor_activity_qs
+        ]
+
+        # ── Financial Snapshot (today) ───────────────────────────────────────
+        from apps.payments.models import Payment, PaymentStatus, PaymentMethod
+        today_payments = Payment.objects.filter(
+            appointment__clinic=clinic,
+            appointment__appointment_date=today,
+            payment_status=PaymentStatus.COMPLETED,
+        )
+        today_cash = today_payments.filter(
+            payment_method=PaymentMethod.CASH
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        today_digital = today_payments.exclude(
+            payment_method=PaymentMethod.CASH
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        # ── Active Announcements Count ───────────────────────────────────────
+        active_announcements_count = clinic.announcements.filter(is_active=True).count()
+
+        return Response({
+            'doctors': {
+                'active': active_doctors.count(),
+                'inactive': inactive_doctors.count(),
+                'working_today': len(working_today_ids),
+                'pending_requests': pending_requests.count(),
+            },
+            'appointments': {
+                'total_today': apt_total,
+                'completed': apt_completed,
+                'cancelled': apt_cancelled,
+                'confirmed_upcoming': apt_confirmed,
+                'pending': apt_pending,
+            },
+            'live_chambers': live_chambers,
+            'appointment_trend': appointment_trend,
+            'specialization_activity': specialization_activity,
+            'doctor_activity': doctor_activity,
+            'financial_snapshot': {
+                'today_total': float(today_cash) + float(today_digital),
+                'today_cash': float(today_cash),
+                'today_digital': float(today_digital),
+            },
+            'active_announcements_count': active_announcements_count,
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Announcements'])
+class ClinicAnnouncementListCreateView(APIView):
+    """
+    GET  /api/v1/clinics/<clinic_id>/announcements/  -> List announcements
+    POST /api/v1/clinics/<clinic_id>/announcements/  -> Create announcement (ClinicAdmin / Admin)
+    """
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsClinicAdminOrAdmin()]
+        return [permissions.IsAuthenticated()]
+
+    def get(self, request, clinic_id):
+        try:
+            clinic = Clinic.objects.get(pk=clinic_id)
+        except Clinic.DoesNotExist:
+            return Response({'detail': 'Clinic not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        announcements = clinic.announcements.select_related('doctor').all()
+        serializer = AnnouncementSerializer(announcements, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, clinic_id):
+        try:
+            clinic = Clinic.objects.get(pk=clinic_id)
+        except Clinic.DoesNotExist:
+            return Response({'detail': 'Clinic not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = AnnouncementSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        announcement = serializer.save(clinic=clinic)
+        return Response(AnnouncementSerializer(announcement).data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=['Announcements'])
+class ClinicAnnouncementDetailView(APIView):
+    """
+    GET, PATCH, DELETE /api/v1/clinics/<clinic_id>/announcements/<pk>/
+    """
+    def get_permissions(self):
+        if self.request.method in ['PATCH', 'PUT', 'DELETE']:
+            return [IsClinicAdminOrAdmin()]
+        return [permissions.IsAuthenticated()]
+
+    def get_object(self, clinic_id, pk):
+        try:
+            return Announcement.objects.select_related('clinic', 'doctor').get(clinic_id=clinic_id, pk=pk)
+        except Announcement.DoesNotExist:
+            return None
+
+    def get(self, request, clinic_id, pk):
+        obj = self.get_object(clinic_id, pk)
+        if not obj:
+            return Response({'detail': 'Announcement not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(AnnouncementSerializer(obj).data)
+
+    def patch(self, request, clinic_id, pk):
+        obj = self.get_object(clinic_id, pk)
+        if not obj:
+            return Response({'detail': 'Announcement not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and obj.clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = AnnouncementSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, clinic_id, pk):
+        obj = self.get_object(clinic_id, pk)
+        if not obj:
+            return Response({'detail': 'Announcement not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user.role == 'CLINIC_ADMIN' and obj.clinic.owner != request.user:
+            return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
+        obj.delete()
+        return Response({'detail': 'Announcement deleted.'}, status=status.HTTP_200_OK)

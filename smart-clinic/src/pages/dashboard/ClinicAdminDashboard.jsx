@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import apiClient from "../../api/axios";
 import { useAuth } from "../../Provider/AuthProvider";
 import ClinicAdminOnboarding from "./ClinicAdminOnboarding";
@@ -9,8 +9,10 @@ import {
   Play, Pause, Navigation, AlertTriangle, RotateCcw, Printer, CreditCard,
   UserPlus, Activity, Sparkles, Edit3, Trash2, Globe, PhoneCall, ExternalLink,
   Tag, CheckSquare, Square, Camera, Image, Upload, Star, Eye, X, ZoomIn,
-  Lock, Server, HeartHandshake, DollarSign, FileText, Download
+  Lock, Server, HeartHandshake, DollarSign, FileText, Download,
+  Megaphone, BarChart2, ArrowRight, ChevronRight, RefreshCw
 } from "lucide-react";
+
 
 const GALLERY_CATEGORIES = [
   "Reception & Front Desk",
@@ -183,11 +185,32 @@ export default function ClinicAdminDashboard() {
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsDate, setAnalyticsDate] = useState(() => new Date().toISOString().split("T")[0]);
 
+  // Overview Stats State
+  const [overviewStats, setOverviewStats] = useState(null);
+  const [loadingOverviewStats, setLoadingOverviewStats] = useState(false);
+  const [overviewTrendRange, setOverviewTrendRange] = useState("7d");
 
+  // Announcements State
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState(null);
+  const [submittingAnnouncement, setSubmittingAnnouncement] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: "",
+    message: "",
+    announcement_type: "GENERAL",
+    doctor: "",
+    scheduled_date: "",
+    scheduled_time: "",
+    is_active: true,
+    starts_at: "",
+    ends_at: "",
+  });
 
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  const [appointmentFilter, setAppointmentFilter] = useState("ALL");
 
   // Forms
   const [newClinic, setNewClinic] = useState({
@@ -201,6 +224,7 @@ export default function ClinicAdminDashboard() {
 
   const [clinicDeptForm, setClinicDeptForm] = useState({ department_id: "" });
   const [newSpec, setNewSpec] = useState({ name: "", description: "" });
+
 
   const loadData = async () => {
     setLoading(true);
@@ -646,6 +670,134 @@ export default function ClinicAdminDashboard() {
     }
   }, [clinic, activeTab, analyticsDate]);
 
+  const fetchOverviewStats = async (clinicObj) => {
+    const c = clinicObj || clinic;
+    if (!c) return;
+    setLoadingOverviewStats(true);
+    try {
+      const res = await apiClient.get(`/clinics/${c.id}/overview-stats/`);
+      setOverviewStats(res);
+    } catch {
+      // graceful fallback
+    } finally {
+      setLoadingOverviewStats(false);
+    }
+  };
+
+  const fetchAnnouncements = async (clinicObj) => {
+    const c = clinicObj || clinic;
+    if (!c) return;
+    try {
+      const res = await apiClient.get(`/clinics/${c.id}/announcements/`);
+      setAnnouncements(Array.isArray(res) ? res : (res.results || []));
+    } catch {
+      setAnnouncements([]);
+    }
+  };
+
+  useEffect(() => {
+    if (clinic && activeTab === "overview") {
+      fetchOverviewStats(clinic);
+      fetchAnnouncements(clinic);
+    }
+    if (clinic && activeTab === "appointments") {
+      fetchFinancialAnalytics();
+    }
+  }, [clinic, activeTab]);
+
+  const handleOpenAddAnnouncement = () => {
+    setEditingAnnouncementId(null);
+    setAnnouncementForm({
+      title: "", message: "", announcement_type: "GENERAL",
+      doctor: "", scheduled_date: "", scheduled_time: "",
+      is_active: true, starts_at: "", ends_at: "",
+    });
+    setAnnouncementModalOpen(true);
+  };
+
+  const handleOpenEditAnnouncement = (a) => {
+    setEditingAnnouncementId(a.id);
+    setAnnouncementForm({
+      title: a.title || "",
+      message: a.message || "",
+      announcement_type: a.announcement_type || "GENERAL",
+      doctor: a.doctor || "",
+      scheduled_date: a.scheduled_date || "",
+      scheduled_time: a.scheduled_time || "",
+      is_active: a.is_active ?? true,
+      starts_at: a.starts_at ? a.starts_at.slice(0, 16) : "",
+      ends_at: a.ends_at ? a.ends_at.slice(0, 16) : "",
+    });
+    setAnnouncementModalOpen(true);
+  };
+
+  const handleSaveAnnouncement = async (e) => {
+    e.preventDefault();
+    if (!clinic) return;
+    if (!announcementForm.title?.trim() || !announcementForm.message?.trim()) {
+      showErr("Title and message are required.");
+      return;
+    }
+    setSubmittingAnnouncement(true);
+    try {
+      const payload = {
+        title: announcementForm.title.trim(),
+        message: announcementForm.message.trim(),
+        announcement_type: announcementForm.announcement_type,
+        doctor: announcementForm.doctor || null,
+        scheduled_date: announcementForm.scheduled_date || null,
+        scheduled_time: announcementForm.scheduled_time || null,
+        is_active: announcementForm.is_active,
+        starts_at: announcementForm.starts_at || null,
+        ends_at: announcementForm.ends_at || null,
+      };
+      if (editingAnnouncementId) {
+        const updated = await apiClient.patch(
+          `/clinics/${clinic.id}/announcements/${editingAnnouncementId}/`, payload
+        );
+        setAnnouncements((prev) =>
+          prev.map((a) => (a.id === editingAnnouncementId ? updated : a))
+        );
+        showMsg("Announcement updated successfully!");
+      } else {
+        const created = await apiClient.post(
+          `/clinics/${clinic.id}/announcements/`, payload
+        );
+        setAnnouncements((prev) => [created, ...prev]);
+        showMsg("Announcement created successfully!");
+      }
+      setAnnouncementModalOpen(false);
+    } catch (err) {
+      showErr(typeof err === "object" ? Object.values(err).flat().join(" ") : "Failed to save announcement.");
+    } finally {
+      setSubmittingAnnouncement(false);
+    }
+  };
+
+  const handleToggleAnnouncementActive = async (a) => {
+    if (!clinic) return;
+    try {
+      const updated = await apiClient.patch(
+        `/clinics/${clinic.id}/announcements/${a.id}/`,
+        { is_active: !a.is_active }
+      );
+      setAnnouncements((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
+    } catch {
+      showErr("Failed to update announcement status.");
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id) => {
+    if (!clinic || !window.confirm("Delete this announcement?")) return;
+    try {
+      await apiClient.delete(`/clinics/${clinic.id}/announcements/${id}/`);
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      showMsg("Announcement deleted.");
+    } catch {
+      showErr("Failed to delete announcement.");
+    }
+  };
+
   const fetchReceptionChamberSession = async () => {
     if (!clinic || !selectedDoctorId) return;
     try {
@@ -857,14 +1009,13 @@ export default function ClinicAdminDashboard() {
   };
 
   const tabs = [
-    { key: "overview", label: "Overview", icon: <TrendingUp size={16} /> },
-    { key: "chamber", label: "Live Reception Queue & TV", icon: <Tv size={16} />, badge: "Live", badgeClass: "badge-error animate-pulse text-white" },
+    { key: "overview", label: "Dashboard", icon: <TrendingUp size={16} /> },
+    { key: "chamber", label: "Live Reception", icon: <Tv size={16} />, badge: "Live", badgeClass: "badge-error animate-pulse text-white" },
     { key: "clinic", label: "My Clinic", icon: <Building2 size={16} /> },
-    { key: "doctors", label: "Doctors & Requests", icon: <Stethoscope size={16} />, count: assignedDoctors.length + requests.length },
+    { key: "doctors", label: "Doctors", icon: <Stethoscope size={16} />, count: requests.filter(r => r.status === "PENDING_CLINIC_APPROVAL").length || undefined },
     { key: "appointments", label: "Appointments", icon: <Calendar size={16} />, count: appointments.length },
-    { key: "finance", label: "Accounts & Settlements", icon: <DollarSign size={16} />, badge: "Daily", badgeClass: "badge-success text-white" },
-    { key: "taxonomy", label: "Specializations", icon: <Award size={16} /> },
   ];
+
 
 
   const pendingIncomingRequests = requests.filter(r => r.status === "PENDING_CLINIC_APPROVAL");
@@ -992,53 +1143,466 @@ export default function ClinicAdminDashboard() {
         ))}
       </div>
 
-      {/* ===== OVERVIEW TAB ===== */}
+      {/* ===== OVERVIEW TAB — CLINIC MANAGEMENT COMMAND CENTER ===== */}
       {activeTab === "overview" && (
-        <div className="space-y-6">
+        <div className="space-y-5">
+
+          {/* Loading State */}
+          {loadingOverviewStats && (
+            <div className="flex items-center gap-3 p-4 bg-base-100 border border-base-200 rounded-2xl text-sm text-base-content/60">
+              <span className="loading loading-spinner loading-sm text-primary" />
+              Loading clinic overview...
+            </div>
+          )}
+
+          {/* ── B. CLINIC AT A GLANCE ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "My Clinic", value: clinic ? 1 : 0, icon: <Building2 size={24} />, color: "primary" },
-              { label: "Active Doctors", value: assignedDoctors.length, icon: <Stethoscope size={24} />, color: "secondary" },
-              { label: "Pending Doctor Requests", value: pendingIncomingRequests.length, icon: <Send size={24} />, color: "warning" },
-              { label: "Appointments", value: appointments.length, icon: <Calendar size={24} />, color: "accent" },
+              {
+                label: "Active Doctors",
+                value: overviewStats?.doctors?.active ?? assignedDoctors.length,
+                sub: overviewStats?.doctors?.inactive != null ? `${overviewStats.doctors.inactive} inactive` : null,
+                icon: <Stethoscope size={22} />,
+                color: "primary",
+                onClick: () => setActiveTab("doctors"),
+              },
+              {
+                label: "Working Today",
+                value: overviewStats?.doctors?.working_today ?? "—",
+                sub: "Doctors with active sessions",
+                icon: <Activity size={22} />,
+                color: "success",
+                onClick: () => setActiveTab("chamber"),
+              },
+              {
+                label: "Pending Requests",
+                value: overviewStats?.doctors?.pending_requests ?? pendingIncomingRequests.length,
+                sub: overviewStats?.doctors?.pending_requests > 0 ? "Action required" : "All clear",
+                icon: <Send size={22} />,
+                color: overviewStats?.doctors?.pending_requests > 0 ? "warning" : "secondary",
+                onClick: () => setActiveTab("doctors"),
+              },
+              {
+                label: "Today's Appointments",
+                value: overviewStats?.appointments?.total_today ?? appointments.filter(a => a.appointment_date === new Date().toISOString().split("T")[0]).length,
+                sub: overviewStats?.appointments?.completed != null ? `${overviewStats.appointments.completed} completed` : null,
+                icon: <Calendar size={22} />,
+                color: "accent",
+                onClick: () => setActiveTab("appointments"),
+              },
             ].map((s) => (
-              <div key={s.label} className="p-5 bg-base-100 border border-base-200 rounded-2xl shadow-sm flex items-center gap-3">
-                <div className={`p-3 bg-${s.color}/10 rounded-2xl text-${s.color}`}>{s.icon}</div>
-                <div>
-                  <div className="text-xs text-base-content/60 font-medium">{s.label}</div>
-                  <div className="text-2xl font-extrabold text-base-content">{s.value}</div>
+              <button
+                key={s.label}
+                onClick={s.onClick}
+                className="p-5 bg-base-100 border border-base-200 rounded-2xl shadow-sm flex items-start gap-3 hover:border-primary/40 hover:shadow-md transition-all text-left group"
+              >
+                <div className={`p-2.5 bg-${s.color}/10 rounded-xl text-${s.color} shrink-0 group-hover:bg-${s.color}/20 transition-colors`}>
+                  {s.icon}
                 </div>
-              </div>
+                <div className="min-w-0">
+                  <div className="text-xs text-base-content/60 font-medium">{s.label}</div>
+                  <div className="text-2xl font-extrabold text-base-content leading-tight">{s.value}</div>
+                  {s.sub && <div className="text-xs text-base-content/50 mt-0.5 truncate">{s.sub}</div>}
+                </div>
+              </button>
             ))}
           </div>
 
-          {clinic ? (
-            <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-              <div className="flex justify-between items-start">
-                <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-                  <Building2 className="text-primary" /> {clinic.name}
-                </h2>
-                <span className={`badge ${
-                  clinic.verification_status === "VERIFIED" ? "badge-success" :
-                  clinic.verification_status === "REJECTED" ? "badge-error" : "badge-warning"
-                } badge-soft font-bold`}>{clinic.verification_status}</span>
+          {/* ── C. TODAY'S APPOINTMENT SUMMARY + D. ACTION REQUIRED ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            {/* Today's Appointment Breakdown */}
+            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base text-base-content flex items-center gap-2">
+                  <Calendar size={18} className="text-primary" /> Today&apos;s Appointments
+                </h3>
+                <span className="text-xs text-base-content/50">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center gap-2 text-base-content/70"><MapPin size={15} className="text-primary" /> {clinic.address}, {clinic.city}</div>
-                <div className="flex items-center gap-2 text-base-content/70"><Users size={15} className="text-primary" /> {assignedDoctors.length} active doctor(s)</div>
-              </div>
+              {overviewStats?.appointments ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm font-semibold border-b border-base-200 pb-2">
+                    <span className="text-base-content/70">Total</span>
+                    <span className="text-xl font-extrabold text-base-content">{overviewStats.appointments.total_today}</span>
+                  </div>
+                  {[
+                    { label: "Completed", value: overviewStats.appointments.completed, color: "text-success" },
+                    { label: "Confirmed / Upcoming", value: overviewStats.appointments.confirmed_upcoming, color: "text-info" },
+                    { label: "Pending Payment", value: overviewStats.appointments.pending, color: "text-warning" },
+                    { label: "Cancelled", value: overviewStats.appointments.cancelled, color: "text-error" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="flex items-center justify-between text-sm">
+                      <span className="text-base-content/70">{label}</span>
+                      <span className={`font-bold ${color}`}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-base-content/50 py-4 text-center">
+                  {loadingOverviewStats ? "Loading..." : "No appointment data available"}
+                </div>
+              )}
+              <button onClick={() => setActiveTab("appointments")} className="btn btn-ghost btn-xs gap-1 text-primary mt-1">
+                View All Appointments <ChevronRight size={13} />
+              </button>
             </div>
-          ) : (
-            <div className="p-6 bg-warning/10 border border-warning/30 rounded-3xl flex items-start gap-4">
-              <Info className="text-warning shrink-0 mt-1" size={20} />
-              <div>
-                <h3 className="font-bold text-base-content">No Clinic Registered</h3>
-                <p className="text-sm text-base-content/70 mt-1">Go to <strong>My Clinic</strong> tab to register your clinic with certificate proof.</p>
+
+            {/* Action Required */}
+            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-3">
+              <h3 className="font-bold text-base text-base-content flex items-center gap-2">
+                <AlertTriangle size={18} className="text-warning" /> Action Required
+              </h3>
+              {(() => {
+                const actions = [];
+                const pending = overviewStats?.doctors?.pending_requests ?? pendingIncomingRequests.length;
+                if (pending > 0) {
+                  actions.push({
+                    id: "pending_req",
+                    icon: <Send size={15} className="text-warning" />,
+                    text: `${pending} doctor request${pending > 1 ? "s" : ""} waiting for review`,
+                    why: "Doctor cannot start working until approved",
+                    action: () => setActiveTab("doctors"),
+                    actionLabel: "Review Requests",
+                    color: "warning",
+                  });
+                }
+                if ((overviewStats?.doctors?.active ?? assignedDoctors.length) === 0) {
+                  actions.push({
+                    id: "no_doctors",
+                    icon: <Stethoscope size={15} className="text-info" />,
+                    text: "No active doctors in your clinic",
+                    why: "Invite doctors so patients can book appointments",
+                    action: () => setActiveTab("doctors"),
+                    actionLabel: "Invite Doctors",
+                    color: "info",
+                  });
+                }
+                if (overviewStats?.active_announcements_count === 0 && !loadingOverviewStats) {
+                  actions.push({
+                    id: "no_ann",
+                    icon: <Megaphone size={15} className="text-base-content/40" />,
+                    text: "No active announcements",
+                    why: "Inform patients about upcoming visits or schedule changes",
+                    action: () => setActiveTab("announcements"),
+                    actionLabel: "Add Announcement",
+                    color: "ghost",
+                  });
+                }
+                if (actions.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
+                      <CheckCircle2 size={32} className="text-success" />
+                      <p className="font-bold text-base-content text-sm">Everything looks good</p>
+                      <p className="text-xs text-base-content/50">No action required right now.</p>
+                    </div>
+                  );
+                }
+                return actions.map((a) => (
+                  <div key={a.id} className={`flex items-start gap-3 p-3 rounded-xl border border-${a.color}/30 bg-${a.color}/5`}>
+                    <div className="shrink-0 mt-0.5">{a.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-base-content">{a.text}</div>
+                      <div className="text-xs text-base-content/60 mt-0.5">{a.why}</div>
+                    </div>
+                    <button onClick={a.action} className={`btn btn-xs btn-${a.color === "ghost" ? "outline" : a.color} shrink-0`}>
+                      {a.actionLabel}
+                    </button>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+
+          {/* ── E. LIVE CLINIC STATUS ── */}
+          {overviewStats?.live_chambers && overviewStats.live_chambers.length > 0 && (
+            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base text-base-content flex items-center gap-2">
+                  <Tv size={18} className="text-primary" /> Live Clinic Status
+                </h3>
+                <button onClick={() => setActiveTab("chamber")} className="btn btn-ghost btn-xs gap-1 text-primary">
+                  Open Live Reception <ChevronRight size={13} />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {overviewStats.live_chambers.map((ch) => {
+                  const statusColors = {
+                    IN_CHAMBER: "success",
+                    PRAYER_BREAK: "warning",
+                    IN_TRANSIT: "info",
+                    EMERGENCY: "error",
+                    PAUSED: "warning",
+                    NOT_STARTED: "ghost",
+                    ENDED: "neutral",
+                  };
+                  const statusLabels = {
+                    IN_CHAMBER: "In Chamber",
+                    PRAYER_BREAK: "Prayer Break",
+                    IN_TRANSIT: "In Transit",
+                    EMERGENCY: "Emergency",
+                    PAUSED: "Paused",
+                    NOT_STARTED: "Not Started",
+                    ENDED: "Session Ended",
+                  };
+                  const color = statusColors[ch.session_status] || "neutral";
+                  return (
+                    <div key={ch.doctor_id} className="p-4 border border-base-200 rounded-xl bg-base-50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                          {ch.avatar_url
+                            ? <img src={ch.avatar_url} alt={ch.doctor_name} className="w-8 h-8 rounded-full object-cover" />
+                            : ch.doctor_name?.charAt(0)?.toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm text-base-content truncate">Dr. {ch.doctor_name}</div>
+                          {ch.specialization && <div className="text-xs text-base-content/50 truncate">{ch.specialization}</div>}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className={`badge badge-${color} badge-sm font-bold`}>{statusLabels[ch.session_status] || ch.session_status}</span>
+                        {ch.session_status === "IN_CHAMBER" && (
+                          <span className="text-base-content/70 font-medium">Token #{ch.current_serial}</span>
+                        )}
+                      </div>
+                      {ch.session_status !== "NOT_STARTED" && ch.session_status !== "ENDED" && (
+                        <div className="text-xs text-base-content/60">
+                          {ch.waiting} patient{ch.waiting !== 1 ? "s" : ""} waiting
+                          {ch.delay_minutes > 0 && <span className="text-warning font-bold"> · +{ch.delay_minutes}m delay</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
+
+          {/* Empty live status state */}
+          {overviewStats && overviewStats.live_chambers?.length === 0 && (
+            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Tv size={20} className="text-base-content/30" />
+                <div>
+                  <div className="font-semibold text-sm text-base-content">No active chambers today</div>
+                  <div className="text-xs text-base-content/50">Doctors can start their sessions from Live Reception</div>
+                </div>
+              </div>
+              <button onClick={() => setActiveTab("chamber")} className="btn btn-outline btn-sm gap-1 shrink-0">
+                Live Reception <ChevronRight size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* ── F. APPOINTMENT TREND ── */}
+          {overviewStats?.appointment_trend && overviewStats.appointment_trend.some(d => d.total > 0) && (
+            <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="font-bold text-base text-base-content flex items-center gap-2">
+                  <BarChart2 size={18} className="text-primary" /> Appointment Trend
+                </h3>
+                <div className="flex gap-1">
+                  {[["7d", "7 Days"], ["30d", "30 Days"]].map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setOverviewTrendRange(key)}
+                      className={`btn btn-xs ${overviewTrendRange === key ? "btn-primary" : "btn-ghost"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {(() => {
+                const data = overviewTrendRange === "7d"
+                  ? overviewStats.appointment_trend.slice(-7)
+                  : overviewStats.appointment_trend;
+                const maxVal = Math.max(...data.map(d => d.total), 1);
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-end gap-1 h-28">
+                      {data.map((d) => (
+                        <div key={d.date} className="flex-1 flex flex-col justify-end gap-0.5" title={`${d.date}: ${d.total} total`}>
+                          <div
+                            className="bg-primary/70 rounded-t-sm transition-all hover:bg-primary"
+                            style={{ height: `${Math.round((d.total / maxVal) * 100)}%`, minHeight: d.total > 0 ? "3px" : "0" }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-base-content/40">
+                      <span>{data[0]?.date?.slice(5)}</span>
+                      <span>{data[data.length - 1]?.date?.slice(5)}</span>
+                    </div>
+                    <div className="flex gap-4 text-xs text-base-content/60 pt-1">
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-success inline-block" /> Completed: {data.reduce((s, d) => s + d.completed, 0)}</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-error inline-block" /> Cancelled: {data.reduce((s, d) => s + d.cancelled, 0)}</span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-primary inline-block" /> Total: {data.reduce((s, d) => s + d.total, 0)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ── G & H. SPECIALIZATION ACTIVITY + DOCTOR ACTIVITY ── */}
+          {(overviewStats?.specialization_activity?.length > 0 || overviewStats?.doctor_activity?.length > 0) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+              {/* Specialization Activity */}
+              {overviewStats?.specialization_activity?.length > 0 && (
+                <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-3">
+                  <h3 className="font-bold text-sm text-base-content flex items-center gap-2">
+                    <Award size={16} className="text-primary" /> Service / Specialization Activity
+                  </h3>
+                  <div className="space-y-2">
+                    {overviewStats.specialization_activity.slice(0, 6).map((s) => {
+                      const max = overviewStats.specialization_activity[0]?.count || 1;
+                      return (
+                        <div key={s.name} className="space-y-0.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-base-content/80 font-medium truncate">{s.name}</span>
+                            <span className="text-base-content/60 font-bold ml-2 shrink-0">{s.count}</span>
+                          </div>
+                          <div className="w-full bg-base-200 rounded-full h-1.5">
+                            <div
+                              className="bg-primary h-1.5 rounded-full transition-all"
+                              style={{ width: `${Math.round((s.count / max) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Doctor Activity Today */}
+              {overviewStats?.doctor_activity?.length > 0 && (
+                <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-3">
+                  <h3 className="font-bold text-sm text-base-content flex items-center gap-2">
+                    <Stethoscope size={16} className="text-primary" /> Doctor Activity — Today
+                  </h3>
+                  <div className="space-y-2">
+                    {overviewStats.doctor_activity.slice(0, 8).map((d) => (
+                      <div key={d.doctor_id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold shrink-0">
+                            {d.doctor_name?.charAt(0)?.toUpperCase()}
+                          </div>
+                          <span className="text-base-content/80 truncate">Dr. {d.doctor_name}</span>
+                        </div>
+                        <span className="font-bold text-base-content/70 shrink-0">{d.count} appt{d.count !== 1 ? "s" : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── I. FINANCIAL SNAPSHOT ── */}
+          {overviewStats?.financial_snapshot?.today_total > 0 && (
+            <div className="bg-base-100 border border-base-200 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-sm text-base-content flex items-center gap-2">
+                  <DollarSign size={16} className="text-primary" /> Today&apos;s Revenue Snapshot
+                </h3>
+                <button onClick={() => setActiveTab("finance")} className="btn btn-ghost btn-xs gap-1 text-primary">
+                  View Accounts <ChevronRight size={13} />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: "Total", value: overviewStats.financial_snapshot.today_total, cls: "text-base-content font-extrabold text-xl" },
+                  { label: "Cash", value: overviewStats.financial_snapshot.today_cash, cls: "text-success font-bold" },
+                  { label: "Digital", value: overviewStats.financial_snapshot.today_digital, cls: "text-info font-bold" },
+                ].map((f) => (
+                  <div key={f.label} className="text-center">
+                    <div className="text-xs text-base-content/50 mb-1">{f.label}</div>
+                    <div className={f.cls}>৳{f.value.toLocaleString("en-BD")}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── J. INLINE ANNOUNCEMENTS WIDGET ── */}
+          <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <h3 className="font-bold text-base text-base-content flex items-center gap-2">
+                <Megaphone size={18} className="text-primary" />
+                Announcements
+                {announcements.filter(a => a.is_active).length > 0 && (
+                  <span className="badge badge-primary badge-sm font-bold">{announcements.filter(a => a.is_active).length} active</span>
+                )}
+              </h3>
+              <button onClick={handleOpenAddAnnouncement} className="btn btn-primary btn-sm gap-1.5 font-bold shadow-sm">
+                <Plus size={14} /> New Announcement
+              </button>
+            </div>
+
+            {announcements.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3 text-center bg-base-200/30 rounded-xl border border-dashed border-base-300">
+                <Megaphone size={32} className="text-base-content/20" />
+                <div>
+                  <div className="text-sm font-semibold text-base-content/60">No announcements yet</div>
+                  <div className="text-xs text-base-content/40 mt-0.5 max-w-xs">Inform patients about upcoming doctor visits, schedule changes, or holiday notices.</div>
+                </div>
+                <button onClick={handleOpenAddAnnouncement} className="btn btn-outline btn-sm gap-1.5">
+                  <Plus size={13} /> Create First Announcement
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {announcements.slice(0, 4).map((a) => {
+                  const typeColors = {
+                    DOCTOR_VISIT: "badge-primary", SCHEDULE_CHANGE: "badge-warning",
+                    NEW_SERVICE: "badge-success", CLINIC_NOTICE: "badge-info",
+                    HOLIDAY: "badge-error", GENERAL: "badge-neutral",
+                  };
+                  const typeLabels = {
+                    DOCTOR_VISIT: "Doctor Visit", SCHEDULE_CHANGE: "Schedule Change",
+                    NEW_SERVICE: "New Service", CLINIC_NOTICE: "Notice",
+                    HOLIDAY: "Holiday", GENERAL: "General",
+                  };
+                  return (
+                    <div key={a.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${a.is_active ? "border-base-200 bg-base-50" : "border-base-200 opacity-50"}`}>
+                      <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${a.is_active ? "bg-primary/10" : "bg-base-200"}`}>
+                        <Megaphone size={13} className={a.is_active ? "text-primary" : "text-base-content/40"} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                          <span className="text-sm font-bold text-base-content truncate">{a.title}</span>
+                          <span className={`badge badge-xs font-bold ${typeColors[a.announcement_type] || "badge-neutral"}`}>
+                            {typeLabels[a.announcement_type] || a.announcement_type}
+                          </span>
+                          {!a.is_active && <span className="badge badge-ghost badge-xs">Inactive</span>}
+                        </div>
+                        <p className="text-xs text-base-content/60 leading-relaxed line-clamp-1">{a.message}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => handleToggleAnnouncementActive(a)} className={`btn btn-xs ${a.is_active ? "btn-success" : "btn-ghost btn-outline"}`}>
+                          {a.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                        </button>
+                        <button onClick={() => handleOpenEditAnnouncement(a)} className="btn btn-ghost btn-xs"><Edit3 size={12} /></button>
+                        <button onClick={() => handleDeleteAnnouncement(a.id)} className="btn btn-ghost btn-xs text-error"><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {announcements.length > 4 && (
+                  <div className="text-xs text-base-content/50 text-center pt-1">
+                    +{announcements.length - 4} more announcements — scroll up to see all
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
+
+
 
       {/* ===== LIVE RECEPTION QUEUE & TV TAB ===== */}
       {activeTab === "chamber" && (
@@ -1819,6 +2383,45 @@ export default function ClinicAdminDashboard() {
               </p>
             )}
           </div>
+
+          {/* 6. Specializations — moved from separate tab */}
+          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
+            <div className="flex items-center gap-2">
+              <Award className="text-primary" size={20} />
+              <h2 className="text-base font-extrabold text-base-content">Medical Specializations</h2>
+              <span className="badge badge-ghost badge-sm text-xs">{specializations.length} total</span>
+            </div>
+            <p className="text-xs text-base-content/50">
+              Create custom specializations for doctors to be categorized under on this platform.
+            </p>
+            <form onSubmit={handleCreateSpec} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                required
+                placeholder="Specialization name (e.g. Pediatric Surgery)"
+                value={newSpec.name}
+                onChange={(e) => setNewSpec({ ...newSpec, name: e.target.value })}
+                className="input input-bordered flex-1 text-sm rounded-xl"
+              />
+              <input
+                type="text"
+                placeholder="Brief description (optional)"
+                value={newSpec.description}
+                onChange={(e) => setNewSpec({ ...newSpec, description: e.target.value })}
+                className="input input-bordered flex-1 text-sm rounded-xl"
+              />
+              <button type="submit" className="btn btn-primary gap-2 shrink-0 rounded-xl">
+                <Plus size={15} /> Add
+              </button>
+            </form>
+            {specializations.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {specializations.map((s) => (
+                  <span key={s.id} className="badge badge-outline badge-sm font-semibold">{s.name}</span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1926,13 +2529,13 @@ export default function ClinicAdminDashboard() {
       {/* ===== APPOINTMENTS TAB ===== */}
       {activeTab === "appointments" && (
         <div className="space-y-4">
+          {/* Header */}
           <div className="bg-base-100 p-4 rounded-2xl border border-base-200 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Calendar size={18} className="text-primary" />
               <span className="font-bold">Clinic Appointments</span>
               <span className="badge badge-primary">{appointments.length}</span>
             </div>
-
             <button
               onClick={() => {
                 setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
@@ -1944,211 +2547,191 @@ export default function ClinicAdminDashboard() {
             </button>
           </div>
 
-          {appointments.length === 0 ? (
-            <div className="text-center py-12 bg-base-100 rounded-3xl border border-base-200 text-base-content/60">
-              No appointments found.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {appointments.map((apt) => (
-                <div key={apt.id} className="bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm space-y-3">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="badge badge-secondary font-black text-xs">
-                          Serial #{apt.serial_number || "—"}
-                        </span>
-                        <div className="font-bold text-base-content">
-                          {apt.patient?.first_name} {apt.patient?.last_name}
-                        </div>
-                        {apt.patient?.phone && (
-                          <span className="text-xs text-base-content/60">({apt.patient.phone})</span>
-                        )}
-                        <span className={`badge badge-sm ${
-                          apt.status === "CONFIRMED" ? "badge-success badge-soft font-bold" :
-                          apt.status === "COMPLETED" ? "badge-info badge-soft font-bold" :
-                          apt.status === "CANCELLED" ? "badge-error badge-soft" : "badge-warning badge-soft font-bold"
-                        }`}>{apt.status}</span>
-                      </div>
-                      <div className="text-sm text-base-content/60 flex flex-wrap gap-3 pt-1">
-                        <span className="flex items-center gap-1"><Stethoscope size={13} className="text-primary" /> Dr. {apt.doctor?.full_name}</span>
-                        <span className="flex items-center gap-1"><Calendar size={13} className="text-primary" /> {apt.appointment_date}</span>
-                        <span className="flex items-center gap-1"><Clock size={13} className="text-primary" /> {apt.appointment_time}</span>
-                      </div>
-                    </div>
+          {/* Filter Bar */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "ALL", label: "All", color: "btn-neutral" },
+              { key: "CONFIRMED", label: "✅ Confirmed", color: "btn-success" },
+              { key: "COMPLETED", label: "🔵 Completed", color: "btn-info" },
+              { key: "CANCELLED", label: "🔴 Cancelled", color: "btn-error" },
+              { key: "PENDING", label: "🟡 Pending", color: "btn-warning" },
+              { key: "WALK_IN", label: "🚶 Walk-in", color: "btn-secondary" },
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setAppointmentFilter(f.key)}
+                className={`btn btn-xs font-bold rounded-xl border ${appointmentFilter === f.key ? f.color + " text-white shadow-sm" : "btn-ghost border-base-300"}`}
+              >
+                {f.label}
+                {f.key !== "ALL" && (
+                  <span className="ml-1 opacity-70">
+                    ({f.key === "WALK_IN"
+                      ? appointments.filter(a => a.is_walk_in).length
+                      : appointments.filter(a => a.status === f.key).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
 
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
-                      <div className="text-primary font-bold text-lg">৳{apt.amount} BDT</div>
-                      <div className="flex items-center gap-2">
-                        {apt.status === "PENDING" && (
-                          <button
-                            onClick={() => handleCashCheckIn(apt.id)}
-                            disabled={checkingInId === apt.id}
-                            className="btn btn-success btn-xs text-white font-bold gap-1 shadow-sm"
-                            title="Confirm cash paid at counter & check-in patient"
+          {/* Appointment Cards */}
+          {(() => {
+            const filtered = appointments.filter(apt => {
+              if (appointmentFilter === "ALL") return true;
+              if (appointmentFilter === "WALK_IN") return apt.is_walk_in;
+              return apt.status === appointmentFilter;
+            });
+            const borderColors = {
+              CONFIRMED: "border-l-4 border-l-emerald-400",
+              COMPLETED: "border-l-4 border-l-sky-400",
+              CANCELLED: "border-l-4 border-l-rose-400",
+              PENDING: "border-l-4 border-l-amber-400",
+            };
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-12 bg-base-100 rounded-3xl border border-base-200 text-base-content/60">
+                  No {appointmentFilter !== "ALL" ? appointmentFilter.toLowerCase() : ""} appointments found.
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-3">
+                {filtered.map((apt) => (
+                  <div key={apt.id} className={`bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm space-y-3 hover:shadow-md transition-shadow ${borderColors[apt.status] || ""}`}>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="badge badge-secondary font-black text-xs">
+                            Serial #{apt.serial_number || "—"}
+                          </span>
+                          <div className="font-bold text-base-content">
+                            {apt.patient?.first_name} {apt.patient?.last_name}
+                            {apt.is_walk_in && <span className="ml-1 badge badge-ghost badge-xs font-semibold">Walk-in</span>}
+                          </div>
+                          {apt.patient?.phone && (
+                            <span className="text-xs text-base-content/60">({apt.patient.phone})</span>
+                          )}
+                          <span className={`badge badge-sm font-bold ${
+                            apt.status === "CONFIRMED" ? "badge-success" :
+                            apt.status === "COMPLETED" ? "badge-info" :
+                            apt.status === "CANCELLED" ? "badge-error" : "badge-warning"
+                          }`}>{apt.status}</span>
+                        </div>
+                        <div className="text-sm text-base-content/60 flex flex-wrap gap-3 pt-1">
+                          <span className="flex items-center gap-1"><Stethoscope size={13} className="text-primary" /> Dr. {apt.doctor?.full_name}</span>
+                          <span className="flex items-center gap-1"><Calendar size={13} className="text-primary" /> {apt.appointment_date}</span>
+                          <span className="flex items-center gap-1"><Clock size={13} className="text-primary" /> {apt.appointment_time}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+                        <div className="text-primary font-bold text-lg">৳{apt.amount} BDT</div>
+                        <div className="flex items-center gap-2">
+                          {apt.status === "PENDING" && (
+                            <button
+                              onClick={() => handleCashCheckIn(apt.id)}
+                              disabled={checkingInId === apt.id}
+                              className="btn btn-success btn-xs text-white font-bold gap-1 shadow-sm"
+                              title="Confirm cash paid at counter & check-in patient"
+                            >
+                              <CreditCard size={12} />
+                              {checkingInId === apt.id ? "Checking in..." : "Mark Paid (Cash)"}
+                            </button>
+                          )}
+                          <a
+                            href={`/track-queue/${apt.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-outline btn-primary btn-xs gap-1 font-bold"
+                            title="Open Live Patient Queue Tracker"
                           >
-                            <CreditCard size={12} />
-                            {checkingInId === apt.id ? "Checking in..." : "Mark Paid (Cash)"}
+                            <Activity size={12} /> Track Live
+                          </a>
+                          <button
+                            onClick={() => setPrintTokenData(apt)}
+                            className="btn btn-outline btn-xs gap-1 font-semibold"
+                            title="Print thermal token slip with QR code"
+                          >
+                            <Printer size={12} /> Print Token
                           </button>
-                        )}
-                        <a
-                          href={`/track-queue/${apt.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-outline btn-primary btn-xs gap-1 font-bold"
-                          title="Open Live Patient Queue Tracker"
-                        >
-                          <Activity size={12} /> Track Live
-                        </a>
-                        <button
-                          onClick={() => setPrintTokenData(apt)}
-                          className="btn btn-outline btn-xs gap-1 font-semibold"
-                          title="Print thermal token slip with QR code"
-                        >
-                          <Printer size={12} /> Print Token
-                        </button>
+                        </div>
                       </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* ── ACCOUNTS & SETTLEMENTS SUMMARY (merged from finance tab) ── */}
+          <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4 mt-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+              <div>
+                <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
+                  <DollarSign size={18} className="text-emerald-500" /> Daily Cash Register & Doctor Settlements
+                </h3>
+                <p className="text-xs text-base-content/50 mt-0.5">20% clinic share · 80% doctor payout · {analyticsDate}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 bg-base-200/50 px-2.5 py-1.5 rounded-xl border border-base-200 text-xs">
+                  <Calendar size={13} className="text-primary shrink-0" />
+                  <input
+                    type="date"
+                    value={analyticsDate}
+                    onChange={(e) => { setAnalyticsDate(e.target.value); fetchFinancialAnalytics(e.target.value); }}
+                    className="bg-transparent font-mono font-bold focus:outline-none cursor-pointer text-xs"
+                  />
+                </div>
+                <button onClick={() => fetchFinancialAnalytics()} className="btn btn-outline btn-xs gap-1 font-bold">
+                  <RefreshCw size={12} className={loadingAnalytics ? "animate-spin" : ""} /> Refresh
+                </button>
+                <button onClick={() => window.print()} className="btn btn-primary btn-xs gap-1 font-bold shadow-sm print:hidden">
+                  <Printer size={12} /> Print Audit Sheet
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: "Gross Revenue", value: financialAnalytics?.summary?.today_gross_revenue || 0, color: "text-emerald-600", sub: `${financialAnalytics?.summary?.today_confirmed_appointments || 0} paid appts` },
+                { label: "Counter Cash", value: financialAnalytics?.summary?.today_cash_collected || 0, color: "text-primary", sub: "Direct in cash drawer" },
+                { label: "Clinic Share (20%)", value: financialAnalytics?.summary?.today_clinic_net_share || 0, color: "text-indigo-600", sub: "Operational income" },
+                { label: "Doctors Payout (80%)", value: financialAnalytics?.summary?.today_doctors_total_payout || 0, color: "text-amber-600", sub: "Payable to practitioners" },
+              ].map(k => (
+                <div key={k.label} className="bg-base-200/40 p-4 rounded-xl space-y-0.5">
+                  <div className="text-xs text-base-content/60 font-semibold">{k.label}</div>
+                  <div className={`text-xl font-black font-mono ${k.color}`}>৳{parseFloat(k.value).toLocaleString()}</div>
+                  <div className="text-[11px] text-base-content/50">{k.sub}</div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* ===== FINANCIAL ACCOUNTS & DOCTOR SETTLEMENTS TAB ===== */}
-      {activeTab === "finance" && (
-        <div className="space-y-6">
-          {/* Header Controls & Date Picker */}
-          <div className="bg-base-100 p-5 rounded-3xl border border-base-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="space-y-1">
-              <h2 className="text-xl font-black text-base-content flex items-center gap-2">
-                <DollarSign className="text-emerald-500" /> Daily Cash Register &amp; Doctor Settlements
-              </h2>
-              <p className="text-xs text-base-content/60">
-                Audit counter cash collected, digital payments, 20% clinic facility commissions, and 80% doctor net payouts.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-2 bg-base-200/50 px-3 py-1.5 rounded-xl border border-base-200 text-xs">
-                <Calendar size={14} className="text-primary shrink-0" />
-                <input
-                  type="date"
-                  value={analyticsDate}
-                  onChange={(e) => {
-                    setAnalyticsDate(e.target.value);
-                    fetchFinancialAnalytics(e.target.value);
-                  }}
-                  className="bg-transparent font-mono font-bold focus:outline-none cursor-pointer"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => fetchFinancialAnalytics()}
-                className="btn btn-outline btn-sm gap-1.5 font-bold"
-                title="Refresh financial data"
-              >
-                <RefreshCw size={13} className={loadingAnalytics ? "animate-spin" : ""} /> Refresh
-              </button>
-
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="btn btn-primary btn-sm gap-1.5 font-bold shadow-md print:hidden"
-                title="Print Daily Settlement Sheet for cash register audit"
-              >
-                <Printer size={14} /> Print Audit Sheet
-              </button>
-            </div>
-          </div>
-
-          {/* 4 Financial KPI Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
-              <span className="text-xs text-base-content/60 font-semibold block">Gross Revenue (Today)</span>
-              <div className="text-2xl font-black text-emerald-600 font-mono">
-                ৳{parseFloat(financialAnalytics?.summary?.today_gross_revenue || 0).toLocaleString()}
-              </div>
-              <span className="text-[11px] text-base-content/50 block">
-                {financialAnalytics?.summary?.today_confirmed_appointments || 0} Paid Appointments
-              </span>
-            </div>
-
-            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
-              <span className="text-xs text-base-content/60 font-semibold block">Counter Cash Collected</span>
-              <div className="text-2xl font-black text-primary font-mono">
-                ৳{parseFloat(financialAnalytics?.summary?.today_cash_collected || 0).toLocaleString()}
-              </div>
-              <span className="text-[11px] text-base-content/50 block">Direct in cash drawer</span>
-            </div>
-
-            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
-              <span className="text-xs text-base-content/60 font-semibold block">Clinic Net Share (20%)</span>
-              <div className="text-2xl font-black text-indigo-600 font-mono">
-                ৳{parseFloat(financialAnalytics?.summary?.today_clinic_net_share || 0).toLocaleString()}
-              </div>
-              <span className="text-[11px] text-indigo-500 font-bold block">Clinic Operational Income</span>
-            </div>
-
-            <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm space-y-1">
-              <span className="text-xs text-base-content/60 font-semibold block">Doctors Total Payout (80%)</span>
-              <div className="text-2xl font-black text-amber-600 font-mono">
-                ৳{parseFloat(financialAnalytics?.summary?.today_doctors_total_payout || 0).toLocaleString()}
-              </div>
-              <span className="text-[11px] text-amber-600 font-bold block">Payable to Practitioners</span>
-            </div>
-          </div>
-
-          {/* Doctor Settlement Table */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b border-base-200 pb-3">
-              <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                <Users size={18} className="text-primary" /> Doctor Payout Settlement Ledger
-              </h3>
-              <span className="text-xs text-base-content/50">
-                Settlement Formula: Gross Fees × 80%
-              </span>
-            </div>
-
-            {!financialAnalytics?.doctor_settlements || financialAnalytics.doctor_settlements.length === 0 ? (
-              <div className="text-center py-10 text-base-content/50 text-xs">
-                No active doctor mappings found for this clinic.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="table w-full">
+            {/* Doctor Settlement Table */}
+            {financialAnalytics?.doctor_settlements?.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border border-base-200">
+                <table className="table table-sm w-full">
                   <thead>
-                    <tr className="text-xs text-base-content/60 border-b border-base-200 uppercase">
-                      <th>Doctor Name</th>
+                    <tr className="text-xs text-base-content/60 uppercase bg-base-200/50">
+                      <th>Doctor</th>
                       <th>Specialty</th>
                       <th>Slot Fee</th>
-                      <th>Patients (Today)</th>
-                      <th>Gross Collected</th>
-                      <th>Clinic Cut (20%)</th>
-                      <th className="text-right">Net Payable to Doctor (80%)</th>
+                      <th className="text-center">Patients</th>
+                      <th>Gross</th>
+                      <th>Clinic (20%)</th>
+                      <th className="text-right text-emerald-700">Net Payout (80%)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {financialAnalytics.doctor_settlements.map((doc) => (
                       <tr key={doc.doctor_id} className="hover:bg-base-200/40 border-b border-base-200 text-xs">
-                        <td>
-                          <div className="font-bold text-base-content">{doc.doctor_name}</div>
-                        </td>
-                        <td>
-                          <span className="badge badge-ghost badge-xs">{doc.specialization}</span>
-                        </td>
+                        <td><div className="font-bold text-base-content">{doc.doctor_name}</div></td>
+                        <td><span className="badge badge-ghost badge-xs">{doc.specialization}</span></td>
                         <td className="font-mono">৳{doc.consultation_fee}</td>
                         <td className="font-bold text-center">{doc.patients_seen_today}</td>
-                        <td className="font-bold font-mono">৳{doc.gross_collected.toLocaleString()}</td>
-                        <td className="font-mono text-indigo-600 font-semibold">
-                          ৳{doc.clinic_facility_cut.toLocaleString()}
-                        </td>
-                        <td className="text-right font-black font-mono text-emerald-600 text-sm">
-                          ৳{doc.doctor_net_payout.toLocaleString()}
-                        </td>
+                        <td className="font-mono font-bold">৳{doc.gross_collected.toLocaleString()}</td>
+                        <td className="font-mono text-indigo-600">৳{doc.clinic_facility_cut.toLocaleString()}</td>
+                        <td className="text-right font-black font-mono text-emerald-600">৳{doc.doctor_net_payout.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2159,29 +2742,10 @@ export default function ClinicAdminDashboard() {
         </div>
       )}
 
-      {/* ===== SPECIALIZATIONS TAB ===== */}
-      {activeTab === "taxonomy" && (
-        <div className="space-y-6">
-          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-            <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-              <Award className="text-primary" /> Create Medical Specialization
-            </h2>
-            <form onSubmit={handleCreateSpec} className="space-y-4">
-              <div>
-                <label className="label text-xs font-semibold">Specialization Name *</label>
-                <input type="text" required placeholder="e.g. Pediatric Surgery" value={newSpec.name}
-                  onChange={(e) => setNewSpec({ ...newSpec, name: e.target.value })} className="input input-bordered w-full" />
-              </div>
-              <div>
-                <label className="label text-xs font-semibold">Description</label>
-                <input type="text" placeholder="Brief description of this specialty" value={newSpec.description}
-                  onChange={(e) => setNewSpec({ ...newSpec, description: e.target.value })} className="input input-bordered w-full" />
-              </div>
-              <button type="submit" className="btn btn-secondary w-full gap-2"><Plus size={16} /> Add Specialization</button>
-            </form>
-          </div>
-        </div>
-      )}
+
+
+
+
 
       {/* ===== WALK-IN PATIENT ENTRY MODAL ===== */}
       {walkInModalOpen && (
@@ -2911,30 +3475,9 @@ export default function ClinicAdminDashboard() {
         </div>
       )}
 
-      {/* Enterprise Compliance & Uptime SLA Footer */}
-      <div className="border-t border-base-200/80 pt-6 mt-10 pb-4 text-xs text-base-content/60 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3 font-semibold">
-          <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-            <ShieldCheck size={14} /> HIPAA Compliant Infrastructure
-          </span>
-          <span className="text-base-content/20">•</span>
-          <span className="flex items-center gap-1.5">
-            <Lock size={13} /> 256-Bit Encrypted Records
-          </span>
-          <span className="text-base-content/20">•</span>
-          <span className="flex items-center gap-1.5">
-            <Award size={14} className="text-primary" /> ISO 27001 Certified Security
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            <Server size={13} className="text-emerald-500" /> System Status: 99.98% SLA
-          </span>
-          <span className="text-base-content/20">•</span>
-          <span className="flex items-center gap-1.5 text-base-content/70">
-            <HeartHandshake size={13} className="text-primary" /> Smart Clinic Enterprise
-          </span>
-        </div>
+      {/* Footer */}
+      <div className="border-t border-base-200/80 pt-4 mt-6 pb-2 text-xs text-base-content/40 text-center">
+        Smart Clinic — Clinic Administration Portal &copy; {new Date().getFullYear()}
       </div>
     </div>
   );

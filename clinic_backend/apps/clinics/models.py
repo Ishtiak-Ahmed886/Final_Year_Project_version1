@@ -120,3 +120,49 @@ class ClinicService(BaseModel):
 
     def __str__(self):
         return f"{self.name} - {self.clinic.name} (৳{self.fee})"
+
+
+class AnnouncementType(models.TextChoices):
+    DOCTOR_VISIT = 'DOCTOR_VISIT', 'Doctor Visit / Special Chamber'
+    SCHEDULE_CHANGE = 'SCHEDULE_CHANGE', 'Schedule Change'
+    NEW_SERVICE = 'NEW_SERVICE', 'New Service'
+    CLINIC_NOTICE = 'CLINIC_NOTICE', 'Clinic Notice'
+    HOLIDAY = 'HOLIDAY', 'Holiday / Closure'
+    GENERAL = 'GENERAL', 'General Announcement'
+
+
+class Announcement(BaseModel):
+    """
+    Clinic announcement for communicating important information to patients/public.
+    e.g. 'Dr. Rahman will see patients Friday 5-8 PM'
+    """
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name='announcements')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    announcement_type = models.CharField(
+        max_length=30,
+        choices=AnnouncementType.choices,
+        default=AnnouncementType.GENERAL,
+        db_index=True,
+    )
+    doctor = models.ForeignKey(
+        'doctors.Doctor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='clinic_announcements',
+    )
+    scheduled_date = models.DateField(null=True, blank=True, help_text="Date the event/visit is scheduled")
+    scheduled_time = models.TimeField(null=True, blank=True, help_text="Time the event/visit starts")
+    is_active = models.BooleanField(default=True, db_index=True)
+    starts_at = models.DateTimeField(null=True, blank=True, help_text="When to start showing this announcement")
+    ends_at = models.DateTimeField(null=True, blank=True, help_text="When to stop showing this announcement")
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Announcement'
+        verbose_name_plural = 'Announcements'
+
+    def __str__(self):
+        return f"[{self.clinic.name}] {self.title} ({self.announcement_type})"
+

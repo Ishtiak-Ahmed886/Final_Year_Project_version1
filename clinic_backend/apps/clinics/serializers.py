@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Department, Clinic, ClinicDepartment, ClinicService
+from .models import Department, Clinic, ClinicDepartment, ClinicService, Announcement
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -89,4 +89,21 @@ class ClinicCreateUpdateSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'slug': {'required': False}
         }
+
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Announcement
+        fields = (
+            'id', 'clinic', 'title', 'message', 'announcement_type',
+            'doctor', 'doctor_name', 'scheduled_date', 'scheduled_time',
+            'is_active', 'starts_at', 'ends_at', 'created_at', 'updated_at'
+        )
+        read_only_fields = ('id', 'clinic', 'doctor_name', 'created_at', 'updated_at')
+
+    def get_doctor_name(self, obj):
+        return obj.doctor.full_name if obj.doctor else None
+
 
