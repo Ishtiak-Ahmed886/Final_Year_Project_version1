@@ -1283,114 +1283,197 @@ export default function ClinicAdminDashboard() {
           {/* ── D. MAIN 2-COLUMN OPERATIONAL SECTION ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-            {/* LEFT: Today's Live Chambers (7 cols) */}
+            {/* LEFT: Appointment Trend Graph (7 cols) */}
             <div className="lg:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                    <Activity size={18} className="text-primary" /> Today&apos;s Live Chambers
+                    <TrendingUp size={18} className="text-primary" /> Appointment Flow &amp; Trends
                   </h3>
-                  <p className="text-xs text-base-content/50 mt-0.5">কোন ডাক্তার কোন চেম্বারে রোগী দেখছেন</p>
+                  <p className="text-xs text-base-content/50 mt-0.5">
+                    {overviewTrendRange === "7d" ? "গত ৭ দিনের বুকিং ও ভিজিট প্রবাহ" : "গত ৩০ দিনের সামগ্রিক প্রবণতা"}
+                  </p>
                 </div>
-                <button
-                  onClick={() => setActiveTab("chamber")}
-                  className="btn btn-ghost btn-xs text-primary font-bold gap-1 cursor-pointer"
-                >
-                  Live Reception <ChevronRight size={13} />
-                </button>
-              </div>
-
-              {assignedDoctors.length === 0 ? (
-                <div className="text-center py-10 bg-base-200/30 rounded-2xl border border-dashed border-base-300 space-y-2">
-                  <Stethoscope size={32} className="mx-auto text-base-content/20" />
-                  <div className="text-sm font-semibold text-base-content/60">No active doctors linked yet</div>
-                  <button onClick={() => setActiveTab("doctors")} className="btn btn-primary btn-xs gap-1">
-                    Invite Doctors
+                {/* 7d vs 30d Toggle */}
+                <div className="flex bg-base-200/70 p-1 rounded-xl border border-base-200">
+                  <button
+                    type="button"
+                    onClick={() => setOverviewTrendRange("7d")}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      overviewTrendRange === "7d"
+                        ? "bg-primary text-primary-content shadow-xs"
+                        : "text-base-content/70 hover:text-base-content"
+                    }`}
+                  >
+                    Weekly (7d)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOverviewTrendRange("30d")}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      overviewTrendRange === "30d"
+                        ? "bg-primary text-primary-content shadow-xs"
+                        : "text-base-content/70 hover:text-base-content"
+                    }`}
+                  >
+                    Monthly (30d)
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {assignedDoctors.map((doc, idx) => {
-                    const live = overviewStats?.live_chambers?.find(ch => ch.doctor_id === doc.id);
-                    const statusColors = {
-                      IN_CHAMBER: "badge-success text-white",
-                      PRAYER_BREAK: "badge-warning",
-                      IN_TRANSIT: "badge-info text-white",
-                      EMERGENCY: "badge-error text-white",
-                      PAUSED: "badge-warning",
-                      NOT_STARTED: "badge-ghost",
-                      ENDED: "badge-neutral",
-                    };
-                    const statusLabels = {
-                      IN_CHAMBER: "In Chamber",
-                      PRAYER_BREAK: "Prayer Break",
-                      IN_TRANSIT: "In Transit",
-                      EMERGENCY: "Emergency",
-                      PAUSED: "Paused",
-                      NOT_STARTED: "Not Started",
-                      ENDED: "Session Ended",
-                    };
-                    const sessionStatus = live?.session_status || "NOT_STARTED";
-                    const isSessionLive = sessionStatus === "IN_CHAMBER";
-                    const roomNum = live?.room_number || doc.room_number || (101 + idx);
+              </div>
 
-                    return (
-                      <div
-                        key={doc.id}
-                        className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                          isSessionLive
-                            ? "border-emerald-300 bg-emerald-50/40"
-                            : sessionStatus === "PRAYER_BREAK"
-                            ? "border-amber-200 bg-amber-50/40"
-                            : "border-base-200 bg-base-50/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`w-10 h-10 rounded-2xl font-black text-sm flex items-center justify-center shrink-0 ${
-                              isSessionLive
-                                ? "bg-emerald-600 text-white shadow-xs"
-                                : sessionStatus === "PRAYER_BREAK"
-                                ? "bg-amber-600 text-white"
-                                : "bg-base-200 text-base-content/70"
-                            }`}
-                          >
-                            {roomNum}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-sm text-base-content truncate">Dr. {doc.full_name}</div>
-                            <div className="text-xs text-base-content/50 truncate">
-                              {doc.specialization || doc.qualification || "General Physician"} • Room {roomNum}
+              {(() => {
+                const trendData = overviewStats?.appointment_trend || [];
+                const data = overviewTrendRange === "7d" ? trendData.slice(-7) : trendData;
+                const totalBookings = data.reduce((s, d) => s + (d.total || 0), 0);
+                const totalCompleted = data.reduce((s, d) => s + (d.completed || 0), 0);
+                const totalCancelled = data.reduce((s, d) => s + (d.cancelled || 0), 0);
+                const completionRate = totalBookings > 0 ? Math.round((totalCompleted / totalBookings) * 100) : 100;
+                const maxVal = Math.max(...data.map(d => d.total || 0), 5);
+
+                return (
+                  <div className="space-y-4">
+                    {/* Period Summary KPI Strip */}
+                    <div className="grid grid-cols-3 gap-3 bg-base-200/30 p-3 rounded-2xl border border-base-200 text-center">
+                      <div>
+                        <div className="text-[11px] text-base-content/50 font-medium">Total Volume</div>
+                        <div className="text-base font-black text-base-content">{totalBookings}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-emerald-600 font-medium">Completed</div>
+                        <div className="text-base font-black text-emerald-600">{totalCompleted}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-indigo-600 font-medium">Success Rate</div>
+                        <div className="text-base font-black text-indigo-600">{completionRate}%</div>
+                      </div>
+                    </div>
+
+                    {/* Chart Area */}
+                    {overviewTrendRange === "7d" ? (
+                      /* Weekly 7-Day Bar Columns */
+                      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 pt-2 pb-1">
+                        {data.map((d, i) => {
+                          const dateObj = new Date(d.date);
+                          const dayName = isNaN(dateObj.getTime())
+                            ? `D${i + 1}`
+                            : dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                          const dayDate = d.date?.slice(8) || "";
+                          const isToday = i === data.length - 1;
+                          const heightPct = Math.round(((d.total || 0) / maxVal) * 100);
+
+                          return (
+                            <div
+                              key={d.date}
+                              className={`flex flex-col items-center justify-between p-2 rounded-2xl border transition-all ${
+                                isToday
+                                  ? "border-primary/40 bg-primary/5 shadow-xs"
+                                  : "border-base-200 bg-base-200/20 hover:bg-base-200/40"
+                              }`}
+                            >
+                              {/* Top count */}
+                              <div className="text-[11px] font-extrabold text-base-content/80 mb-1">
+                                {d.total || 0}
+                              </div>
+
+                              {/* Vertical Bar Track */}
+                              <div className="w-full max-w-[28px] h-28 bg-base-200/70 rounded-full flex flex-col justify-end p-0.5 overflow-hidden">
+                                {d.total > 0 ? (
+                                  <div
+                                    className="w-full rounded-full transition-all flex flex-col justify-end overflow-hidden"
+                                    style={{ height: `${Math.max(heightPct, 15)}%` }}
+                                  >
+                                    {/* Cancelled portion */}
+                                    {d.cancelled > 0 && (
+                                      <div
+                                        className="bg-rose-400 w-full"
+                                        style={{ height: `${Math.round((d.cancelled / d.total) * 100)}%` }}
+                                        title={`Cancelled: ${d.cancelled}`}
+                                      />
+                                    )}
+                                    {/* Completed / Total portion */}
+                                    <div
+                                      className="bg-primary w-full flex-1"
+                                      title={`Completed: ${d.completed}, Total: ${d.total}`}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-1.5 h-1.5 rounded-full bg-base-content/20 mx-auto mb-1" />
+                                )}
+                              </div>
+
+                              {/* Date & Day Label */}
+                              <div className="text-center mt-2">
+                                <div className={`text-[11px] font-black ${isToday ? "text-primary" : "text-base-content/70"}`}>
+                                  {dayName}
+                                </div>
+                                <div className="text-[9px] text-base-content/40 font-mono">
+                                  {dayDate}
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Monthly 30-Day Dense Chart */
+                      <div className="space-y-3 pt-2">
+                        <div className="h-32 flex items-end gap-1 bg-base-200/20 p-3 rounded-2xl border border-base-200">
+                          {data.map((d, i) => {
+                            const heightPct = Math.round(((d.total || 0) / maxVal) * 100);
+                            const isToday = i === data.length - 1;
+                            return (
+                              <div
+                                key={d.date}
+                                className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
+                              >
+                                {/* Tooltip */}
+                                <div className="absolute -top-7 hidden group-hover:flex bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded-md font-mono whitespace-nowrap z-20 shadow-md">
+                                  {d.date?.slice(5)}: {d.total} appts ({d.completed} done)
+                                </div>
+                                {/* Bar */}
+                                <div
+                                  className={`w-full rounded-t-sm transition-all ${
+                                    isToday
+                                      ? "bg-primary"
+                                      : d.total > 0
+                                      ? "bg-primary/70 group-hover:bg-primary"
+                                      : "bg-base-200/80"
+                                  }`}
+                                  style={{
+                                    height: d.total > 0 ? `${Math.max(heightPct, 8)}%` : "4px",
+                                    minHeight: "4px",
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
-
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="text-right">
-                            {isSessionLive ? (
-                              <>
-                                <div className="text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg inline-block">
-                                  Now: Token #{live?.current_serial || 1}
-                                </div>
-                                <div className="text-[11px] text-base-content/60 mt-0.5">
-                                  {live?.waiting || 0} in lobby
-                                </div>
-                              </>
-                            ) : (
-                              <span className={`badge badge-sm font-bold ${statusColors[sessionStatus]}`}>
-                                {statusLabels[sessionStatus]}
-                              </span>
-                            )}
-                          </div>
-                          {isSessionLive && (
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                          )}
+                        <div className="flex items-center justify-between text-[11px] text-base-content/50 font-mono px-1">
+                          <span>{data[0]?.date}</span>
+                          <span className="text-primary font-bold">Today ({data[data.length - 1]?.date})</span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    )}
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap items-center justify-between text-xs text-base-content/60 pt-1 border-t border-base-200/60">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" /> Completed / Confirmed
+                        </span>
+                        {totalCancelled > 0 && (
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" /> Cancelled
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-base-content/40">
+                        Auto-synced with clinic appointments
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* RIGHT: Today's Appointments & Real Actions (5 cols) */}
