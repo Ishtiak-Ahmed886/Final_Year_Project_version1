@@ -1283,200 +1283,7 @@ export default function ClinicAdminDashboard() {
           {/* ── D. MAIN 2-COLUMN OPERATIONAL SECTION ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-            {/* LEFT: Appointment Trend Graph (7 cols) */}
-            <div className="lg:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-6 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                    <TrendingUp size={18} className="text-primary" /> Appointment Flow &amp; Trends
-                  </h3>
-                  <p className="text-xs text-base-content/50 mt-0.5">
-                    {overviewTrendRange === "7d" ? "গত ৭ দিনের বুকিং ও ভিজিট প্রবাহ" : "গত ৩০ দিনের সামগ্রিক প্রবণতা"}
-                  </p>
-                </div>
-                {/* 7d vs 30d Toggle */}
-                <div className="flex bg-base-200/70 p-1 rounded-xl border border-base-200">
-                  <button
-                    type="button"
-                    onClick={() => setOverviewTrendRange("7d")}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      overviewTrendRange === "7d"
-                        ? "bg-primary text-primary-content shadow-xs"
-                        : "text-base-content/70 hover:text-base-content"
-                    }`}
-                  >
-                    Weekly (7d)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOverviewTrendRange("30d")}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                      overviewTrendRange === "30d"
-                        ? "bg-primary text-primary-content shadow-xs"
-                        : "text-base-content/70 hover:text-base-content"
-                    }`}
-                  >
-                    Monthly (30d)
-                  </button>
-                </div>
-              </div>
-
-              {(() => {
-                const trendData = overviewStats?.appointment_trend || [];
-                const data = overviewTrendRange === "7d" ? trendData.slice(-7) : trendData;
-                const totalBookings = data.reduce((s, d) => s + (d.total || 0), 0);
-                const totalCompleted = data.reduce((s, d) => s + (d.completed || 0), 0);
-                const totalCancelled = data.reduce((s, d) => s + (d.cancelled || 0), 0);
-                const completionRate = totalBookings > 0 ? Math.round((totalCompleted / totalBookings) * 100) : 100;
-                const maxVal = Math.max(...data.map(d => d.total || 0), 5);
-
-                return (
-                  <div className="space-y-4">
-                    {/* Period Summary KPI Strip */}
-                    <div className="grid grid-cols-3 gap-3 bg-base-200/30 p-3 rounded-2xl border border-base-200 text-center">
-                      <div>
-                        <div className="text-[11px] text-base-content/50 font-medium">Total Volume</div>
-                        <div className="text-base font-black text-base-content">{totalBookings}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] text-emerald-600 font-medium">Completed</div>
-                        <div className="text-base font-black text-emerald-600">{totalCompleted}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] text-indigo-600 font-medium">Success Rate</div>
-                        <div className="text-base font-black text-indigo-600">{completionRate}%</div>
-                      </div>
-                    </div>
-
-                    {/* Chart Area */}
-                    {overviewTrendRange === "7d" ? (
-                      /* Weekly 7-Day Bar Columns */
-                      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 pt-2 pb-1">
-                        {data.map((d, i) => {
-                          const dateObj = new Date(d.date);
-                          const dayName = isNaN(dateObj.getTime())
-                            ? `D${i + 1}`
-                            : dateObj.toLocaleDateString("en-US", { weekday: "short" });
-                          const dayDate = d.date?.slice(8) || "";
-                          const isToday = i === data.length - 1;
-                          const heightPct = Math.round(((d.total || 0) / maxVal) * 100);
-
-                          return (
-                            <div
-                              key={d.date}
-                              className={`flex flex-col items-center justify-between p-2 rounded-2xl border transition-all ${
-                                isToday
-                                  ? "border-primary/40 bg-primary/5 shadow-xs"
-                                  : "border-base-200 bg-base-200/20 hover:bg-base-200/40"
-                              }`}
-                            >
-                              {/* Top count */}
-                              <div className="text-[11px] font-extrabold text-base-content/80 mb-1">
-                                {d.total || 0}
-                              </div>
-
-                              {/* Vertical Bar Track */}
-                              <div className="w-full max-w-[28px] h-28 bg-base-200/70 rounded-full flex flex-col justify-end p-0.5 overflow-hidden">
-                                {d.total > 0 ? (
-                                  <div
-                                    className="w-full rounded-full transition-all flex flex-col justify-end overflow-hidden"
-                                    style={{ height: `${Math.max(heightPct, 15)}%` }}
-                                  >
-                                    {/* Cancelled portion */}
-                                    {d.cancelled > 0 && (
-                                      <div
-                                        className="bg-rose-400 w-full"
-                                        style={{ height: `${Math.round((d.cancelled / d.total) * 100)}%` }}
-                                        title={`Cancelled: ${d.cancelled}`}
-                                      />
-                                    )}
-                                    {/* Completed / Total portion */}
-                                    <div
-                                      className="bg-primary w-full flex-1"
-                                      title={`Completed: ${d.completed}, Total: ${d.total}`}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="w-1.5 h-1.5 rounded-full bg-base-content/20 mx-auto mb-1" />
-                                )}
-                              </div>
-
-                              {/* Date & Day Label */}
-                              <div className="text-center mt-2">
-                                <div className={`text-[11px] font-black ${isToday ? "text-primary" : "text-base-content/70"}`}>
-                                  {dayName}
-                                </div>
-                                <div className="text-[9px] text-base-content/40 font-mono">
-                                  {dayDate}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      /* Monthly 30-Day Dense Chart */
-                      <div className="space-y-3 pt-2">
-                        <div className="h-32 flex items-end gap-1 bg-base-200/20 p-3 rounded-2xl border border-base-200">
-                          {data.map((d, i) => {
-                            const heightPct = Math.round(((d.total || 0) / maxVal) * 100);
-                            const isToday = i === data.length - 1;
-                            return (
-                              <div
-                                key={d.date}
-                                className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
-                              >
-                                {/* Tooltip */}
-                                <div className="absolute -top-7 hidden group-hover:flex bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded-md font-mono whitespace-nowrap z-20 shadow-md">
-                                  {d.date?.slice(5)}: {d.total} appts ({d.completed} done)
-                                </div>
-                                {/* Bar */}
-                                <div
-                                  className={`w-full rounded-t-sm transition-all ${
-                                    isToday
-                                      ? "bg-primary"
-                                      : d.total > 0
-                                      ? "bg-primary/70 group-hover:bg-primary"
-                                      : "bg-base-200/80"
-                                  }`}
-                                  style={{
-                                    height: d.total > 0 ? `${Math.max(heightPct, 8)}%` : "4px",
-                                    minHeight: "4px",
-                                  }}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-base-content/50 font-mono px-1">
-                          <span>{data[0]?.date}</span>
-                          <span className="text-primary font-bold">Today ({data[data.length - 1]?.date})</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Legend */}
-                    <div className="flex flex-wrap items-center justify-between text-xs text-base-content/60 pt-1 border-t border-base-200/60">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" /> Completed / Confirmed
-                        </span>
-                        {totalCancelled > 0 && (
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" /> Cancelled
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-base-content/40">
-                        Auto-synced with clinic appointments
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* RIGHT: Today's Appointments & Real Actions (5 cols) */}
+            {/* LEFT: Today's Appointments & Real Actions (5 cols) */}
             <div className="lg:col-span-5 space-y-5">
 
               {/* Today's Appointment Breakdown */}
@@ -1598,6 +1405,230 @@ export default function ClinicAdminDashboard() {
                 })()}
               </div>
 
+            </div>
+
+            {/* RIGHT: Appointment Trend Graph (7 cols) */}
+            <div className="lg:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-6 shadow-xs space-y-4 flex flex-col justify-between">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
+                    <TrendingUp size={18} className="text-primary" /> Appointment Flow &amp; Trends
+                  </h3>
+                  <p className="text-xs text-base-content/50 mt-0.5">
+                    {overviewTrendRange === "7d" ? "গত ৭ দিনের বুকিং ও রোগীর ভিজিট গ্রাফ" : "গত ৩০ দিনের সামগ্রিক প্রবণতা গ্রাফ"}
+                  </p>
+                </div>
+                {/* 7d vs 30d Toggle */}
+                <div className="flex bg-base-200/70 p-1 rounded-xl border border-base-200">
+                  <button
+                    type="button"
+                    onClick={() => setOverviewTrendRange("7d")}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      overviewTrendRange === "7d"
+                        ? "bg-primary text-primary-content shadow-xs"
+                        : "text-base-content/70 hover:text-base-content"
+                    }`}
+                  >
+                    Weekly (7d)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOverviewTrendRange("30d")}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      overviewTrendRange === "30d"
+                        ? "bg-primary text-primary-content shadow-xs"
+                        : "text-base-content/70 hover:text-base-content"
+                    }`}
+                  >
+                    Monthly (30d)
+                  </button>
+                </div>
+              </div>
+
+              {(() => {
+                const trendData = overviewStats?.appointment_trend || [];
+                const data = overviewTrendRange === "7d" ? trendData.slice(-7) : trendData;
+                const totalBookings = data.reduce((s, d) => s + (d.total || 0), 0);
+                const totalCompleted = data.reduce((s, d) => s + (d.completed || 0), 0);
+                const totalCancelled = data.reduce((s, d) => s + (d.cancelled || 0), 0);
+                const completionRate = totalBookings > 0 ? Math.round((totalCompleted / totalBookings) * 100) : 100;
+                const peakCount = Math.max(...data.map(d => d.total || 0), 0);
+                const yMax = peakCount <= 4 ? 6 : Math.ceil(peakCount / 4) * 4;
+                const yTicks = [yMax, Math.round(yMax * 0.75), Math.round(yMax * 0.5), Math.round(yMax * 0.25), 0];
+
+                return (
+                  <div className="space-y-4">
+                    {/* Period Summary KPI Strip */}
+                    <div className="grid grid-cols-3 gap-3 bg-base-200/30 p-3 rounded-2xl border border-base-200 text-center">
+                      <div>
+                        <div className="text-[11px] text-base-content/50 font-medium">Total Bookings</div>
+                        <div className="text-base font-black text-base-content">{totalBookings}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-emerald-600 font-medium">Completed Visits</div>
+                        <div className="text-base font-black text-emerald-600">{totalCompleted}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-indigo-600 font-medium">Completion Rate</div>
+                        <div className="text-base font-black text-indigo-600">{completionRate}%</div>
+                      </div>
+                    </div>
+
+                    {/* Chart Container with Y-Axis & Gridlines */}
+                    <div className="relative pt-4 pb-2">
+                      {/* Grid Lines & Y-Axis Labels */}
+                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-9 pl-7">
+                        {yTicks.map((val, idx) => (
+                          <div key={idx} className="flex items-center w-full">
+                            <span className="text-[10px] font-mono text-base-content/40 w-6 text-right pr-2 select-none -translate-y-1/2">
+                              {val}
+                            </span>
+                            <div className="flex-1 border-b border-dashed border-base-200/70" />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Chart Area */}
+                      {overviewTrendRange === "7d" ? (
+                        /* Weekly 7-Day Bar Chart */
+                        <div className="relative z-10 pl-7 h-44 flex items-end justify-around gap-2">
+                          {data.map((d, i) => {
+                            const dateObj = new Date(d.date);
+                            const dayName = isNaN(dateObj.getTime())
+                              ? `Day ${i + 1}`
+                              : dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                            const dayDate = d.date?.slice(8) || "";
+                            const isToday = i === data.length - 1;
+                            const heightPct = Math.round(((d.total || 0) / yMax) * 100);
+                            const completedPct = d.total > 0 ? Math.round(((d.completed || 0) / d.total) * 100) : 0;
+
+                            return (
+                              <div
+                                key={d.date}
+                                className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
+                              >
+                                {/* Tooltip on Hover */}
+                                <div className="absolute -top-10 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[11px] px-2.5 py-1 rounded-xl shadow-xl z-30 whitespace-nowrap pointer-events-none">
+                                  <span className="font-bold">{dayName}, {d.date}</span>
+                                  <span className="text-indigo-300 font-medium">
+                                    {d.total} Booked • {d.completed} Done {d.cancelled > 0 ? `• ${d.cancelled} Cancelled` : ""}
+                                  </span>
+                                  <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 mt-0.5" />
+                                </div>
+
+                                {/* Value label above bar */}
+                                <div className={`text-xs font-black mb-1.5 transition-all ${
+                                  isToday ? "text-primary scale-110" : d.total > 0 ? "text-base-content" : "text-base-content/30"
+                                }`}>
+                                  {d.total > 0 ? d.total : "0"}
+                                </div>
+
+                                {/* The Bar Column */}
+                                <div className="w-full max-w-[36px] flex flex-col justify-end">
+                                  {d.total > 0 ? (
+                                    <div
+                                      className={`w-full rounded-t-xl transition-all shadow-xs overflow-hidden flex flex-col justify-end ${
+                                        isToday ? "ring-2 ring-primary ring-offset-1" : ""
+                                      }`}
+                                      style={{ height: `${Math.max(heightPct, 12)}%` }}
+                                    >
+                                      {/* Cancelled top stripe if any */}
+                                      {d.cancelled > 0 && (
+                                        <div
+                                          className="w-full bg-rose-400"
+                                          style={{ height: `${Math.round((d.cancelled / d.total) * 100)}%` }}
+                                        />
+                                      )}
+                                      {/* Total / In-Progress body */}
+                                      <div className="w-full flex-1 bg-gradient-to-t from-indigo-700 to-indigo-500 relative">
+                                        {/* Completed overlay */}
+                                        {d.completed > 0 && (
+                                          <div
+                                            className="w-full bg-emerald-500 transition-all"
+                                            style={{ height: `${completedPct}%` }}
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Baseline placeholder when 0 */
+                                    <div className="w-full h-1.5 bg-base-300 rounded-full mx-auto" />
+                                  )}
+                                </div>
+
+                                {/* Day of week & date label */}
+                                <div className="text-center mt-2.5 pt-1 border-t border-base-200 w-full">
+                                  <div className={`text-xs font-black ${isToday ? "text-primary" : "text-base-content/80"}`}>
+                                    {dayName}
+                                  </div>
+                                  <div className="text-[10px] text-base-content/40 font-mono">
+                                    {dayDate}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        /* Monthly 30-Day Column Chart */
+                        <div className="relative z-10 pl-7 h-44 flex items-end gap-1">
+                          {data.map((d, i) => {
+                            const heightPct = Math.round(((d.total || 0) / yMax) * 100);
+                            const isToday = i === data.length - 1;
+                            return (
+                              <div
+                                key={d.date}
+                                className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
+                              >
+                                {/* Tooltip */}
+                                <div className="absolute -top-9 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded-lg shadow-lg z-30 whitespace-nowrap pointer-events-none">
+                                  <span>{d.date}: {d.total} appts ({d.completed} done)</span>
+                                </div>
+
+                                {/* Monthly Bar */}
+                                <div
+                                  className={`w-full rounded-t-sm transition-all ${
+                                    isToday
+                                      ? "bg-primary shadow-xs"
+                                      : d.total > 0
+                                      ? "bg-indigo-500/80 group-hover:bg-indigo-600"
+                                      : "bg-base-200"
+                                  }`}
+                                  style={{
+                                    height: d.total > 0 ? `${Math.max(heightPct, 8)}%` : "3px",
+                                    minHeight: "3px",
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap items-center justify-between text-xs text-base-content/60 pt-2 border-t border-base-200">
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block" /> Booked / Total
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Completed
+                        </span>
+                        {totalCancelled > 0 && (
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" /> Cancelled
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-base-content/40 font-mono">
+                        Real-time Analytics
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
           </div>
