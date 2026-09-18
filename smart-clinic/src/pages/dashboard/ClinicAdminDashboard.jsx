@@ -1068,14 +1068,20 @@ export default function ClinicAdminDashboard() {
               <span>{clinic?.name || "Clinic Administration Portal"}</span>
             </h1>
             
-            <p className="text-xs md:text-sm text-indigo-200/80 flex items-center gap-2 flex-wrap">
-              <MapPin size={14} className="text-emerald-400 shrink-0" />
-              <span>{clinic ? `${clinic.address}, ${clinic.city}` : "Clinic Administrative Workspace"}</span>
-              <span className="text-indigo-400/50">•</span>
-              <span className="text-indigo-200/90 font-medium">
-                Today&apos;s Load: <strong className="text-white">{appointments.length} Patients</strong> Queue • <strong className="text-white">{assignedDoctors.length} Doctors</strong> Active
-              </span>
-            </p>
+            {(() => {
+              const todayDateStr = new Date().toISOString().split("T")[0];
+              const todayAptsCount = overviewStats?.appointments?.total_today ?? appointments.filter(a => a.appointment_date === todayDateStr).length;
+              return (
+                <p className="text-xs md:text-sm text-indigo-200/80 flex items-center gap-2 flex-wrap">
+                  <MapPin size={14} className="text-emerald-400 shrink-0" />
+                  <span>{clinic ? `${clinic.address}, ${clinic.city}` : "Clinic Administrative Workspace"}</span>
+                  <span className="text-indigo-400/50">•</span>
+                  <span className="text-indigo-200/90 font-medium">
+                    Today&apos;s Load: <strong className="text-white">{todayAptsCount} Patients</strong> in Queue • <strong className="text-white">{assignedDoctors.length} Doctors</strong> Active
+                  </span>
+                </p>
+              );
+            })()}
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full md:w-auto">
@@ -1300,50 +1306,62 @@ export default function ClinicAdminDashboard() {
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm pb-2 border-b border-base-200 font-bold">
-                    <span className="text-base-content/70">Total Booked</span>
-                    <span className="text-base font-black text-base-content">
-                      {overviewStats?.appointments?.total_today ?? appointments.filter(a => a.appointment_date === new Date().toISOString().split("T")[0]).length} Patients
-                    </span>
-                  </div>
+                {(() => {
+                  const todayDateStr = new Date().toISOString().split("T")[0];
+                  const todayApts = appointments.filter(a => a.appointment_date === todayDateStr);
+                  const totalBooked = overviewStats?.appointments?.total_today ?? todayApts.length;
+                  const completed = overviewStats?.appointments?.completed ?? todayApts.filter(a => a.status === "COMPLETED").length;
+                  const confirmed = overviewStats?.appointments?.confirmed_upcoming ?? todayApts.filter(a => a.status === "CONFIRMED").length;
+                  const pending = overviewStats?.appointments?.pending ?? todayApts.filter(a => a.status === "PENDING").length;
+                  const cancelled = overviewStats?.appointments?.cancelled ?? todayApts.filter(a => a.status === "CANCELLED").length;
 
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" /> Completed Visits
-                    </span>
-                    <span className="font-black text-emerald-700 font-mono">
-                      {overviewStats?.appointments?.completed ?? appointments.filter(a => a.status === "COMPLETED").length}
-                    </span>
-                  </div>
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm pb-2 border-b border-base-200 font-bold">
+                        <span className="text-base-content/70">Total Booked (Today)</span>
+                        <span className="text-base font-black text-base-content">
+                          {totalBooked} Patients
+                        </span>
+                      </div>
 
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-sky-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-sky-500" /> Confirmed in Lobby
-                    </span>
-                    <span className="font-black text-sky-700 font-mono">
-                      {overviewStats?.appointments?.confirmed_upcoming ?? appointments.filter(a => a.status === "CONFIRMED").length}
-                    </span>
-                  </div>
+                      <div className="flex items-center justify-between text-xs py-1">
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" /> Completed Visits
+                        </span>
+                        <span className="font-black text-emerald-700 font-mono">
+                          {completed}
+                        </span>
+                      </div>
 
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-amber-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Pending Cash at Counter
-                    </span>
-                    <span className="font-black text-amber-700 font-mono">
-                      {overviewStats?.appointments?.pending ?? appointments.filter(a => a.status === "PENDING").length}
-                    </span>
-                  </div>
+                      <div className="flex items-center justify-between text-xs py-1">
+                        <span className="text-sky-700 font-semibold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-sky-500" /> Confirmed in Lobby
+                        </span>
+                        <span className="font-black text-sky-700 font-mono">
+                          {confirmed}
+                        </span>
+                      </div>
 
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-rose-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-rose-500" /> Cancelled
-                    </span>
-                    <span className="font-black text-rose-700 font-mono">
-                      {overviewStats?.appointments?.cancelled ?? appointments.filter(a => a.status === "CANCELLED").length}
-                    </span>
-                  </div>
-                </div>
+                      <div className="flex items-center justify-between text-xs py-1">
+                        <span className="text-amber-700 font-semibold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" /> Pending Cash at Counter
+                        </span>
+                        <span className="font-black text-amber-700 font-mono">
+                          {pending}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs py-1">
+                        <span className="text-rose-700 font-semibold flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500" /> Cancelled
+                        </span>
+                        <span className="font-black text-rose-700 font-mono">
+                          {cancelled}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <button
                   onClick={() => setActiveTab("appointments")}
@@ -1637,15 +1655,19 @@ export default function ClinicAdminDashboard() {
                     {/* Period Summary KPI Strip */}
                     <div className="grid grid-cols-3 gap-3 bg-base-200/30 p-3 rounded-2xl border border-base-200 text-center">
                       <div>
-                        <div className="text-[11px] text-base-content/50 font-medium">Total Volume</div>
+                        <div className="text-[11px] text-base-content/50 font-medium">
+                          {overviewTrendRange === "7d" ? "Weekly Volume (7d)" : "Monthly Volume (30d)"}
+                        </div>
                         <div className="text-base font-black text-base-content">{totalBookings} Bookings</div>
                       </div>
                       <div>
-                        <div className="text-[11px] text-emerald-600 font-medium">Completed Visits</div>
+                        <div className="text-[11px] text-emerald-600 font-medium">
+                          {overviewTrendRange === "7d" ? "Weekly Completed (7d)" : "Monthly Completed (30d)"}
+                        </div>
                         <div className="text-base font-black text-emerald-600">{totalCompleted} Visits</div>
                       </div>
                       <div>
-                        <div className="text-[11px] text-indigo-600 font-medium">Completion Rate</div>
+                        <div className="text-[11px] text-indigo-600 font-medium">Period Success Rate</div>
                         <div className="text-base font-black text-indigo-600">{completionRate}%</div>
                       </div>
                     </div>
