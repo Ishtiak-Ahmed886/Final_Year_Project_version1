@@ -65,8 +65,8 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col lg:flex-row gap-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-16 sm:pb-24">
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
         {/* Sidebar */}
         <aside className="w-full lg:w-64 bg-base-100 border border-base-200 p-6 rounded-3xl shadow-lg h-fit space-y-6 shrink-0">
           <div className="flex items-center gap-3 pb-4 border-b border-base-200">
@@ -150,7 +150,7 @@ export default function DashboardLayout() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1">
+        <main className="flex-1 min-w-0">
           {currentView === "profile" ? (
             <ProfileSettings />
           ) : currentView === "privacy" ? (

@@ -1684,7 +1684,7 @@ export default function ClinicAdminDashboard() {
                         </div>
 
                         {/* Responsive SVG Container */}
-                        <div className="w-full relative overflow-hidden bg-base-200/20 rounded-2xl border border-base-200/60 p-2">
+                        <div className="w-full relative overflow-x-auto overflow-y-visible bg-base-200/20 rounded-2xl border border-base-200/60 p-2">
                           <svg
                             viewBox={`0 0 ${svgW} ${svgH}`}
                             className="w-full h-48 block overflow-visible"
@@ -4032,7 +4032,7 @@ export default function ClinicAdminDashboard() {
       )}
 
       {/* Footer */}
-      <div className="border-t border-base-200/80 pt-4 mt-6 pb-2 text-xs text-base-content/40 text-center">
+      <div className="border-t border-base-200/80 pt-4 mt-6 pb-6 text-xs text-base-content/40 text-center">
         Smart Clinic — Clinic Administration Portal &copy; {new Date().getFullYear()}
       </div>
     </div>

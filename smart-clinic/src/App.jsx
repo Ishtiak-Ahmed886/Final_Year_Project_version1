@@ -4,14 +4,12 @@ import Navbar from "./components/shared/Navbar";
 
 function App() {
   return (
-    <div className="">
+    <div className="min-h-screen flex flex-col bg-base-100">
       <Navbar />
-      <div className="">
+      <div className="flex-1 min-h-0">
         <Outlet />
       </div>
-      <div className="">
-        <Footer />
-      </div>
+      <Footer />
     </div>
   );
 }
