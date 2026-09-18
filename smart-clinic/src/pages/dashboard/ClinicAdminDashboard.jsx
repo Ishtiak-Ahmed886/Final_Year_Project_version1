@@ -12,7 +12,7 @@ import {
   Tag, CheckSquare, Square, Camera, Image, Upload, Star, Eye, X, ZoomIn,
   Lock, Server, HeartHandshake, DollarSign, FileText, Download,
   Megaphone, BarChart2, ArrowRight, ChevronRight, RefreshCw,
-  TrendingDown, ArrowUpRight, ArrowDownRight, LineChart, Languages
+  TrendingDown, ArrowUpRight, ArrowDownRight, LineChart
 } from "lucide-react";
 
 
@@ -105,7 +105,7 @@ const POPULAR_AMENITIES = [
 
 export default function ClinicAdminDashboard() {
   const { user } = useAuth();
-  const { language, toggleLanguage, t } = useLanguage();
+  const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState("overview");
 
   const [clinic, setClinic] = useState(null);
@@ -1232,15 +1232,6 @@ export default function ClinicAdminDashboard() {
                 <span>⚡ {t("quickShortcuts")}</span>
                 <span className="text-xs text-base-content/50 font-normal">({t("quickShortcutsHint")})</span>
               </h3>
-              <button
-                type="button"
-                onClick={toggleLanguage}
-                className="btn btn-ghost btn-xs font-bold border border-base-200 rounded-xl hover:border-primary transition-all text-xs flex items-center gap-1.5 cursor-pointer text-base-content/70 hover:text-primary"
-                title={language === "en" ? "বাংলায় দেখুন" : "View in English"}
-              >
-                <Languages size={13} className="text-primary" />
-                <span>{language === "en" ? "বাংলা" : "English"}</span>
-              </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <button
