@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import apiClient from "../../api/axios";
 import { useAuth } from "../../Provider/AuthProvider";
+import { useLanguage } from "../../context/LanguageContext";
 import ClinicAdminOnboarding from "./ClinicAdminOnboarding";
 import {
   Building2, Stethoscope, Layers, Plus, CheckCircle2, AlertCircle,
@@ -11,7 +12,7 @@ import {
   Tag, CheckSquare, Square, Camera, Image, Upload, Star, Eye, X, ZoomIn,
   Lock, Server, HeartHandshake, DollarSign, FileText, Download,
   Megaphone, BarChart2, ArrowRight, ChevronRight, RefreshCw,
-  TrendingDown, ArrowUpRight, ArrowDownRight, LineChart
+  TrendingDown, ArrowUpRight, ArrowDownRight, LineChart, Languages
 } from "lucide-react";
 
 
@@ -104,6 +105,7 @@ const POPULAR_AMENITIES = [
 
 export default function ClinicAdminDashboard() {
   const { user } = useAuth();
+  const { language, toggleLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState("overview");
 
   const [clinic, setClinic] = useState(null);
@@ -1227,9 +1229,18 @@ export default function ClinicAdminDashboard() {
           <div className="bg-base-100 border border-base-200 rounded-3xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-extrabold text-sm text-base-content flex items-center gap-2">
-                <span>⚡ Quick Reception Shortcuts</span>
-                <span className="text-xs text-base-content/50 font-normal">(১-ক্লিকে সরাসরি কাজ করুন)</span>
+                <span>⚡ {t("quickShortcuts")}</span>
+                <span className="text-xs text-base-content/50 font-normal">({t("quickShortcutsHint")})</span>
               </h3>
+              <button
+                type="button"
+                onClick={toggleLanguage}
+                className="btn btn-ghost btn-xs font-bold border border-base-200 rounded-xl hover:border-primary transition-all text-xs flex items-center gap-1.5 cursor-pointer text-base-content/70 hover:text-primary"
+                title={language === "en" ? "বাংলায় দেখুন" : "View in English"}
+              >
+                <Languages size={13} className="text-primary" />
+                <span>{language === "en" ? "বাংলা" : "English"}</span>
+              </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <button
@@ -1243,8 +1254,8 @@ export default function ClinicAdminDashboard() {
                   <UserPlus size={18} />
                 </div>
                 <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">New Walk-in</div>
-                  <div className="text-[11px] text-base-content/60 truncate">কাউন্টার সিরিয়াল</div>
+                  <div className="font-bold text-xs text-base-content">{t("newWalkIn")}</div>
+                  <div className="text-[11px] text-base-content/60 truncate">{t("newWalkInSub")}</div>
                 </div>
               </button>
 
@@ -1256,8 +1267,8 @@ export default function ClinicAdminDashboard() {
                   <Tv size={18} />
                 </div>
                 <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">Waiting Room TV</div>
-                  <div className="text-[11px] text-base-content/60 truncate">লবি টিভি স্ক্রিন</div>
+                  <div className="font-bold text-xs text-base-content">{t("waitingRoomTv")}</div>
+                  <div className="text-[11px] text-base-content/60 truncate">{t("waitingRoomTvSub")}</div>
                 </div>
               </button>
 
@@ -1269,8 +1280,8 @@ export default function ClinicAdminDashboard() {
                   <Printer size={18} />
                 </div>
                 <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">Daily Cash Audit</div>
-                  <div className="text-[11px] text-base-content/60 truncate">হিসাব ও অডিট শিট</div>
+                  <div className="font-bold text-xs text-base-content">{t("dailyCashAudit")}</div>
+                  <div className="text-[11px] text-base-content/60 truncate">{t("dailyCashAuditSub")}</div>
                 </div>
               </button>
 
@@ -1282,8 +1293,8 @@ export default function ClinicAdminDashboard() {
                   <Stethoscope size={18} />
                 </div>
                 <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">Invite Doctor</div>
-                  <div className="text-[11px] text-base-content/60 truncate">নতুন ডাক্তার যুক্ত</div>
+                  <div className="font-bold text-xs text-base-content">{t("inviteDoctor")}</div>
+                  <div className="text-[11px] text-base-content/60 truncate">{t("inviteDoctorSub")}</div>
                 </div>
               </button>
             </div>
@@ -1573,7 +1584,7 @@ export default function ClinicAdminDashboard() {
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-xs text-base-content/60 flex-wrap">
                           <span>
-                            {overviewTrendRange === "7d" ? "গত ৭ দিনের বুকিং ও রোগীর ভিজিট" : "গত ৩০ দিনের দৈনিক ওঠা-নামার ট্রেন্ড (Up & Down)"}
+                            {overviewTrendRange === "7d" ? t("weeklyTrendSubtitle") : t("monthlyTrendSubtitle")}
                           </span>
                           {/* Up / Down Trend Indicator (Rise / Fall) */}
                           {totalBookings > 0 && (
@@ -1583,12 +1594,12 @@ export default function ClinicAdminDashboard() {
                                 : "text-rose-700 bg-rose-50 border border-rose-200"
                             }`}>
                               {isUpTrend ? <ArrowUpRight size={13} className="stroke-[3]" /> : <ArrowDownRight size={13} className="stroke-[3]" />}
-                              {isUpTrend ? `+${trendPct}% Rise` : `-${trendPct}% Fall`}
+                              {isUpTrend ? `+${trendPct}% ${t("rise")}` : `-${trendPct}% ${t("fall")}`}
                             </span>
                           )}
                           {peakMax > 0 && (
                             <span className="text-[11px] font-mono text-base-content/50">
-                              • Peak: {peakMax} appts ({parseDateInfo(peakDateStr).formatted})
+                              • {language === "bn" ? "সর্বোচ্চ" : "Peak"}: {peakMax} {language === "bn" ? "অ্যাপয়েন্টমেন্ট" : "appts"} ({parseDateInfo(peakDateStr).formatted})
                             </span>
                           )}
                         </div>
@@ -1697,7 +1708,7 @@ export default function ClinicAdminDashboard() {
                             </div>
                           ) : (
                             <span className="text-[11px] text-base-content/50 italic flex items-center gap-1">
-                              💡 পয়েন্টের উপর মাউস রেখে যে কোনো দিনের রোগীর ওঠা-নামা (Up &amp; Down) দেখুন
+                              {t("trendHoverHint")}
                             </span>
                           )}
                           <span className="text-[10px] font-mono text-base-content/40 hidden sm:inline">
@@ -2884,7 +2895,7 @@ export default function ClinicAdminDashboard() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-extrabold text-base-content">
-                      Clinic Announcements &amp; Public Notices (নোটিশ বোর্ড)
+                      {t("announcementsTitle")}
                     </h2>
                     {announcements.filter(a => a.is_active).length > 0 && (
                       <span className="badge badge-primary badge-sm font-bold">
@@ -3336,7 +3347,7 @@ export default function ClinicAdminDashboard() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-lg text-base-content">
-                    Walk-in Counter Registration (কাউন্টার সিরিয়াল)
+                    {t("walkInModalTitle")}
                   </h3>
                   <p className="text-xs text-base-content/60">Issue instant serial token for walk-in patient at clinic counter</p>
                 </div>
@@ -3410,7 +3421,7 @@ export default function ClinicAdminDashboard() {
               <div className="p-3 bg-base-200/60 rounded-2xl text-xs space-y-1">
                 <div className="flex justify-between font-bold text-base-content">
                   <span>Payment Mode:</span>
-                  <span className="text-success font-black">Cash at Counter (স্বয়ংক্রিয় পরিশোধিত)</span>
+                  <span className="text-success font-black">{t("cashAtCounterInstant")}</span>
                 </div>
                 <div className="text-[11px] text-base-content/60">
                   Appointment will be immediately confirmed, serial token assigned, and cash transaction recorded.
