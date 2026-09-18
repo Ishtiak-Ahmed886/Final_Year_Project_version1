@@ -3008,7 +3008,57 @@ export default function ClinicAdminDashboard() {
       {/* ===== DOCTORS & REQUESTS TAB ===== */}
       {activeTab === "doctors" && (
         <div className="space-y-6">
-          {/* Send Invite Form */}
+          {/* Active Doctors (Top) */}
+          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
+            <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
+              <Stethoscope className="text-primary" /> Active Doctors ({assignedDoctors.length})
+            </h2>
+            {assignedDoctors.length === 0 ? (
+              <div className="text-center py-6 text-xs text-base-content/60">No active doctors linked to your clinic.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {assignedDoctors.map((d) => (
+                  <div key={d.id} className="p-4 bg-base-200/40 rounded-2xl flex items-start gap-3">
+                    <div className="p-2 bg-primary/10 rounded-xl text-primary"><Stethoscope size={18} /></div>
+                    <div>
+                      <div className="font-bold text-sm text-base-content">
+                        {d.full_name?.startsWith("Dr.") ? d.full_name : `Dr. ${d.full_name}`}
+                      </div>
+                      <div className="text-xs text-base-content/60">{d.qualification}</div>
+                      <div className="text-xs text-success font-semibold mt-1">✓ Active Service Agreement</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Incoming Doctor Requests */}
+          {pendingIncomingRequests.length > 0 && (
+            <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
+              <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
+                <Info className="text-warning" /> Incoming Join Requests from Doctors ({pendingIncomingRequests.length})
+              </h2>
+              <div className="space-y-3">
+                {pendingIncomingRequests.map((r) => (
+                  <div key={r.id} className="p-4 bg-base-200/50 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <div className="font-bold text-base-content">
+                        {r.doctor?.full_name?.startsWith("Dr.") ? r.doctor?.full_name : `Dr. ${r.doctor?.full_name}`}
+                      </div>
+                      <div className="text-xs text-base-content/60">Proposed Fee: ৳{r.consultation_fee} · Room: {r.room_number || "N/A"}</div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={() => handleRespondRequest(r.id, "ACCEPT")} className="btn btn-success btn-xs text-white">Accept</button>
+                      <button onClick={() => handleRespondRequest(r.id, "REJECT")} className="btn btn-error btn-xs text-white">Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Send Invite Form (Bottom) */}
           {clinic && clinic.verification_status === "VERIFIED" && (
             <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
               <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
@@ -3025,13 +3075,15 @@ export default function ClinicAdminDashboard() {
                       className="select select-bordered w-full">
                       <option value="">-- Choose Doctor --</option>
                       {allDoctors.filter(d => d.verification_status === "VERIFIED").map((d) => (
-                        <option key={d.id} value={d.id}>Dr. {d.full_name} ({d.qualification || d.email})</option>
+                        <option key={d.id} value={d.id}>
+                          {d.full_name?.startsWith("Dr.") ? d.full_name : `Dr. ${d.full_name}`} ({d.qualification || d.email})
+                        </option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="label text-xs font-semibold">Consultation Fee ($) *</label>
-                    <input type="number" step="0.01" required placeholder="100.00" value={inviteForm.consultation_fee}
+                    <label className="label text-xs font-semibold">Consultation Fee (৳ / BDT) *</label>
+                    <input type="number" step="0.01" required placeholder="500.00" value={inviteForm.consultation_fee}
                       onChange={(e) => setInviteForm({ ...inviteForm, consultation_fee: e.target.value })}
                       className="input input-bordered w-full" />
                   </div>
@@ -3057,52 +3109,6 @@ export default function ClinicAdminDashboard() {
               </form>
             </div>
           )}
-
-          {/* Incoming Doctor Requests */}
-          {pendingIncomingRequests.length > 0 && (
-            <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-              <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-                <Info className="text-warning" /> Incoming Join Requests from Doctors ({pendingIncomingRequests.length})
-              </h2>
-              <div className="space-y-3">
-                {pendingIncomingRequests.map((r) => (
-                  <div key={r.id} className="p-4 bg-base-200/50 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                      <div className="font-bold text-base-content">Dr. {r.doctor?.full_name}</div>
-                      <div className="text-xs text-base-content/60">Proposed Fee: ${r.consultation_fee} · Room: {r.room_number || "N/A"}</div>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button onClick={() => handleRespondRequest(r.id, "ACCEPT")} className="btn btn-success btn-xs text-white">Accept</button>
-                      <button onClick={() => handleRespondRequest(r.id, "REJECT")} className="btn btn-error btn-xs text-white">Reject</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Active Doctors */}
-          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-            <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-              <Stethoscope className="text-primary" /> Active Doctors ({assignedDoctors.length})
-            </h2>
-            {assignedDoctors.length === 0 ? (
-              <div className="text-center py-6 text-xs text-base-content/60">No active doctors linked to your clinic.</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {assignedDoctors.map((d) => (
-                  <div key={d.id} className="p-4 bg-base-200/40 rounded-2xl flex items-start gap-3">
-                    <div className="p-2 bg-primary/10 rounded-xl text-primary"><Stethoscope size={18} /></div>
-                    <div>
-                      <div className="font-bold text-sm text-base-content">Dr. {d.full_name}</div>
-                      <div className="text-xs text-base-content/60">{d.qualification}</div>
-                      <div className="text-xs text-success font-semibold mt-1">✓ Active Service Agreement</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
