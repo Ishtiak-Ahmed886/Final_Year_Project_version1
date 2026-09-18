@@ -11,8 +11,8 @@ import {
   UserPlus, Activity, Sparkles, Edit3, Trash2, Globe, PhoneCall, ExternalLink,
   Tag, CheckSquare, Square, Camera, Image, Upload, Star, Eye, X, ZoomIn,
   Lock, Server, HeartHandshake, DollarSign, FileText, Download,
-  Megaphone, BarChart2, ArrowRight, ChevronRight, RefreshCw,
-  TrendingDown, ArrowUpRight, ArrowDownRight, LineChart
+  Megaphone, BarChart2, ArrowRight, ChevronRight, ChevronLeft, RefreshCw,
+  TrendingDown, ArrowUpRight, ArrowDownRight, LineChart, Search
 } from "lucide-react";
 
 
@@ -169,6 +169,9 @@ export default function ClinicAdminDashboard() {
   const [receptionNotice, setReceptionNotice] = useState("");
   const [delayModalOpen, setDelayModalOpen] = useState(false);
   const [broadcastingDelay, setBroadcastingDelay] = useState(false);
+  const [receptionSearchQuery, setReceptionSearchQuery] = useState("");
+  const [receptionDeptFilter, setReceptionDeptFilter] = useState("ALL");
+  const [receptionStatusFilter, setReceptionStatusFilter] = useState("ALL");
 
   // Walk-in Counter Patient & Cash Check-in State
   const [walkInModalOpen, setWalkInModalOpen] = useState(false);
@@ -2104,190 +2107,467 @@ export default function ClinicAdminDashboard() {
                 <p className="text-sm text-base-content/70 mt-1">Invite and get at least one doctor accepted before managing live queues.</p>
               </div>
             </div>
-          ) : (
-            <>
-              {/* Doctor Selector + TV Link */}
-              <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1">
-                  <Tv className="text-primary shrink-0" size={22} />
-                  <div>
-                    <div className="font-extrabold text-base-content text-base">Live Reception Queue Control</div>
-                    <div className="text-xs text-base-content/60">Select a doctor to manage their today's queue session</div>
+          ) : (() => {
+            const todayDateStr = new Date().toISOString().split("T")[0];
+            const activeReceptionDoc = assignedDoctors.find((d) => String(d.id) === String(selectedDoctorId)) || assignedDoctors[0];
+
+            // Filter roster doctors based on search & department
+            const filteredRosterDoctors = assignedDoctors.filter((d) => {
+              const q = receptionSearchQuery.toLowerCase().trim();
+              const docName = (d.full_name || "").toLowerCase();
+              const deptName = (d.department_name || d.department || "").toLowerCase();
+              const room = (d.room_number || "").toLowerCase();
+              const matchesQ = !q || docName.includes(q) || deptName.includes(q) || room.includes(q);
+              const matchesDept = receptionDeptFilter === "ALL" || String(d.department) === String(receptionDeptFilter) || String(d.department_name) === String(receptionDeptFilter);
+              return matchesQ && matchesDept;
+            });
+
+            // Today's appointments specifically for the active selected doctor
+            const docTodayAppointments = appointments.filter(
+              (a) => a.appointment_date === todayDateStr && (String(a.doctor) === String(selectedDoctorId) || String(a.doctor_id) === String(selectedDoctorId))
+            );
+            const docSeenCount = docTodayAppointments.filter((a) => a.status === "COMPLETED").length;
+            const docWaitingCount = docTodayAppointments.filter((a) => a.status === "PENDING" || a.status === "CONFIRMED").length;
+
+            return (
+              <>
+                {/* 1. Header & Roster Filter Toolbar */}
+                <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-primary/10 rounded-2xl text-primary">
+                        <Tv size={24} />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-black text-base-content flex items-center gap-2">
+                          Live Reception Command Desk
+                          <span className="badge badge-primary badge-sm font-bold">{assignedDoctors.length} Doctors Active</span>
+                        </h2>
+                        <p className="text-xs text-base-content/60">
+                          Manage chamber serials and real-time patient arrivals across all doctors without switching tabs
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => {
+                          setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
+                          setWalkInModalOpen(true);
+                        }}
+                        className="btn btn-primary btn-sm gap-1.5 shadow-md font-bold flex-1 sm:flex-initial"
+                        title="Issue instant walk-in token"
+                      >
+                        <UserPlus size={15} /> + Walk-in Token
+                      </button>
+                      <button
+                        onClick={fetchReceptionChamberSession}
+                        className="btn btn-ghost btn-sm gap-1 text-xs"
+                        title="Refresh session data"
+                      >
+                        <RotateCcw size={14} /> Refresh
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search and Department Filter Toolbar */}
+                  <div className="flex flex-col sm:flex-row items-center gap-3 pt-1 border-t border-base-200">
+                    <div className="relative flex-1 w-full">
+                      <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base-content/40" />
+                      <input
+                        type="text"
+                        value={receptionSearchQuery}
+                        onChange={(e) => setReceptionSearchQuery(e.target.value)}
+                        placeholder="Search doctor by name, room # or department..."
+                        className="input input-bordered input-sm w-full pl-9 rounded-xl text-xs"
+                      />
+                    </div>
+                    <select
+                      value={receptionDeptFilter}
+                      onChange={(e) => setReceptionDeptFilter(e.target.value)}
+                      className="select select-bordered select-sm rounded-xl text-xs w-full sm:w-56 font-medium"
+                    >
+                      <option value="ALL">All Departments ({assignedDoctors.length})</option>
+                      {clinic?.departments?.map((dept) => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                  <select
-                    value={selectedDoctorId}
-                    onChange={(e) => { setSelectedDoctorId(e.target.value); setChamberSession(null); }}
-                    className="select select-bordered select-sm w-full sm:w-56"
-                  >
-                    {assignedDoctors.map((d) => (
-                      <option key={d.id} value={d.id}>Dr. {d.full_name}</option>
-                    ))}
-                  </select>
+
+                {/* 2. Scalable Doctor Carousel Strip */}
+                <div className="relative">
                   <button
                     onClick={() => {
-                      setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
-                      setWalkInModalOpen(true);
+                      document.getElementById("receptionDoctorStrip")?.scrollBy({ left: -260, behavior: "smooth" });
                     }}
-                    className="btn btn-primary btn-sm gap-2 shrink-0 shadow-md font-bold"
-                    title="Register walk-in counter patient"
+                    className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-base-100 border border-base-300 shadow-lg flex items-center justify-center text-base-content z-10 hover:bg-primary hover:text-white transition-all hidden sm:flex"
+                    title="Scroll Left"
                   >
-                    <UserPlus size={15} /> + Walk-in Token
+                    <ChevronLeft size={16} />
                   </button>
-                  {selectedDoctorId && clinic && (
-                    <a
-                      href={`/queue-display/${clinic.id}/${selectedDoctorId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-outline btn-sm gap-2 shrink-0"
-                    >
-                      <Tv size={14} /> Open TV Screen ↗
-                    </a>
-                  )}
-                  <button
-                    onClick={fetchReceptionChamberSession}
-                    className="btn btn-ghost btn-sm gap-2 shrink-0"
-                    title="Refresh session data"
+
+                  <div
+                    id="receptionDoctorStrip"
+                    className="flex gap-3 overflow-x-auto pb-2 scroll-smooth no-scrollbar px-1"
+                    style={{ scrollbarWidth: "thin" }}
                   >
-                    <RotateCcw size={14} /> Refresh
+                    {filteredRosterDoctors.length === 0 ? (
+                      <div className="p-4 text-xs text-base-content/50 italic bg-base-100 rounded-2xl border border-base-200 w-full text-center">
+                        No doctors match your search or filter.
+                      </div>
+                    ) : (
+                      filteredRosterDoctors.map((d) => {
+                        const isSelected = String(d.id) === String(selectedDoctorId);
+                        const docApts = appointments.filter(
+                          (a) => a.appointment_date === todayDateStr && (String(a.doctor) === String(d.id) || String(a.doctor_id) === String(d.id))
+                        );
+                        const docSeen = docApts.filter((a) => a.status === "COMPLETED").length;
+                        const docTotal = docApts.length;
+
+                        return (
+                          <button
+                            key={d.id}
+                            onClick={() => {
+                              setSelectedDoctorId(d.id);
+                              setChamberSession(null);
+                            }}
+                            className={`flex-shrink-0 w-64 text-left p-3.5 rounded-2xl border transition-all duration-150 relative ${
+                              isSelected
+                                ? "bg-primary/10 border-primary shadow-md ring-1 ring-primary"
+                                : "bg-base-100 border-base-200 hover:border-primary/50 hover:bg-base-200/40"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 text-white flex items-center justify-center font-bold text-xs">
+                                {(d.full_name || "D")[0].toUpperCase()}
+                              </div>
+                              <span className="badge badge-xs badge-neutral font-bold">
+                                {d.room_number ? `Room ${d.room_number}` : "Chamber"}
+                              </span>
+                            </div>
+                            <div className="font-extrabold text-xs text-base-content truncate">
+                              {d.full_name?.startsWith("Dr.") ? d.full_name : `Dr. ${d.full_name}`}
+                            </div>
+                            <div className="text-[11px] text-base-content/60 truncate mt-0.5">
+                              {d.department_name || d.qualification || "General Practice"}
+                            </div>
+                            <div className="flex items-center justify-between mt-3 pt-2 border-t border-base-200/80 text-[11px]">
+                              <span className="text-success font-bold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
+                                Active
+                              </span>
+                              <span className="font-mono font-bold text-primary">
+                                {docSeen}/{docTotal} seen
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      document.getElementById("receptionDoctorStrip")?.scrollBy({ left: 260, behavior: "smooth" });
+                    }}
+                    className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-base-100 border border-base-300 shadow-lg flex items-center justify-center text-base-content z-10 hover:bg-primary hover:text-white transition-all hidden sm:flex"
+                    title="Scroll Right"
+                  >
+                    <ChevronRight size={16} />
                   </button>
                 </div>
-              </div>
 
-              {/* Live Session Metrics */}
-              {chamberSession ? (
-                <>
-                  {/* Delay/Announcement Notice */}
-                  {(chamberSession.delay_minutes > 0 || chamberSession.announcement_note) && (
-                    <div className="p-4 bg-warning/15 border border-warning/40 rounded-2xl flex items-start gap-3">
-                      <AlertTriangle className="text-warning shrink-0 mt-0.5" size={18} />
-                      <div className="flex-1 text-sm">
-                        {chamberSession.delay_minutes > 0 && (
-                          <span className="font-bold text-warning-content">⏱ +{chamberSession.delay_minutes} min delay broadcast. </span>
-                        )}
-                        {chamberSession.announcement_note && (
-                          <span className="text-base-content/80">{chamberSession.announcement_note}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                {/* 3. Main Split-Screen Workspace (Left: Chamber Control | Right: Live Patient Queue) */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
 
-                  {/* Stat Cards */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      { label: "Now Serving", value: `#${chamberSession.current_serial}`, color: "primary", icon: <Play size={20} /> },
-                      { label: "Total Serials", value: chamberSession.total_serials, color: "secondary", icon: <Users size={20} /> },
-                      { label: "Status", value: chamberSession.status?.replace("_", " "), color: chamberSession.status === "IN_CHAMBER" ? "success" : chamberSession.status === "PRAYER_BREAK" ? "warning" : "info", icon: <Clock size={20} /> },
-                      { label: "Room", value: chamberSession.room_number || "—", color: "accent", icon: <Navigation size={20} /> },
-                    ].map((s) => (
-                      <div key={s.label} className="p-4 bg-base-100 border border-base-200 rounded-2xl shadow-sm flex items-center gap-3">
-                        <div className={`p-2 bg-${s.color}/10 rounded-xl text-${s.color}`}>{s.icon}</div>
-                        <div>
-                          <div className="text-xs text-base-content/60 font-medium">{s.label}</div>
-                          <div className="text-xl font-extrabold text-base-content">{s.value}</div>
+                  {/* LEFT COLUMN (xl:col-span-5): Chamber & Serial Control */}
+                  <div className="xl:col-span-5 space-y-4">
+                    {/* Active Doctor Info Banner */}
+                    <div className="bg-base-100 border border-base-200 p-4 rounded-2xl shadow-sm flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                          <Stethoscope size={20} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-extrabold text-sm text-base-content truncate">
+                            {activeReceptionDoc?.full_name?.startsWith("Dr.") ? activeReceptionDoc.full_name : `Dr. ${activeReceptionDoc?.full_name}`}
+                          </div>
+                          <div className="text-xs text-base-content/60 truncate">
+                            {activeReceptionDoc?.room_number ? `Room ${activeReceptionDoc.room_number}` : "Chamber Desk"} · Fee: ৳{activeReceptionDoc?.consultation_fee || "—"}
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Skipped Serials */}
-                  {chamberSession.skipped_serials?.length > 0 && (
-                    <div className="bg-base-100 border border-base-200 p-4 rounded-2xl shadow-sm">
-                      <div className="text-xs font-bold text-base-content/70 mb-2 flex items-center gap-2">
-                        <Pause size={14} className="text-warning" /> Held / Skipped Serials — Click to Recall
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {chamberSession.skipped_serials.map((sn) => (
-                          <button
-                            key={sn}
-                            onClick={() => handleReceptionChamberAction("RECALL_SERIAL", null, sn)}
-                            disabled={updatingChamber}
-                            className="badge badge-warning badge-lg font-bold cursor-pointer hover:badge-error transition-all"
-                            title={`Recall Serial #${sn} into chamber`}
-                          >
-                            #{sn} Recall
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Queue Action Buttons */}
-                  <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md space-y-4">
-                    <div className="text-sm font-extrabold text-base-content border-b border-base-200 pb-2">Queue Actions</div>
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        onClick={() => handleReceptionChamberAction("NEXT_SERIAL")}
-                        disabled={updatingChamber}
-                        className="btn btn-primary gap-2"
-                      >
-                        <FastForward size={16} /> Call Next
-                      </button>
-                      <button
-                        onClick={() => handleReceptionChamberAction("SKIP_SERIAL")}
-                        disabled={updatingChamber}
-                        className="btn btn-warning gap-2"
-                      >
-                        <Pause size={16} /> Skip &amp; Hold
-                      </button>
-                      <button
-                        onClick={() => handleReceptionChamberAction("RESET")}
-                        disabled={updatingChamber}
-                        className="btn btn-ghost btn-outline gap-2"
-                      >
-                        <RotateCcw size={16} /> Reset Queue
-                      </button>
-                    </div>
-
-                    <div className="text-sm font-extrabold text-base-content border-b border-base-200 pb-2 pt-2">Doctor Status</div>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { label: "🏥 In Chamber", status: "IN_CHAMBER", cls: "btn-success" },
-                        { label: "🕌 Namaz Break", status: "PRAYER_BREAK", cls: "btn-warning" },
-                        { label: "🚗 In Transit", status: "IN_TRANSIT", cls: "btn-info" },
-                        { label: "🚨 Emergency", status: "EMERGENCY", cls: "btn-error" },
-                        { label: "⏸ Pause", status: "PAUSED", cls: "btn-ghost btn-outline" },
-                        { label: "✅ End Session", status: "COMPLETED", cls: "btn-neutral" },
-                      ].map((b) => (
-                        <button
-                          key={b.status}
-                          onClick={() => handleReceptionChamberAction("UPDATE_STATUS", b.status)}
-                          disabled={updatingChamber || chamberSession.status === b.status}
-                          className={`btn btn-sm gap-1 ${b.cls} ${chamberSession.status === b.status ? "ring-2 ring-offset-1 ring-primary" : ""}`}
+                      {selectedDoctorId && clinic && (
+                        <a
+                          href={`/queue-display/${clinic.id}/${selectedDoctorId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-outline btn-xs gap-1 shrink-0 font-bold"
+                          title="Open TV screen for waiting room"
                         >
-                          {b.label}
-                        </button>
-                      ))}
+                          <Tv size={12} /> TV Screen ↗
+                        </a>
+                      )}
                     </div>
 
-                    <div className="pt-1">
-                      <button
-                        onClick={() => setDelayModalOpen(true)}
-                        className="btn btn-outline btn-sm gap-2"
-                      >
-                        <AlertTriangle size={14} /> Broadcast Delay / Notice
-                      </button>
-                    </div>
+                    {/* Chamber Session Controls */}
+                    {chamberSession ? (
+                      <div className="space-y-4">
+                        {/* Notice if any delay */}
+                        {(chamberSession.delay_minutes > 0 || chamberSession.announcement_note) && (
+                          <div className="p-3.5 bg-warning/15 border border-warning/40 rounded-2xl flex items-start gap-2.5">
+                            <AlertTriangle className="text-warning shrink-0 mt-0.5" size={16} />
+                            <div className="text-xs">
+                              {chamberSession.delay_minutes > 0 && (
+                                <span className="font-bold text-warning-content">⏱ +{chamberSession.delay_minutes} min delay broadcast. </span>
+                              )}
+                              {chamberSession.announcement_note && (
+                                <span className="text-base-content/80">{chamberSession.announcement_note}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Large "Now Serving" Display Box */}
+                        <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-purple-950 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden text-center">
+                          <div className="text-xs font-black tracking-widest uppercase text-indigo-300 mb-1">
+                            Currently In Chamber
+                          </div>
+                          <div className="text-5xl font-black font-mono tracking-tight my-2">
+                            #{chamberSession.current_serial || 0}
+                          </div>
+                          <div className="text-xs text-indigo-200/80 font-medium">
+                            Status: <span className="font-bold text-white uppercase">{chamberSession.status?.replace("_", " ") || "ACTIVE"}</span>
+                          </div>
+
+                          {/* Mini metrics inside counter */}
+                          <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-white/10">
+                            <div className="bg-white/10 rounded-xl p-2">
+                              <div className="text-xs text-indigo-200 font-bold">Total</div>
+                              <div className="text-lg font-black">{chamberSession.total_serials || docTodayAppointments.length}</div>
+                            </div>
+                            <div className="bg-white/10 rounded-xl p-2">
+                              <div className="text-xs text-indigo-200 font-bold">Waiting</div>
+                              <div className="text-lg font-black text-warning">{docWaitingCount}</div>
+                            </div>
+                            <div className="bg-white/10 rounded-xl p-2">
+                              <div className="text-xs text-indigo-200 font-bold">Completed</div>
+                              <div className="text-lg font-black text-success">{docSeenCount}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Skipped / Held Serials */}
+                        {chamberSession.skipped_serials?.length > 0 && (
+                          <div className="bg-base-100 border border-base-200 p-3.5 rounded-2xl shadow-sm">
+                            <div className="text-xs font-bold text-base-content/70 mb-2 flex items-center gap-1.5">
+                              <Pause size={13} className="text-warning" /> Skipped Serials (Click to Recall):
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {chamberSession.skipped_serials.map((sn) => (
+                                <button
+                                  key={sn}
+                                  onClick={() => handleReceptionChamberAction("RECALL_SERIAL", null, sn)}
+                                  disabled={updatingChamber}
+                                  className="badge badge-warning badge-sm font-bold cursor-pointer hover:badge-error"
+                                  title={`Recall Serial #${sn}`}
+                                >
+                                  #{sn} Recall
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Fast Queue Actions */}
+                        <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md space-y-4">
+                          <div className="text-xs font-black uppercase tracking-wider text-base-content/60">
+                            Queue Actions
+                          </div>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <button
+                              onClick={() => handleReceptionChamberAction("NEXT_SERIAL")}
+                              disabled={updatingChamber}
+                              className="btn btn-primary gap-2 col-span-2 shadow-md font-extrabold text-sm"
+                            >
+                              <FastForward size={16} /> Call Next Serial
+                            </button>
+                            <button
+                              onClick={() => handleReceptionChamberAction("SKIP_SERIAL")}
+                              disabled={updatingChamber}
+                              className="btn btn-warning btn-sm gap-1.5 font-bold"
+                            >
+                              <Pause size={14} /> Skip &amp; Hold
+                            </button>
+                            <button
+                              onClick={() => handleReceptionChamberAction("RESET")}
+                              disabled={updatingChamber}
+                              className="btn btn-ghost btn-outline btn-sm gap-1.5 text-xs"
+                            >
+                              <RotateCcw size={14} /> Reset
+                            </button>
+                          </div>
+
+                          {/* Doctor Status Quick Switch */}
+                          <div className="pt-2 border-t border-base-200">
+                            <div className="text-[11px] font-bold text-base-content/50 uppercase tracking-wide mb-2">
+                              Chamber State
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[
+                                { label: "🏥 In Chamber", status: "IN_CHAMBER", cls: "btn-success" },
+                                { label: "🕌 Break", status: "PRAYER_BREAK", cls: "btn-warning" },
+                                { label: "⏸ Paused", status: "PAUSED", cls: "btn-ghost btn-outline" },
+                                { label: "✅ Done", status: "COMPLETED", cls: "btn-neutral" },
+                              ].map((b) => (
+                                <button
+                                  key={b.status}
+                                  onClick={() => handleReceptionChamberAction("UPDATE_STATUS", b.status)}
+                                  disabled={updatingChamber || chamberSession.status === b.status}
+                                  className={`btn btn-xs gap-1 ${b.cls} ${chamberSession.status === b.status ? "ring-2 ring-offset-1 ring-primary" : ""}`}
+                                >
+                                  {b.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Delay Notice Button */}
+                          <div className="pt-1">
+                            <button
+                              onClick={() => setDelayModalOpen(true)}
+                              className="btn btn-outline btn-xs gap-1.5 w-full text-base-content/70"
+                            >
+                              <AlertTriangle size={13} /> Broadcast Delay / Notice
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-base-100 border border-base-200 rounded-3xl p-8 text-center space-y-3 shadow-md">
+                        <Tv size={36} className="mx-auto text-base-content/25" />
+                        <div className="text-sm font-bold text-base-content">No active queue session found for today.</div>
+                        <p className="text-xs text-base-content/50 max-w-xs mx-auto">
+                          Start today&apos;s live chamber session for this doctor to enable serial call and TV screen sync.
+                        </p>
+                        <button
+                          onClick={() => handleReceptionChamberAction("UPDATE_STATUS", "NOT_STARTED")}
+                          disabled={updatingChamber}
+                          className="btn btn-primary btn-sm gap-2 font-bold"
+                        >
+                          <Play size={14} /> Start Chamber Session
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </>
-              ) : (
-                <div className="bg-base-100 border border-base-200 rounded-3xl p-10 text-center space-y-3">
-                  <Tv size={40} className="mx-auto text-base-content/20" />
-                  <div className="text-sm text-base-content/60">No active queue session found for today.</div>
-                  <button
-                    onClick={() => handleReceptionChamberAction("UPDATE_STATUS", "NOT_STARTED")}
-                    disabled={updatingChamber}
-                    className="btn btn-primary btn-sm gap-2"
-                  >
-                    <Play size={14} /> Start Today&apos;s Session
-                  </button>
+
+                  {/* RIGHT COLUMN (xl:col-span-7): Today's Live Patient Queue */}
+                  <div className="xl:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-5 shadow-md space-y-4">
+                    <div className="flex items-center justify-between border-b border-base-200 pb-3">
+                      <div>
+                        <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
+                          <Users size={18} className="text-primary" />
+                          Today&apos;s Live Patient Queue
+                          <span className="badge badge-primary badge-sm font-bold">{docTodayAppointments.length}</span>
+                        </h3>
+                        <p className="text-xs text-base-content/55 mt-0.5">
+                          Patients scheduled for Dr. {activeReceptionDoc?.full_name || "Doctor"} today
+                        </p>
+                      </div>
+                      <div className="text-xs font-bold text-base-content/60">
+                        {docSeenCount} Completed · {docWaitingCount} Waiting
+                      </div>
+                    </div>
+
+                    {/* Patient List */}
+                    {docTodayAppointments.length === 0 ? (
+                      <div className="text-center py-12 text-xs text-base-content/50 space-y-2">
+                        <Users size={32} className="mx-auto text-base-content/20" />
+                        <div>No appointments booked for this doctor today.</div>
+                        <button
+                          onClick={() => {
+                            setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
+                            setWalkInModalOpen(true);
+                          }}
+                          className="btn btn-outline btn-xs gap-1 font-bold text-primary"
+                        >
+                          <UserPlus size={13} /> + Issue Walk-in Token
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+                        {docTodayAppointments.map((apt, index) => {
+                          const isCompleted = apt.status === "COMPLETED";
+                          const isCancelled = apt.status === "CANCELLED";
+                          const isInChamber = chamberSession && chamberSession.current_serial === (apt.serial_number || index + 1);
+
+                          return (
+                            <div
+                              key={apt.id || index}
+                              className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                                isInChamber
+                                  ? "bg-success/10 border-success/40 shadow-sm"
+                                  : isCompleted
+                                  ? "bg-base-200/30 border-base-200 opacity-65"
+                                  : "bg-base-100 border-base-200 hover:border-primary/40 hover:bg-base-200/20"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div
+                                  className={`w-9 h-9 rounded-xl font-mono font-black text-sm flex items-center justify-center shrink-0 ${
+                                    isInChamber
+                                      ? "bg-success text-white shadow-sm"
+                                      : isCompleted
+                                      ? "bg-base-300 text-base-content/60"
+                                      : "bg-primary/10 text-primary"
+                                  }`}
+                                >
+                                  #{apt.serial_number || index + 1}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-sm text-base-content truncate flex items-center gap-1.5">
+                                    {apt.patient_name || apt.user_name || "Patient"}
+                                    {isInChamber && (
+                                      <span className="badge badge-success badge-xs font-bold text-white">In Chamber</span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-base-content/60 truncate">
+                                    📞 {apt.patient_phone || apt.phone || "—"} · ⏰ {apt.appointment_time || "Morning"}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className={`badge badge-sm font-bold ${
+                                    isCompleted
+                                      ? "badge-ghost"
+                                      : isCancelled
+                                      ? "badge-error"
+                                      : isInChamber
+                                      ? "badge-success text-white"
+                                      : "badge-info"
+                                  }`}
+                                >
+                                  {isCompleted ? "Completed" : isCancelled ? "Cancelled" : isInChamber ? "Serving" : "Waiting"}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
-              )}
-            </>
-          )}
+              </>
+            );
+          })()}
         </div>
       )}
+
 
       {/* ===== BROADCAST DELAY MODAL ===== */}
       {delayModalOpen && (
