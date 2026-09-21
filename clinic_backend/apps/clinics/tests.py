@@ -207,4 +207,490 @@ class ClinicsTestCase(TestCase):
         self.assertEqual(len(pub_res.data["gallery"]), 2)
 
 
+class StaffDeactivationSecurityTestCase(TestCase):
+    def setUp(self):
+        self.clinic_owner = User.objects.create_user(
+            email="owner_sec@clinic.com",
+            password="Pass123!Owner",
+            first_name="Clinic",
+            last_name="Owner",
+            role=UserRole.CLINIC_ADMIN,
+        )
+        self.clinic = create_clinic(
+            owner=self.clinic_owner,
+            name="Security Care Clinic",
+            address="Banani, Dhaka",
+            city="Dhaka",
+            phone="01799887766",
+            email="sec@care.com",
+        )
+        self.admin_client = APIClient()
+        self.admin_client.force_authenticate(user=self.clinic_owner)
+
+    def test_receptionist_deactivation_cascades_to_user_and_revokes_access(self):
+        from apps.clinics.models import ClinicStaff, StaffRole
+
+        # 1. Create a receptionist staff record
+        staff = ClinicStaff.objects.create(
+            clinic=self.clinic,
+            name="Farhana Akter",
+            role=StaffRole.RECEPTIONIST,
+            phone="01811223344",
+            is_active=True,
+        )
+
+        # 2. Create login account for the receptionist
+        login_res = self.admin_client.post(
+            "/api/v1/clinics/staff/create-login/",
+            {
+                "staff_id": str(staff.id),
+                "email": "farhana@clinic.internal",
+                "first_name": "Farhana",
+                "last_name": "Akter",
+                "password": "ReceptionSecret123!",
+            },
+            format="json",
+        )
+        self.assertEqual(login_res.status_code, status.HTTP_201_CREATED)
+        staff.refresh_from_db()
+        self.assertIsNotNone(staff.user)
+        self.assertTrue(staff.user.is_active)
+
+        # 3. Test active receptionist can log in and obtain JWT
+        anon_client = APIClient()
+        auth_res = anon_client.post(
+            "/api/v1/accounts/login/",
+            {"email": "farhana@clinic.internal", "password": "ReceptionSecret123!"},
+            format="json",
+        )
+        self.assertEqual(auth_res.status_code, status.HTTP_200_OK)
+        access_token = auth_res.data["access"]
+
+        # 4. Test active receptionist can access reception endpoint with access token
+        reception_client = APIClient()
+        reception_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+        desk_res = reception_client.get("/api/v1/clinics/reception/my-clinic/")
+        self.assertEqual(desk_res.status_code, status.HTTP_200_OK)
+
+        # 5. Clinic Admin deactivates the staff member via DELETE endpoint
+        del_res = self.admin_client.delete(f"/api/v1/clinics/staff/{staff.id}/")
+        self.assertEqual(del_res.status_code, status.HTTP_204_NO_CONTENT)
+
+        # 6. Verify ClinicStaff is_active is False
+        staff.refresh_from_db()
+        self.assertFalse(staff.is_active)
+
+        # 7. CRITICAL SECURITY ASSERTION: Linked User must also have is_active=False
+        staff.user.refresh_from_db()
+        self.assertFalse(staff.user.is_active)
+
+        # 8. Test deactivated receptionist CANNOT log in anymore
+        re_login_res = anon_client.post(
+            "/api/v1/accounts/login/",
+            {"email": "farhana@clinic.internal", "password": "ReceptionSecret123!"},
+            format="json",
+        )
+        self.assertNotEqual(re_login_res.status_code, status.HTTP_200_OK)
+
+        # 9. Test previously issued access token is IMMEDIATELY REJECTED
+        stale_call_res = reception_client.get("/api/v1/clinics/reception/my-clinic/")
+        self.assertEqual(stale_call_res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_non_login_staff_can_be_deactivated_safely(self):
+        from apps.clinics.models import ClinicStaff, StaffRole
+
+        cleaner = ClinicStaff.objects.create(
+            clinic=self.clinic,
+            name="Rafiqul Islam",
+            role=StaffRole.CLEANER,
+            phone="01911223344",
+            is_active=True,
+            user=None,
+        )
+        del_res = self.admin_client.delete(f"/api/v1/clinics/staff/{cleaner.id}/")
+        self.assertEqual(del_res.status_code, status.HTTP_204_NO_CONTENT)
+        cleaner.refresh_from_db()
+        self.assertFalse(cleaner.is_active)
+        self.assertIsNone(cleaner.user)
+
+    def test_patch_is_active_false_also_cascades(self):
+        from apps.clinics.models import ClinicStaff, StaffRole
+
+        staff = ClinicStaff.objects.create(
+            clinic=self.clinic,
+            name="Sultana Razia",
+            role=StaffRole.RECEPTIONIST,
+            phone="01899887766",
+            is_active=True,
+        )
+        self.admin_client.post(
+            "/api/v1/clinics/staff/create-login/",
+            {
+                "staff_id": str(staff.id),
+                "email": "sultana@clinic.internal",
+                "first_name": "Sultana",
+                "last_name": "Razia",
+                "password": "ReceptionSecret123!",
+            },
+            format="json",
+        )
+        staff.refresh_from_db()
+        self.assertTrue(staff.user.is_active)
+
+        # PATCH is_active = False
+        patch_res = self.admin_client.patch(
+            f"/api/v1/clinics/staff/{staff.id}/",
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
+        staff.refresh_from_db()
+        self.assertFalse(staff.is_active)
+        staff.user.refresh_from_db()
+        self.assertFalse(staff.user.is_active)
+
+
+class ReceptionDeskIntegrationTestCase(TestCase):
+    def setUp(self):
+        from apps.doctors.models import Doctor, DoctorClinic
+        from apps.clinics.models import ClinicStaff, StaffRole
+
+        self.clinic_owner = User.objects.create_user(
+            email="desk_owner@clinic.com",
+            password="Pass123!Owner",
+            first_name="Desk",
+            last_name="Owner",
+            role=UserRole.CLINIC_ADMIN,
+        )
+        self.clinic = create_clinic(
+            owner=self.clinic_owner,
+            name="Integrated Desk Clinic",
+            address="Gulshan 2, Dhaka",
+            city="Dhaka",
+            phone="01711002233",
+            email="desk@clinic.com",
+        )
+        self.clinic.verification_status = "VERIFIED"
+        self.clinic.save()
+
+        # Doctor setup
+        self.doc_user = User.objects.create_user(
+            email="desk_doc@clinic.com",
+            password="DocPass123!",
+            first_name="Rafiq",
+            last_name="Ahmed",
+            role=UserRole.DOCTOR,
+        )
+        self.doctor = Doctor.objects.create(
+            user=self.doc_user,
+            full_name="Dr. Rafiq Ahmed",
+            qualification="MBBS, FCPS",
+            experience_years=10,
+        )
+        DoctorClinic.objects.create(
+            doctor=self.doctor,
+            clinic=self.clinic,
+            consultation_fee=1000.00,
+            is_active=True,
+            room_number="Room 101",
+        )
+
+        # Receptionist staff setup
+        self.reception_user = User.objects.create_user(
+            email="desk_reception@clinic.internal",
+            password="RecepPass123!",
+            first_name="Nasrin",
+            last_name="Akter",
+            role=UserRole.RECEPTIONIST,
+        )
+        self.staff = ClinicStaff.objects.create(
+            clinic=self.clinic,
+            name="Nasrin Akter",
+            role=StaffRole.RECEPTIONIST,
+            phone="01922334455",
+            is_active=True,
+            user=self.reception_user,
+        )
+
+        self.admin_client = APIClient()
+        self.admin_client.force_authenticate(user=self.clinic_owner)
+
+        self.reception_client = APIClient()
+        self.reception_client.force_authenticate(user=self.reception_user)
+
+    def test_walk_in_creation_by_both_admin_and_receptionist(self):
+        from apps.appointments.models import Appointment
+        from apps.payments.models import Payment, PaymentMethod, PaymentStatus
+
+        # 1. Admin issues walk-in token using authoritative endpoint
+        admin_res = self.admin_client.post(
+            "/api/v1/clinics/reception/walk-in/",
+            {
+                "doctor_id": str(self.doctor.id),
+                "patient_name": "Admin Walkin Patient",
+                "patient_phone": "01755667788",
+                "problem_description": "Fever & Chills",
+                "fee": 1000,
+            },
+            format="json",
+        )
+        self.assertEqual(admin_res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(admin_res.data["serial_number"], 1)
+        self.assertTrue(admin_res.data["is_arrived"])
+
+        apt1 = Appointment.objects.get(id=admin_res.data["appointment_id"])
+        self.assertTrue(apt1.is_arrived)
+        self.assertIsNotNone(apt1.arrived_at)
+        pay1 = Payment.objects.get(appointment=apt1)
+        self.assertEqual(pay1.payment_method, PaymentMethod.CASH)
+        self.assertEqual(pay1.payment_status, PaymentStatus.COMPLETED)
+        self.assertTrue(pay1.is_walk_in)
+        self.assertEqual(pay1.received_by, self.clinic_owner)
+
+        # 2. Receptionist issues walk-in token
+        rec_res = self.reception_client.post(
+            "/api/v1/clinics/reception/walk-in/",
+            {
+                "doctor_id": str(self.doctor.id),
+                "patient_name": "Reception Walkin Patient",
+                "patient_phone": "01799881122",
+                "problem_description": "Routine Followup",
+                "fee": 1000,
+            },
+            format="json",
+        )
+        self.assertEqual(rec_res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(rec_res.data["serial_number"], 2)
+
+        apt2 = Appointment.objects.get(id=rec_res.data["appointment_id"])
+        self.assertTrue(apt2.is_arrived)
+        pay2 = Payment.objects.get(appointment=apt2)
+        self.assertEqual(pay2.received_by, self.reception_user)
+
+    def test_appointment_check_in_sets_arrived_and_received_by(self):
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from apps.payments.models import Payment, PaymentMethod, PaymentStatus
+        from django.utils import timezone
+
+        # Create scheduled appointment
+        patient = User.objects.create_user(
+            email="scheduled@patient.com",
+            password="PatientPass123!",
+            first_name="Karim",
+            last_name="Uddin",
+            role=UserRole.PATIENT,
+        )
+        apt = Appointment.objects.create(
+            patient=patient,
+            clinic=self.clinic,
+            doctor=self.doctor,
+            appointment_date=timezone.now().date(),
+            appointment_time=timezone.now().time(),
+            serial_number=5,
+            status=AppointmentStatus.PENDING,
+            amount=1000,
+            is_arrived=False,
+        )
+
+        # Cash check-in at counter
+        res = self.admin_client.post(f"/api/v1/appointments/{apt.id}/checkin/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        apt.refresh_from_db()
+        self.assertEqual(apt.status, AppointmentStatus.CONFIRMED)
+        self.assertTrue(apt.is_arrived)
+        self.assertIsNotNone(apt.arrived_at)
+
+        pay = Payment.objects.get(appointment=apt)
+        self.assertEqual(pay.payment_method, PaymentMethod.CASH)
+        self.assertEqual(pay.payment_status, PaymentStatus.COMPLETED)
+        self.assertEqual(pay.received_by, self.clinic_owner)
+
+    def test_receptionist_chamber_session_actions(self):
+        from apps.doctors.models import ChamberSession, ChamberSessionStatus
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from datetime import time
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        today_str = str(today)
+
+        patient = User.objects.create_user(
+            email="pat_desk@clinic.internal",
+            password="Pass123!",
+            first_name="Test",
+            last_name="Patient",
+            role=UserRole.PATIENT
+        )
+
+        # Create two appointments so NEXT_SERIAL and SKIP_SERIAL have valid queue candidates
+        Appointment.objects.create(
+            patient=patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(9, 0),
+            serial_number=1, status=AppointmentStatus.CONFIRMED, amount=500
+        )
+        Appointment.objects.create(
+            patient=patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(9, 15),
+            serial_number=2, status=AppointmentStatus.CONFIRMED, amount=500
+        )
+
+        # NEXT_SERIAL
+        res = self.reception_client.post(
+            "/api/v1/doctors/chamber-session/",
+            {
+                "doctor_id": str(self.doctor.id),
+                "clinic_id": str(self.clinic.id),
+                "session_date": today_str,
+                "action": "NEXT_SERIAL",
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["current_serial"], 1)
+
+        # SKIP_SERIAL
+        res_skip = self.reception_client.post(
+            "/api/v1/doctors/chamber-session/",
+            {
+                "doctor_id": str(self.doctor.id),
+                "clinic_id": str(self.clinic.id),
+                "session_date": today_str,
+                "action": "SKIP_SERIAL",
+            },
+            format="json",
+        )
+        self.assertEqual(res_skip.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_skip.data["current_serial"], 2)
+        self.assertIn(1, res_skip.data["skipped_serials"])
+
+        # RECALL_SERIAL
+        res_recall = self.reception_client.post(
+            "/api/v1/doctors/chamber-session/",
+            {
+                "doctor_id": str(self.doctor.id),
+                "clinic_id": str(self.clinic.id),
+                "session_date": today_str,
+                "action": "RECALL_SERIAL",
+                "current_serial": 1,
+            },
+            format="json",
+        )
+        self.assertEqual(res_recall.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_recall.data["current_serial"], 1)
+        self.assertNotIn(1, res_recall.data["skipped_serials"])
+
+        # UPDATE_STATUS to PRAYER_BREAK
+        res_break = self.reception_client.post(
+            "/api/v1/doctors/chamber-session/",
+            {
+                "doctor_id": str(self.doctor.id),
+                "clinic_id": str(self.clinic.id),
+                "session_date": today_str,
+                "action": "UPDATE_STATUS",
+                "status": "PRAYER_BREAK",
+            },
+            format="json",
+        )
+        self.assertEqual(res_break.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_break.data["status"], ChamberSessionStatus.PRAYER_BREAK)
+
+    def test_targeted_validation_payment_and_arrival_invariance(self):
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from apps.payments.models import Payment, PaymentMethod, PaymentStatus
+        from django.utils import timezone
+
+        # Setup an unpaid scheduled appointment
+        patient = User.objects.create_user(
+            email="patient_invariance@test.com",
+            password="Pass123!Patient",
+            first_name="Tariq",
+            last_name="Hasan",
+            role=UserRole.PATIENT,
+        )
+        apt = Appointment.objects.create(
+            patient=patient,
+            clinic=self.clinic,
+            doctor=self.doctor,
+            appointment_date=timezone.now().date(),
+            appointment_time=timezone.now().time(),
+            serial_number=10,
+            status=AppointmentStatus.PENDING,
+            amount=1000,
+            is_arrived=False,
+        )
+
+        # Test A: Call Admin check-in (/appointments/<id>/checkin/)
+        admin_ci_res = self.admin_client.post(f"/api/v1/appointments/{apt.id}/checkin/")
+        self.assertEqual(admin_ci_res.status_code, status.HTTP_200_OK)
+        apt.refresh_from_db()
+        self.assertTrue(apt.is_arrived)
+        first_arrived_at = apt.arrived_at
+        self.assertEqual(apt.status, AppointmentStatus.CONFIRMED)
+        self.assertEqual(Payment.objects.filter(appointment=apt).count(), 1)
+        self.assertEqual(Payment.objects.get(appointment=apt).received_by, self.clinic_owner)
+
+        # Test A (cont): Call Reception check-in on the SAME appointment (/clinics/reception/check-in/)
+        rec_ci_res = self.reception_client.post(
+            "/api/v1/clinics/reception/check-in/",
+            {"appointment_id": str(apt.id)},
+            format="json",
+        )
+        self.assertEqual(rec_ci_res.status_code, status.HTTP_200_OK)
+        apt.refresh_from_db()
+        self.assertTrue(apt.is_arrived)
+        self.assertEqual(apt.status, AppointmentStatus.CONFIRMED)
+        self.assertEqual(Payment.objects.filter(appointment=apt).count(), 1)
+
+        # Test B: Call Reception cash-payment on already checked-in appointment (/clinics/reception/cash-payment/)
+        rec_pay_res = self.reception_client.post(
+            "/api/v1/clinics/reception/cash-payment/",
+            {"appointment_id": str(apt.id), "amount": 1000},
+            format="json",
+        )
+        self.assertEqual(rec_pay_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(Payment.objects.filter(appointment=apt).count(), 1)
+
+        # Test C: Call Reception cash-payment AGAIN on the same appointment
+        rec_pay_res_2 = self.reception_client.post(
+            "/api/v1/clinics/reception/cash-payment/",
+            {"appointment_id": str(apt.id), "amount": 1000},
+            format="json",
+        )
+        self.assertEqual(rec_pay_res_2.status_code, status.HTTP_200_OK)
+        self.assertEqual(Payment.objects.filter(appointment=apt).count(), 1)
+
+        # Test D: Walk-in creation then subsequent check-in/payment
+        walkin_res = self.reception_client.post(
+            "/api/v1/clinics/reception/walk-in/",
+            {
+                "doctor_id": str(self.doctor.id),
+                "patient_name": "Invariance Walk-in",
+                "patient_phone": "01788990011",
+                "problem_description": "Checkup",
+                "fee": 1000,
+            },
+            format="json",
+        )
+        self.assertEqual(walkin_res.status_code, status.HTTP_201_CREATED)
+        walkin_apt_id = walkin_res.data["appointment_id"]
+        walkin_apt = Appointment.objects.get(id=walkin_apt_id)
+        self.assertEqual(Payment.objects.filter(appointment=walkin_apt).count(), 1)
+
+        # Re-checkin walk-in via admin checkin endpoint
+        admin_recheck = self.admin_client.post(f"/api/v1/appointments/{walkin_apt.id}/checkin/")
+        self.assertEqual(admin_recheck.status_code, status.HTTP_200_OK)
+        self.assertEqual(Payment.objects.filter(appointment=walkin_apt).count(), 1)
+
+        # Re-payment walk-in via reception cash payment endpoint
+        rec_repay = self.reception_client.post(
+            "/api/v1/clinics/reception/cash-payment/",
+            {"appointment_id": str(walkin_apt.id), "amount": 1000},
+            format="json",
+        )
+        self.assertEqual(rec_repay.status_code, status.HTTP_200_OK)
+        self.assertEqual(Payment.objects.filter(appointment=walkin_apt).count(), 1)
+        self.assertEqual(walkin_apt.serial_number, walkin_res.data["serial_number"])
+
+
 

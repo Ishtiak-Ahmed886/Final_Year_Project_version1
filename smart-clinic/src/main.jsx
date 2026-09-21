@@ -50,6 +50,7 @@ ReactDOM.createRoot(root).render(
             <Route path="/" element={<App />}>
               <Route index element={<HomePage />} />
               <Route path="login" element={<Login />} />
+              <Route path="reception/login" element={<Login />} />
               <Route path="register" element={<Register />} />
               <Route path="clinics" element={<ClinicList />} />
               <Route path="clinics/:id" element={<ClinicDetail />} />

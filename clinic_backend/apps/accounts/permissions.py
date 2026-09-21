@@ -36,3 +36,25 @@ class IsFamilyMemberOwner(BasePermission):
     """
     def has_object_permission(self, request, view, obj):
         return bool(request.user and request.user.is_authenticated and obj.patient_id == request.user.id)
+
+
+class IsReceptionist(BasePermission):
+    """Allows access only to Receptionist users with active staff profile."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.role == UserRole.RECEPTIONIST and
+            hasattr(request.user, 'staff_profile') and
+            request.user.staff_profile.is_active
+        )
+
+
+class IsClinicAdminOrReceptionist(BasePermission):
+    """Allows access to ClinicAdmin or Receptionist users."""
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.role in [UserRole.CLINIC_ADMIN, UserRole.RECEPTIONIST]
+        )

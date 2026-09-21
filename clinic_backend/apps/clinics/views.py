@@ -377,7 +377,7 @@ class ClinicFinancialAnalyticsView(APIView):
         from apps.payments.models import Payment, PaymentStatus, PaymentMethod
         from apps.doctors.models import DoctorClinic
         from django.db.models import Sum, Count, Q
-        from datetime import date
+        from datetime import date, datetime, timedelta
 
         try:
             clinic = Clinic.objects.get(pk=clinic_id)
@@ -387,37 +387,73 @@ class ClinicFinancialAnalyticsView(APIView):
         if request.user.role == 'CLINIC_ADMIN' and clinic.owner != request.user:
             return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
 
+        today = date.today()
+        range_param = (request.query_params.get('range') or '').lower().strip()
         query_date_str = request.query_params.get('date')
-        if query_date_str:
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+
+        if range_param == '7d':
+            start_date = today - timedelta(days=6)
+            end_date = today
+            range_label = 'Last 7 Days'
+        elif range_param == '30d':
+            start_date = today - timedelta(days=29)
+            end_date = today
+            range_label = 'Last 30 Days'
+        elif range_param == 'custom' and start_date_str and end_date_str:
             try:
-                from datetime import datetime
-                query_date = datetime.strptime(query_date_str, '%Y-%m-%d').date()
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                range_label = f"{start_date} to {end_date}"
             except ValueError:
-                query_date = date.today()
+                start_date = today
+                end_date = today
+                range_label = 'Today'
+        elif query_date_str:
+            try:
+                single_date = datetime.strptime(query_date_str, '%Y-%m-%d').date()
+                start_date = single_date
+                end_date = single_date
+                range_label = str(single_date)
+            except ValueError:
+                start_date = today
+                end_date = today
+                range_label = 'Today'
         else:
-            query_date = date.today()
+            start_date = today
+            end_date = today
+            range_label = 'Today'
 
-        # Filter appointments for this clinic
+        # Filter appointments for this clinic within the resolved date range
         all_clinic_apts = Appointment.objects.filter(clinic=clinic)
-        today_apts = all_clinic_apts.filter(appointment_date=query_date)
-
-        # Revenue computations
-        confirmed_or_completed = today_apts.filter(
-            status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]
+        period_apts = all_clinic_apts.filter(
+            appointment_date__gte=start_date,
+            appointment_date__lte=end_date
         )
 
-        today_cash_revenue = Payment.objects.filter(
-            appointment__in=today_apts,
+        # Revenue computations
+        confirmed_or_completed = period_apts.filter(
+            status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]
+        )
+        pending_apts = period_apts.filter(status=AppointmentStatus.PENDING)
+        unpaid_pending_count = pending_apts.count()
+        unpaid_pending_amount = float(pending_apts.aggregate(total=Sum('amount'))['total'] or 0)
+
+        cash_revenue = float(Payment.objects.filter(
+            appointment__in=period_apts,
             payment_method=PaymentMethod.CASH,
             payment_status=PaymentStatus.COMPLETED
-        ).aggregate(total=Sum('amount'))['total'] or 0
+        ).aggregate(total=Sum('amount'))['total'] or 0)
 
-        today_digital_revenue = Payment.objects.filter(
-            appointment__in=today_apts,
+        digital_revenue = float(Payment.objects.filter(
+            appointment__in=period_apts,
             payment_status=PaymentStatus.COMPLETED
-        ).exclude(payment_method=PaymentMethod.CASH).aggregate(total=Sum('amount'))['total'] or 0
+        ).exclude(payment_method=PaymentMethod.CASH).aggregate(total=Sum('amount'))['total'] or 0)
 
-        today_total_revenue = float(today_cash_revenue) + float(today_digital_revenue)
+        gross_revenue = cash_revenue + digital_revenue
+        clinic_net_share = round(gross_revenue * 0.20, 2)
+        doctors_total_payout = round(gross_revenue * 0.80, 2)
 
         # Lifetime metrics
         lifetime_total_revenue = Payment.objects.filter(
@@ -431,36 +467,52 @@ class ClinicFinancialAnalyticsView(APIView):
 
         for mapping in doctor_mappings:
             doc = mapping.doctor
-            doc_today_apts = confirmed_or_completed.filter(doctor=doc)
-            count = doc_today_apts.count()
-            gross_fees = doc_today_apts.aggregate(total=Sum('amount'))['total'] or 0
-            gross_val = float(gross_fees)
+            doc_paid_apts = confirmed_or_completed.filter(doctor=doc)
+            doc_all_apts = period_apts.filter(doctor=doc)
+            count = doc_paid_apts.count()
+            gross_fees = float(doc_paid_apts.aggregate(total=Sum('amount'))['total'] or 0)
 
-            # Clinic platform deduction: 20% facility commission, 80% payable to Doctor
-            clinic_commission = round(gross_val * 0.20, 2)
-            doctor_payable = round(gross_val * 0.80, 2)
+            clinic_commission = round(gross_fees * 0.20, 2)
+            doctor_payable = round(gross_fees * 0.80, 2)
 
             doctor_settlements.append({
                 'doctor_id': str(doc.id),
                 'doctor_name': doc.full_name,
                 'specialization': doc.specializations.first().name if doc.specializations.exists() else 'Specialist',
                 'consultation_fee': float(mapping.consultation_fee),
+                'total_appointments': doc_all_apts.count(),
                 'patients_seen_today': count,
-                'gross_collected': gross_val,
+                'patients_seen': count,
+                'gross_collected': gross_fees,
                 'clinic_facility_cut': clinic_commission,
                 'doctor_net_payout': doctor_payable,
             })
 
+        # Rank doctor settlements by gross revenue generated (leaderboard)
+        doctor_settlements.sort(key=lambda x: x['gross_collected'], reverse=True)
+
         return Response({
-            'date': str(query_date),
+            'date': str(end_date),
+            'start_date': str(start_date),
+            'end_date': str(end_date),
+            'range_label': range_label,
             'summary': {
-                'today_total_appointments': today_apts.count(),
+                'today_total_appointments': period_apts.count(),
                 'today_confirmed_appointments': confirmed_or_completed.count(),
-                'today_cash_collected': float(today_cash_revenue),
-                'today_digital_collected': float(today_digital_revenue),
-                'today_gross_revenue': today_total_revenue,
-                'today_clinic_net_share': round(today_total_revenue * 0.20, 2),
-                'today_doctors_total_payout': round(today_total_revenue * 0.80, 2),
+                'today_cash_collected': cash_revenue,
+                'today_digital_collected': digital_revenue,
+                'today_gross_revenue': gross_revenue,
+                'today_clinic_net_share': clinic_net_share,
+                'today_doctors_total_payout': doctors_total_payout,
+                'period_total_appointments': period_apts.count(),
+                'period_confirmed_appointments': confirmed_or_completed.count(),
+                'period_cash_collected': cash_revenue,
+                'period_digital_collected': digital_revenue,
+                'period_gross_revenue': gross_revenue,
+                'period_clinic_net_share': clinic_net_share,
+                'period_doctors_total_payout': doctors_total_payout,
+                'unpaid_pending_count': unpaid_pending_count,
+                'unpaid_pending_amount': unpaid_pending_amount,
                 'lifetime_total_revenue': float(lifetime_total_revenue),
                 'total_services_offered': clinic.services.filter(is_available=True).count(),
             },

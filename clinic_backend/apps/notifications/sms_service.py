@@ -63,8 +63,10 @@ def send_sms_notification(
             logger.warning(f"Live SMS dispatch error: {e}")
 
     # Log clean formatted output to console/logs for testing
-    logger.info(f"[BD SMS GATEWAY] Status: {gateway_status} | To: +{normalized_phone} | {title}: {message}")
-    print(f"\n[BD SMS DISPATCH -> +{normalized_phone}] ({gateway_status})\n   Title: {title}\n   Body: {message}\n")
+    try:
+        print(f"\n[BD SMS DISPATCH -> +{normalized_phone}] ({gateway_status})\n   Title: {title}\n   Body: {message}\n")
+    except Exception:
+        pass
 
     # 2. Persist in database
     notification = Notification.objects.create(

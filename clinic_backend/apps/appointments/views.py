@@ -2,7 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema
-from .models import Appointment
+from .models import Appointment, AppointmentStatus
 from .serializers import AppointmentSerializer, AppointmentCreateSerializer
 from .services import book_appointment, cancel_appointment, complete_appointment
 
@@ -48,6 +48,8 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
             patient_obj = None
             if walk_in_phone:
                 patient_obj = User.objects.filter(phone=walk_in_phone, role=UserRole.PATIENT).first()
+                if not patient_obj and len(walk_in_phone) >= 10:
+                    patient_obj = User.objects.filter(phone__endswith=walk_in_phone[-10:], role=UserRole.PATIENT).first()
             
             if not patient_obj:
                 import uuid
@@ -103,9 +105,13 @@ class AppointmentCheckInView(generics.GenericAPIView):
 
         from .models import AppointmentStatus
         from apps.payments.models import Payment, PaymentMethod, PaymentStatus
+        from django.utils import timezone
 
         appointment.status = AppointmentStatus.CONFIRMED
-        appointment.save(update_fields=['status', 'updated_at'])
+        appointment.is_arrived = True
+        if not appointment.arrived_at:
+            appointment.arrived_at = timezone.now()
+        appointment.save(update_fields=['status', 'is_arrived', 'arrived_at', 'updated_at'])
 
         # Record or update payment record
         Payment.objects.update_or_create(
@@ -115,6 +121,7 @@ class AppointmentCheckInView(generics.GenericAPIView):
                 'currency': 'BDT',
                 'payment_method': PaymentMethod.CASH,
                 'payment_status': PaymentStatus.COMPLETED,
+                'received_by': request.user,
                 'transaction_id': f"CASH_CHECKIN_{appointment.id.hex[:8]}"
             }
         )
@@ -212,6 +219,66 @@ class AppointmentCompleteView(generics.GenericAPIView):
 
 
 @extend_schema(tags=['Appointments'])
+class AppointmentEmergencyFlagView(APIView):
+    """
+    Flag or unflag an appointment as emergency priority.
+    POST /api/v1/appointments/<pk>/emergency/
+    Body: { is_emergency: bool, emergency_reason: str }
+    Allowed for Doctor (assigned), Clinic Admin (clinic owner), Receptionist (clinic staff).
+    Patients cannot self-flag.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        user = request.user
+        if user.role == 'PATIENT':
+            return Response({'detail': 'Patients cannot flag emergency priority.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            appointment = Appointment.objects.select_related('clinic', 'doctor', 'patient', 'family_member').get(pk=pk)
+        except Appointment.DoesNotExist:
+            return Response({'detail': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.role == 'DOCTOR':
+            assigned = appointment.doctor
+            is_match = (hasattr(user, 'doctor_profile') and user.doctor_profile == assigned) or (assigned.email and assigned.email == user.email)
+            if not is_match:
+                return Response({'detail': 'You are not the assigned doctor for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'CLINIC_ADMIN':
+            if appointment.clinic.owner != user:
+                return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if not staff or staff.clinic_id != appointment.clinic_id:
+                return Response({'detail': 'You do not belong to this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role != 'ADMIN':
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        is_emergency = request.data.get('is_emergency', True)
+        if isinstance(is_emergency, str):
+            is_emergency = is_emergency.lower() in ['true', '1', 'yes']
+        else:
+            is_emergency = bool(is_emergency)
+        emergency_reason = str(request.data.get('emergency_reason', '') or '').strip()
+
+        if is_emergency:
+            if appointment.status in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+                return Response({'detail': 'Completed or cancelled appointments cannot be flagged as emergency.'}, status=status.HTTP_400_BAD_REQUEST)
+            appointment.is_emergency = True
+            if emergency_reason:
+                appointment.emergency_reason = emergency_reason
+            appointment.save(update_fields=['is_emergency', 'emergency_reason', 'updated_at'])
+        else:
+            from apps.doctors.models import ChamberSession
+            if ChamberSession.objects.filter(active_emergency=appointment).exists():
+                return Response({'detail': 'Cannot unflag an emergency appointment while it is actively in chamber.'}, status=status.HTTP_400_BAD_REQUEST)
+            appointment.is_emergency = False
+            appointment.save(update_fields=['is_emergency', 'updated_at'])
+
+        return Response(AppointmentSerializer(appointment).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Appointments'])
 class PublicLiveQueueTrackView(APIView):
     """
     Public Live Patient Queue Tracking endpoint.
@@ -248,14 +315,108 @@ class PublicLiveQueueTrackView(APIView):
 
         patient_serial = appointment.serial_number or 1
 
-        # Calculate queue position metrics
-        if patient_serial <= current_serving_serial:
+        has_active_emergency = bool(session and session.active_emergency_id)
+        is_active_emergency = bool(session and session.active_emergency_id == appointment.id)
+        is_held = bool(session and session.held_patient_id == appointment.id)
+
+        # Queue position calculation
+        if appointment.is_emergency:
+            if is_active_emergency:
+                patients_ahead = 0
+                is_turn_now = True
+                is_passed = False
+                estimated_wait_mins = 0
+            elif appointment.status == AppointmentStatus.COMPLETED:
+                patients_ahead = 0
+                is_turn_now = False
+                is_passed = False
+                estimated_wait_mins = 0
+            elif appointment.status == AppointmentStatus.CANCELLED:
+                patients_ahead = 0
+                is_turn_now = False
+                is_passed = False
+                estimated_wait_mins = 0
+            else:
+                # Waiting emergency
+                is_turn_now = False
+                is_passed = False
+                prior_emergencies = Appointment.objects.filter(
+                    doctor=appointment.doctor,
+                    clinic=appointment.clinic,
+                    appointment_date=appointment.appointment_date,
+                    is_emergency=True,
+                    status=AppointmentStatus.CONFIRMED,
+                    created_at__lt=appointment.created_at
+                ).count()
+                patients_ahead = prior_emergencies + (1 if has_active_emergency else 0)
+                estimated_wait_mins = patients_ahead * 10
+
+        elif is_held:
             patients_ahead = 0
-            is_turn_now = (patient_serial == current_serving_serial)
-            is_passed = (patient_serial < current_serving_serial)
+            is_turn_now = False
+            is_passed = False
+            estimated_wait_mins = 5
+
+        elif appointment.status == AppointmentStatus.COMPLETED:
+            patients_ahead = 0
+            is_turn_now = False
+            is_passed = True
             estimated_wait_mins = 0
+
+        elif appointment.status == AppointmentStatus.CANCELLED:
+            patients_ahead = 0
+            is_turn_now = False
+            is_passed = False
+            estimated_wait_mins = 0
+
+        elif patient_serial == current_serving_serial:
+            if has_active_emergency:
+                patients_ahead = 0
+                is_turn_now = False
+                is_passed = False
+                estimated_wait_mins = 10
+            else:
+                patients_ahead = 0
+                is_turn_now = True
+                is_passed = False
+                estimated_wait_mins = 0
+
+        elif patient_serial < current_serving_serial:
+            patients_ahead = 0
+            is_turn_now = False
+            is_passed = True
+            estimated_wait_mins = 0
+
         else:
-            patients_ahead = patient_serial - current_serving_serial
+            # patient_serial > current_serving_serial
+            normal_ahead_count = Appointment.objects.filter(
+                doctor=appointment.doctor,
+                clinic=appointment.clinic,
+                appointment_date=appointment.appointment_date,
+                serial_number__gt=current_serving_serial,
+                serial_number__lt=patient_serial,
+                is_emergency=False,
+                status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING]
+            ).count()
+
+            active_normal_count = 1 if (session and session.current_serial > 0 and Appointment.objects.filter(
+                doctor=appointment.doctor,
+                clinic=appointment.clinic,
+                appointment_date=appointment.appointment_date,
+                serial_number=session.current_serial,
+                is_emergency=False,
+                status=AppointmentStatus.CONFIRMED
+            ).exists()) else 0
+
+            emergencies_ahead = Appointment.objects.filter(
+                doctor=appointment.doctor,
+                clinic=appointment.clinic,
+                appointment_date=appointment.appointment_date,
+                is_emergency=True,
+                status=AppointmentStatus.CONFIRMED
+            ).count()
+
+            patients_ahead = normal_ahead_count + active_normal_count + emergencies_ahead
             is_turn_now = False
             is_passed = False
             estimated_wait_mins = (patients_ahead * est_mins_per_patient) + delay_minutes
@@ -277,6 +438,8 @@ class PublicLiveQueueTrackView(APIView):
                 'status': appointment.status,
                 'amount': str(appointment.amount),
                 'problem_description': appointment.problem_description,
+                'is_emergency': appointment.is_emergency,
+                'emergency_reason': appointment.emergency_reason,
                 'clinic': {
                     'id': str(appointment.clinic.id),
                     'name': appointment.clinic.name,
@@ -305,6 +468,11 @@ class PublicLiveQueueTrackView(APIView):
                 'estimated_wait_mins': estimated_wait_mins,
                 'is_turn_now': is_turn_now,
                 'is_passed': is_passed,
+                'is_held': is_held,
+                'has_active_emergency': has_active_emergency,
+                'is_active_emergency': is_active_emergency,
+                'active_emergency_serial': session.active_emergency.serial_number if (session and session.active_emergency) else None,
+                'held_patient_serial': session.held_patient.serial_number if (session and session.held_patient) else None,
                 'skipped_serials': session.skipped_serials if session else [],
             }
         }, status=status.HTTP_200_OK)
@@ -331,7 +499,14 @@ class PublicWaitingRoomQueueView(APIView):
             )
 
         from datetime import date as dt_date
+        from apps.doctors.models import ChamberSession
         session_date = date_str or str(dt_date.today())
+
+        session = ChamberSession.objects.filter(
+            doctor_id=doctor_id,
+            clinic_id=clinic_id,
+            session_date=session_date
+        ).first()
 
         appointments = Appointment.objects.filter(
             doctor_id=doctor_id,
@@ -361,9 +536,11 @@ class PublicWaitingRoomQueueView(APIView):
                 'serial_number': apt.serial_number,
                 'patient_name': masked_name,
                 'status': apt.status,
+                'is_emergency': apt.is_emergency,
                 'appointment_time': str(apt.appointment_time)[:5],
             })
 
         return Response(results, status=status.HTTP_200_OK)
+
 
 

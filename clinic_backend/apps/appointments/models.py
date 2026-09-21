@@ -45,6 +45,10 @@ class Appointment(BaseModel):
     )
     problem_description = models.TextField(blank=True, default='')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    is_arrived = models.BooleanField(default=False, db_index=True)
+    arrived_at = models.DateTimeField(null=True, blank=True)
+    is_emergency = models.BooleanField(default=False, db_index=True)
+    emergency_reason = models.CharField(max_length=255, blank=True, default='')
 
     class Meta:
         ordering = ['-appointment_date', '-appointment_time']

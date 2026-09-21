@@ -176,6 +176,20 @@ class ChamberSession(BaseModel):
     announcement_note = models.CharField(max_length=255, blank=True, default='', help_text="e.g. Stuck in Mohakhali traffic, arriving at 6:30 PM")
     room_number = models.CharField(max_length=50, blank=True, default='', help_text="e.g. Room 304, 3rd Floor")
     skipped_serials = models.JSONField(default=list, blank=True, help_text="List of skipped/held patient serial numbers")
+    active_emergency = models.ForeignKey(
+        'appointments.Appointment',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='active_emergency_sessions'
+    )
+    held_patient = models.ForeignKey(
+        'appointments.Appointment',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='held_patient_sessions'
+    )
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
 

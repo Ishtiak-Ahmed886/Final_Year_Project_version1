@@ -1,107 +1,34 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import apiClient from "../../api/axios";
 import { useAuth } from "../../Provider/AuthProvider";
 import { useLanguage } from "../../context/LanguageContext";
 import ClinicAdminOnboarding from "./ClinicAdminOnboarding";
 import {
-  Building2, Stethoscope, Layers, Plus, CheckCircle2, AlertCircle,
-  Award, ShieldCheck, Info, Link as LinkIcon, Users, Calendar,
-  MapPin, Clock, TrendingUp, XCircle, Send, Check, Tv, FastForward,
-  Play, Pause, Navigation, AlertTriangle, RotateCcw, Printer, CreditCard,
-  UserPlus, Activity, Sparkles, Edit3, Trash2, Globe, PhoneCall, ExternalLink,
-  Tag, CheckSquare, Square, Camera, Image, Upload, Star, Eye, X, ZoomIn,
-  Lock, Server, HeartHandshake, DollarSign, FileText, Download,
-  Megaphone, BarChart2, ArrowRight, ChevronRight, ChevronLeft, RefreshCw,
-  TrendingDown, ArrowUpRight, ArrowDownRight, LineChart, Search
+  Building2,
+  Stethoscope,
+  Users,
+  Calendar,
+  TrendingUp,
+  Tv,
+  CheckCircle2,
+  AlertCircle,
+  ShieldCheck,
+  MapPin,
+  ExternalLink,
+  DollarSign,
 } from "lucide-react";
 
+import OverviewTab from "./clinic-admin/tabs/OverviewTab";
+import ChamberReceptionTab from "./clinic-admin/tabs/ChamberReceptionTab";
+import ClinicBrandingTab from "./clinic-admin/tabs/ClinicBrandingTab";
+import DoctorsTab from "./clinic-admin/tabs/DoctorsTab";
+import AppointmentsTab from "./clinic-admin/tabs/AppointmentsTab";
+import StaffTab from "./clinic-admin/tabs/StaffTab";
+import FinanceTab from "./clinic-admin/tabs/FinanceTab";
 
-const GALLERY_CATEGORIES = [
-  "Reception & Front Desk",
-  "Patient Waiting Lounge",
-  "Doctor Consultation Chamber",
-  "Diagnostic & Pathology Lab",
-  "Radiology & Ultrasound Suite",
-  "Emergency & Minor OT",
-  "In-house Pharmacy",
-  "Exterior & Entrance",
-  "Other Facilities"
-];
-
-const SAMPLE_CLINIC_PHOTOS = [
-  {
-    id: "sample-1",
-    image_url: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80",
-    category: "Reception & Front Desk",
-    title: "Executive Reception & Fast-Track Token Desk",
-    description: "Centrally air-conditioned welcoming reception desk with automated digital token ticketing and multi-lingual help staff.",
-    is_featured: true,
-  },
-  {
-    id: "sample-2",
-    image_url: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1200&q=80",
-    category: "Doctor Consultation Chamber",
-    title: "Specialist Consultation Chamber",
-    description: "Hygienic, private chamber equipped with digital diagnostic tools, examination bed, and confidential patient records display.",
-    is_featured: false,
-  },
-  {
-    id: "sample-3",
-    image_url: "https://images.unsplash.com/photo-1581594693702-fbdc51b2763b?auto=format&fit=crop&w=1200&q=80",
-    category: "Diagnostic & Pathology Lab",
-    title: "Automated Clinical Pathology Lab",
-    description: "Fully automated biochemistry and hematology analyzers delivering fast, accurate, and DGDA-standard test reports.",
-    is_featured: false,
-  },
-  {
-    id: "sample-4",
-    image_url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1200&q=80",
-    category: "Patient Waiting Lounge",
-    title: "Spacious Patient & Family Lounge",
-    description: "Sanitized waiting area for 50+ guests with live queue TV monitors, water dispenser, and high-speed patient Wi-Fi.",
-    is_featured: false,
-  },
-  {
-    id: "sample-5",
-    image_url: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=1200&q=80",
-    category: "Emergency & Minor OT",
-    title: "Emergency Observation & Minor OT",
-    description: "Rapid response emergency bay with oxygen supply, defibrillator, cardiac monitor, and sterile minor procedure OT.",
-    is_featured: false,
-  },
-  {
-    id: "sample-6",
-    image_url: "https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=1200&q=80",
-    category: "In-house Pharmacy",
-    title: "24/7 In-house Pharmacy Counter",
-    description: "Dispensing genuine registered pharmaceuticals, temperature-monitored vaccines, and surgical supplies around the clock.",
-    is_featured: false,
-  }
-];
-
-const SERVICE_PRESETS = [
-  { name: "ECG (Electrocardiogram)", fee: "500", duration_minutes: 15, preparation_instructions: "Standard resting ECG; wear easily removable upper clothing", description: "Heart rhythm and electrical activity recording" },
-  { name: "Digital X-Ray (Chest P/A)", fee: "800", duration_minutes: 15, preparation_instructions: "Remove metal objects, necklace, or jewelry before scan", description: "High-resolution digital radiography of lungs and thoracic cavity" },
-  { name: "Ultrasound (USG) Whole Abdomen", fee: "1500", duration_minutes: 30, preparation_instructions: "6-8 hours overnight fasting required; drink water for full bladder", description: "Ultrasonic visualization of liver, gallbladder, kidneys, pancreas, and spleen" },
-  { name: "Complete Blood Count (CBC)", fee: "450", duration_minutes: 10, preparation_instructions: "No special preparation needed", description: "Automated hematology test checking hemoglobin, platelets, and WBC differential" },
-  { name: "Fasting Blood Sugar (FBS)", fee: "150", duration_minutes: 5, preparation_instructions: "Strict 8-10 hours fasting before blood sample collection", description: "Quantitative plasma glucose test for diabetic screening" },
-  { name: "Lipid Profile Test", fee: "1100", duration_minutes: 10, preparation_instructions: "10-12 hours overnight fasting mandatory", description: "Cholesterol, Triglycerides, HDL, LDL, and VLDL panel" },
-  { name: "Dental Scaling & Polishing", fee: "1200", duration_minutes: 40, preparation_instructions: "Brush teeth and rinse before appointment", description: "Professional ultrasonic calculus removal and enamel stain polishing" },
-  { name: "Nebulization & Oxygen Therapy", fee: "350", duration_minutes: 20, preparation_instructions: "Breathe slowly and deeply through inhalation mask", description: "Aerosolized bronchodilator treatment for asthma and chest congestion" },
-];
-
-const POPULAR_AMENITIES = [
-  { id: "24/7 Emergency & Ambulance", label: "24/7 Emergency & Ambulance", icon: "🚑" },
-  { id: "Wheelchair Accessible", label: "Wheelchair Accessible", icon: "♿" },
-  { id: "In-house 24/7 Pharmacy", label: "In-house 24/7 Pharmacy", icon: "💊" },
-  { id: "Diagnostic Lab on-site", label: "Diagnostic Lab on-site", icon: "🔬" },
-  { id: "ICU & Observation Beds", label: "ICU & Observation Beds", icon: "🛏️" },
-  { id: "Dedicated Parking", label: "Dedicated Parking", icon: "🅿️" },
-  { id: "Cafeteria & Patient Lounge", label: "Cafeteria & Lounge", icon: "☕" },
-  { id: "Free High-speed WiFi", label: "Free High-speed WiFi", icon: "📶" },
-  { id: "Card & bKash Payment", label: "Card & bKash Payment", icon: "💳" },
-  { id: "Blood Bank / Donor Network", label: "Blood Bank Support", icon: "🩸" },
-];
+import DoctorSlideoverCard from "./clinic-admin/components/DoctorSlideoverCard";
+import TokenPrintModal from "./clinic-admin/components/TokenPrintModal";
+import { SAMPLE_CLINIC_PHOTOS, SERVICE_PRESETS } from "./clinic-admin/constants";
 
 export default function ClinicAdminDashboard() {
   const { user } = useAuth();
@@ -171,7 +98,6 @@ export default function ClinicAdminDashboard() {
   const [broadcastingDelay, setBroadcastingDelay] = useState(false);
   const [receptionSearchQuery, setReceptionSearchQuery] = useState("");
   const [receptionDeptFilter, setReceptionDeptFilter] = useState("ALL");
-  const [receptionStatusFilter, setReceptionStatusFilter] = useState("ALL");
 
   // Walk-in Counter Patient & Cash Check-in State
   const [walkInModalOpen, setWalkInModalOpen] = useState(false);
@@ -184,12 +110,23 @@ export default function ClinicAdminDashboard() {
     doctor_id: "",
     appointment_time: "",
     problem_description: "",
+    is_emergency: false,
+    emergency_reason: "",
   });
 
   // Financial Accounts & Settlement State
   const [financialAnalytics, setFinancialAnalytics] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
-  const [analyticsDate, setAnalyticsDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [analyticsRange, setAnalyticsRange] = useState("today");
+  const [analyticsDate, setAnalyticsDate] = useState(() =>
+    new Date().toISOString().split("T")[0]
+  );
+  const [analyticsCustomStart, setAnalyticsCustomStart] = useState(() =>
+    new Date().toISOString().split("T")[0]
+  );
+  const [analyticsCustomEnd, setAnalyticsCustomEnd] = useState(() =>
+    new Date().toISOString().split("T")[0]
+  );
 
   // Overview Stats State
   const [overviewStats, setOverviewStats] = useState(null);
@@ -199,8 +136,8 @@ export default function ClinicAdminDashboard() {
   const [hoveredTrendIdx, setHoveredTrendIdx] = useState(null);
 
   // Doctor Clinic Card Slide Panel State
-  const [selectedDoctorCard, setSelectedDoctorCard] = useState(null); // doctor object
-  const [doctorCardSession, setDoctorCardSession] = useState(null);   // chamber session for selected doctor
+  const [selectedDoctorCard, setSelectedDoctorCard] = useState(null);
+  const [doctorCardSession, setDoctorCardSession] = useState(null);
   const [loadingDoctorCard, setLoadingDoctorCard] = useState(false);
 
   // Announcements State
@@ -220,29 +157,61 @@ export default function ClinicAdminDashboard() {
     ends_at: "",
   });
 
+  // Staff & Reception Management State
+  const [staffList, setStaffList] = useState([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [submittingStaff, setSubmittingStaff] = useState(false);
+  const [staffMonthlySummary, setStaffMonthlySummary] = useState(null);
+  const [selectedStaffMonth, setSelectedStaffMonth] = useState(() =>
+    new Date().toISOString().slice(0, 7)
+  );
+  const [staffForm, setStaffForm] = useState({
+    name: "",
+    phone: "",
+    role: "RECEPTIONIST",
+    monthly_salary: "",
+    notes: "",
+  });
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [selectedStaffForLogin, setSelectedStaffForLogin] = useState(null);
+  const [submittingLogin, setSubmittingLogin] = useState(false);
+  const [loginForm, setLoginForm] = useState({
+    email: "",
+    first_name: "",
+    last_name: "",
+    password: "",
+  });
+  const [dailyCashSummary, setDailyCashSummary] = useState(null);
+  const [staffAttendanceList, setStaffAttendanceList] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [appointmentFilter, setAppointmentFilter] = useState("ALL");
 
-  // Forms
-  const [newClinic, setNewClinic] = useState({
-    name: "", address: "", city: "", phone: "", email: "",
-    subscription_plan: "FREE", latitude: "", longitude: "", certificate_url: "",
-  });
-
   const [inviteForm, setInviteForm] = useState({
-    doctor_id: "", department_id: "", consultation_fee: "", room_number: "",
+    doctor_id: "",
+    department_id: "",
+    consultation_fee: "",
+    room_number: "",
   });
 
   const [clinicDeptForm, setClinicDeptForm] = useState({ department_id: "" });
   const [newSpec, setNewSpec] = useState({ name: "", description: "" });
 
+  const showMsg = (m) => {
+    setMsg(m);
+    setTimeout(() => setMsg(""), 4000);
+  };
+  const showErr = (e) => {
+    setError(e);
+    setTimeout(() => setError(""), 5000);
+  };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // First check owned clinic via dedicated endpoint
       let owned = null;
       try {
         const myRes = await apiClient.get("/clinics/my-clinic/");
@@ -254,7 +223,10 @@ export default function ClinicAdminDashboard() {
       if (!owned) {
         const cRes = await apiClient.get("/clinics/").catch(() => []);
         const cList = cRes.results || cRes || [];
-        owned = cList.find((c) => c.owner_email === user?.email || c.owner === user?.id) || null;
+        owned =
+          cList.find(
+            (c) => c.owner_email === user?.email || c.owner === user?.id
+          ) || null;
       }
 
       setClinic(owned);
@@ -277,16 +249,16 @@ export default function ClinicAdminDashboard() {
         setGallery([]);
       }
 
-      // Only load full management datasets if clinic is verified
       if (owned && owned.verification_status === "VERIFIED") {
-        const [dRes, deptRes, specRes, aptRes, reqRes, servRes] = await Promise.all([
-          apiClient.get("/doctors/"),
-          apiClient.get("/clinics/departments/"),
-          apiClient.get("/doctors/specializations/"),
-          apiClient.get("/appointments/"),
-          apiClient.get("/doctors/requests/").catch(() => []),
-          apiClient.get(`/clinics/${owned.id}/services/`).catch(() => []),
-        ]);
+        const [dRes, deptRes, specRes, aptRes, reqRes, servRes] =
+          await Promise.all([
+            apiClient.get("/doctors/"),
+            apiClient.get("/clinics/departments/"),
+            apiClient.get("/doctors/specializations/"),
+            apiClient.get("/appointments/"),
+            apiClient.get("/doctors/requests/").catch(() => []),
+            apiClient.get(`/clinics/${owned.id}/services/`).catch(() => []),
+          ]);
 
         const dList = dRes.results || dRes || [];
         const deptList = deptRes.results || deptRes || [];
@@ -301,19 +273,23 @@ export default function ClinicAdminDashboard() {
         setRequests(reqList);
         setServices(servList);
 
-        // Active doctors with ACCEPTED mapping
         const acceptedDoctorIds = reqList
           .filter((r) => r.clinic?.id === owned.id && r.status === "ACCEPTED")
           .map((r) => r.doctor?.id || r.doctor);
 
-        const myDoctors = dList.filter((d) =>
-          acceptedDoctorIds.includes(d.id) ||
-          d.doctor_clinics?.some((dc) => (dc.clinic?.id === owned.id || dc.clinic_id === owned.id) && dc.status === "ACCEPTED")
+        const myDoctors = dList.filter(
+          (d) =>
+            acceptedDoctorIds.includes(d.id) ||
+            d.doctor_clinics?.some(
+              (dc) =>
+                (dc.clinic?.id === owned.id || dc.clinic_id === owned.id) &&
+                dc.status === "ACCEPTED"
+            )
         );
         setAssignedDoctors(myDoctors);
         setAppointments(aptList);
         if (myDoctors.length > 0) {
-          setSelectedDoctorId(myDoctors[0].id);
+          setSelectedDoctorId((prev) => prev || myDoctors[0].id);
         }
       } else {
         setAssignedDoctors([]);
@@ -325,21 +301,26 @@ export default function ClinicAdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const handleSaveClinicProfile = async (e) => {
     e.preventDefault();
     if (!clinic) return;
     setSubmittingClinicEdit(true);
     try {
-      const res = await apiClient.patch(`/clinics/${clinic.id}/`, clinicEditForm);
+      const res = await apiClient.patch(
+        `/clinics/${clinic.id}/`,
+        clinicEditForm
+      );
       setClinic(res);
       setEditClinicModalOpen(false);
-      setMsg("Clinic profile and branding updated successfully!");
-      setTimeout(() => setMsg(""), 4000);
+      showMsg("Clinic profile and branding updated successfully!");
     } catch (err) {
-      setError(typeof err === "object" ? Object.values(err).flat().join(" ") : "Failed to update clinic profile.");
-      setTimeout(() => setError(""), 4000);
+      showErr(
+        typeof err === "object"
+          ? Object.values(err).flat().join(" ")
+          : "Failed to update clinic profile."
+      );
     } finally {
       setSubmittingClinicEdit(false);
     }
@@ -347,7 +328,9 @@ export default function ClinicAdminDashboard() {
 
   const handleToggleAmenity = async (amenityId) => {
     if (!clinic) return;
-    const currentFacilities = Array.isArray(clinic.facilities) ? [...clinic.facilities] : [];
+    const currentFacilities = Array.isArray(clinic.facilities)
+      ? [...clinic.facilities]
+      : [];
     let updated;
     if (currentFacilities.includes(amenityId)) {
       updated = currentFacilities.filter((f) => f !== amenityId);
@@ -355,27 +338,29 @@ export default function ClinicAdminDashboard() {
       updated = [...currentFacilities, amenityId];
     }
     try {
-      const res = await apiClient.patch(`/clinics/${clinic.id}/`, { facilities: updated });
+      const res = await apiClient.patch(`/clinics/${clinic.id}/`, {
+        facilities: updated,
+      });
       setClinic(res);
-      setMsg(`Facility updated successfully!`);
-      setTimeout(() => setMsg(""), 3000);
+      showMsg("Facility updated successfully!");
     } catch {
-      setError("Failed to update clinic facilities.");
-      setTimeout(() => setError(""), 3000);
+      showErr("Failed to update clinic facilities.");
     }
   };
 
-  // Gallery Photo Handlers
   const handleImageFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      setError("Image size exceeds 10MB limit.");
+      showErr("Image size exceeds 10MB limit.");
       return;
     }
     const reader = new FileReader();
     reader.onload = (uploadEvent) => {
-      setPhotoForm((prev) => ({ ...prev, image_url: uploadEvent.target.result }));
+      setPhotoForm((prev) => ({
+        ...prev,
+        image_url: uploadEvent.target.result,
+      }));
     };
     reader.readAsDataURL(file);
   };
@@ -410,11 +395,11 @@ export default function ClinicAdminDashboard() {
     e.preventDefault();
     if (!clinic) return;
     if (!photoForm.image_url) {
-      setError("Please choose or upload an image.");
+      showErr("Please choose or upload an image.");
       return;
     }
     if (!photoForm.title?.trim()) {
-      setError("Please provide a photo title.");
+      showErr("Please provide a photo title.");
       return;
     }
 
@@ -433,7 +418,9 @@ export default function ClinicAdminDashboard() {
               is_featured: photoForm.is_featured,
             };
           }
-          return photoForm.is_featured ? { ...item, is_featured: false } : item;
+          return photoForm.is_featured
+            ? { ...item, is_featured: false }
+            : item;
         });
       } else {
         const newPhotoItem = {
@@ -450,15 +437,23 @@ export default function ClinicAdminDashboard() {
         updatedGallery = [newPhotoItem, ...currentList];
       }
 
-      const res = await apiClient.patch(`/clinics/${clinic.id}/`, { gallery: updatedGallery });
+      const res = await apiClient.patch(`/clinics/${clinic.id}/`, {
+        gallery: updatedGallery,
+      });
       setClinic(res);
       setGallery(res.gallery || updatedGallery);
       setPhotoModalOpen(false);
-      setMsg(editingPhotoId ? "Clinic photo updated successfully!" : "New clinic photo added to gallery!");
-      setTimeout(() => setMsg(""), 3500);
+      showMsg(
+        editingPhotoId
+          ? "Clinic photo updated successfully!"
+          : "New clinic photo added to gallery!"
+      );
     } catch (err) {
-      setError(typeof err === "object" ? Object.values(err).flat().join(" ") : "Failed to save photo.");
-      setTimeout(() => setError(""), 3500);
+      showErr(
+        typeof err === "object"
+          ? Object.values(err).flat().join(" ")
+          : "Failed to save photo."
+      );
     } finally {
       setSubmittingPhoto(false);
     }
@@ -466,19 +461,20 @@ export default function ClinicAdminDashboard() {
 
   const handleDeletePhoto = async (photoId) => {
     if (!clinic) return;
-    const confirmDelete = window.confirm("Are you sure you want to remove this photo from your gallery?");
-    if (!confirmDelete) return;
-
+    if (
+      !window.confirm("Are you sure you want to remove this photo from gallery?")
+    )
+      return;
     try {
       const updatedGallery = gallery.filter((p) => p.id !== photoId);
-      const res = await apiClient.patch(`/clinics/${clinic.id}/`, { gallery: updatedGallery });
+      const res = await apiClient.patch(`/clinics/${clinic.id}/`, {
+        gallery: updatedGallery,
+      });
       setClinic(res);
       setGallery(res.gallery || updatedGallery);
-      setMsg("Photo removed from gallery.");
-      setTimeout(() => setMsg(""), 3000);
+      showMsg("Photo removed from gallery.");
     } catch {
-      setError("Failed to delete photo.");
-      setTimeout(() => setError(""), 3000);
+      showErr("Failed to delete photo.");
     }
   };
 
@@ -491,31 +487,34 @@ export default function ClinicAdminDashboard() {
         }
         return { ...item, is_featured: false };
       });
-      const res = await apiClient.patch(`/clinics/${clinic.id}/`, { gallery: updatedGallery });
+      const res = await apiClient.patch(`/clinics/${clinic.id}/`, {
+        gallery: updatedGallery,
+      });
       setClinic(res);
       setGallery(res.gallery || updatedGallery);
-      setMsg("Cover photo updated!");
-      setTimeout(() => setMsg(""), 2500);
+      showMsg("Cover photo updated!");
     } catch {
-      setError("Failed to update cover photo.");
-      setTimeout(() => setError(""), 2500);
+      showErr("Failed to update cover photo.");
     }
   };
 
   const handleLoadSampleGallery = async () => {
     if (!clinic) return;
-    const confirmLoad = window.confirm("Load sample high-resolution clinic photos (Reception, Lab, Chambers, Lounge)? You can customize or delete them anytime.");
-    if (!confirmLoad) return;
-
+    if (
+      !window.confirm(
+        "Load sample high-resolution clinic photos? You can customize or delete them anytime."
+      )
+    )
+      return;
     try {
-      const res = await apiClient.patch(`/clinics/${clinic.id}/`, { gallery: SAMPLE_CLINIC_PHOTOS });
+      const res = await apiClient.patch(`/clinics/${clinic.id}/`, {
+        gallery: SAMPLE_CLINIC_PHOTOS,
+      });
       setClinic(res);
       setGallery(res.gallery || SAMPLE_CLINIC_PHOTOS);
-      setMsg("Sample clinic tour photos loaded successfully!");
-      setTimeout(() => setMsg(""), 3500);
+      showMsg("Sample clinic tour photos loaded successfully!");
     } catch {
-      setError("Failed to load sample photos.");
-      setTimeout(() => setError(""), 3500);
+      showErr("Failed to load sample photos.");
     }
   };
 
@@ -562,10 +561,7 @@ export default function ClinicAdminDashboard() {
   const handleSaveService = async (e) => {
     e.preventDefault();
     if (!clinic) return;
-    if (!serviceForm.name?.trim()) {
-      setError("Service name is required.");
-      return;
-    }
+    if (!serviceForm.name?.trim()) return showErr("Service name is required.");
     setSubmittingService(true);
     try {
       const payload = {
@@ -579,19 +575,29 @@ export default function ClinicAdminDashboard() {
       };
 
       if (editingServiceId) {
-        const updated = await apiClient.patch(`/clinics/${clinic.id}/services/${editingServiceId}/`, payload);
-        setServices((prev) => prev.map((s) => (s.id === editingServiceId ? updated : s)));
-        setMsg(`Service "${updated.name}" updated successfully!`);
+        const updated = await apiClient.patch(
+          `/clinics/${clinic.id}/services/${editingServiceId}/`,
+          payload
+        );
+        setServices((prev) =>
+          prev.map((s) => (s.id === editingServiceId ? updated : s))
+        );
+        showMsg(`Service "${updated.name}" updated successfully!`);
       } else {
-        const created = await apiClient.post(`/clinics/${clinic.id}/services/`, payload);
+        const created = await apiClient.post(
+          `/clinics/${clinic.id}/services/`,
+          payload
+        );
         setServices((prev) => [created, ...prev]);
-        setMsg(`Service "${created.name}" created successfully!`);
+        showMsg(`Service "${created.name}" created successfully!`);
       }
       setServiceModalOpen(false);
-      setTimeout(() => setMsg(""), 4000);
     } catch (err) {
-      setError(typeof err === "object" ? Object.values(err).flat().join(" ") : "Failed to save service.");
-      setTimeout(() => setError(""), 4000);
+      showErr(
+        typeof err === "object"
+          ? Object.values(err).flat().join(" ")
+          : "Failed to save service."
+      );
     } finally {
       setSubmittingService(false);
     }
@@ -601,28 +607,33 @@ export default function ClinicAdminDashboard() {
     if (!clinic) return;
     try {
       const newStatus = !service.is_available;
-      const updated = await apiClient.patch(`/clinics/${clinic.id}/services/${service.id}/`, {
-        is_available: newStatus,
-      });
-      setServices((prev) => prev.map((s) => (s.id === service.id ? updated : s)));
-      setMsg(`"${service.name}" marked as ${newStatus ? "Available" : "Unavailable"}.`);
-      setTimeout(() => setMsg(""), 3000);
+      const updated = await apiClient.patch(
+        `/clinics/${clinic.id}/services/${service.id}/`,
+        { is_available: newStatus }
+      );
+      setServices((prev) =>
+        prev.map((s) => (s.id === service.id ? updated : s))
+      );
+      showMsg(
+        `"${service.name}" marked as ${newStatus ? "Available" : "Unavailable"}.`
+      );
     } catch {
-      setError("Failed to toggle service status.");
-      setTimeout(() => setError(""), 3000);
+      showErr("Failed to toggle service status.");
     }
   };
 
   const handleDeleteService = async (serviceId) => {
-    if (!clinic || !window.confirm("Are you sure you want to remove this clinical service?")) return;
+    if (
+      !clinic ||
+      !window.confirm("Are you sure you want to remove this clinical service?")
+    )
+      return;
     try {
       await apiClient.delete(`/clinics/${clinic.id}/services/${serviceId}/`);
       setServices((prev) => prev.filter((s) => s.id !== serviceId));
-      setMsg("Clinical service deleted successfully.");
-      setTimeout(() => setMsg(""), 3000);
+      showMsg("Clinical service deleted successfully.");
     } catch {
-      setError("Failed to delete service.");
-      setTimeout(() => setError(""), 3000);
+      showErr("Failed to delete service.");
     }
   };
 
@@ -632,8 +643,11 @@ export default function ClinicAdminDashboard() {
     try {
       const added = [];
       for (const preset of SERVICE_PRESETS) {
-        // avoid duplicating if already exists by exact name
-        if (!services.some((s) => s.name.toLowerCase() === preset.name.toLowerCase())) {
+        if (
+          !services.some(
+            (s) => s.name.toLowerCase() === preset.name.toLowerCase()
+          )
+        ) {
           const res = await apiClient.post(`/clinics/${clinic.id}/services/`, {
             name: preset.name,
             department: null,
@@ -648,84 +662,213 @@ export default function ClinicAdminDashboard() {
       }
       if (added.length > 0) {
         setServices((prev) => [...added, ...prev]);
-        setMsg(`Successfully loaded ${added.length} standard diagnostic services into your catalog!`);
+        showMsg(
+          `Successfully loaded ${added.length} standard diagnostic services into your catalog!`
+        );
       } else {
-        setMsg("Default diagnostic catalog is already loaded.");
+        showMsg("Default diagnostic catalog is already loaded.");
       }
-      setTimeout(() => setMsg(""), 4000);
     } catch {
-      setError("Failed to load diagnostic catalog.");
-      setTimeout(() => setError(""), 4000);
+      showErr("Failed to load diagnostic catalog.");
     } finally {
       setSubmittingService(false);
     }
   };
 
-  const fetchFinancialAnalytics = async (dateOverride = null) => {
-    if (!clinic) return;
-    setLoadingAnalytics(true);
+  const fetchFinancialAnalytics = useCallback(
+    async (override = {}) => {
+      if (!clinic) return;
+      setLoadingAnalytics(true);
+      try {
+        let url = `/clinics/${clinic.id}/analytics/`;
+        if (typeof override === "string") {
+          // Backward compatibility if single date passed as string
+          url += `?date=${override}`;
+        } else {
+          const range =
+            override.range !== undefined ? override.range : analyticsRange;
+          if (range === "custom") {
+            const s = override.start_date || analyticsCustomStart;
+            const e = override.end_date || analyticsCustomEnd;
+            url += `?range=custom&start_date=${s}&end_date=${e}`;
+          } else if (range === "date" || override.date) {
+            const d = override.date || analyticsDate;
+            url += `?date=${d}`;
+          } else {
+            url += `?range=${range}`;
+          }
+        }
+        const res = await apiClient.get(url);
+        setFinancialAnalytics(res.data || res);
+      } catch {
+      } finally {
+        setLoadingAnalytics(false);
+      }
+    },
+    [clinic, analyticsRange, analyticsDate, analyticsCustomStart, analyticsCustomEnd]
+  );
+
+  const fetchOverviewStats = useCallback(
+    async (clinicObj) => {
+      const c = clinicObj || clinic;
+      if (!c) return;
+      setLoadingOverviewStats(true);
+      try {
+        const res = await apiClient.get(`/clinics/${c.id}/overview-stats/`);
+        setOverviewStats(res);
+      } catch {
+      } finally {
+        setLoadingOverviewStats(false);
+      }
+    },
+    [clinic]
+  );
+
+  const fetchAnnouncements = useCallback(
+    async (clinicObj) => {
+      const c = clinicObj || clinic;
+      if (!c) return;
+      try {
+        const res = await apiClient.get(`/clinics/${c.id}/announcements/`);
+        setAnnouncements(Array.isArray(res) ? res : res.results || []);
+      } catch {
+        setAnnouncements([]);
+      }
+    },
+    [clinic]
+  );
+
+  const fetchStaffData = useCallback(async (monthOverride = null) => {
+    setLoadingStaff(true);
     try {
-      const d = dateOverride || analyticsDate;
-      const res = await apiClient.get(`/clinics/${clinic.id}/analytics/?date=${d}`);
-      setFinancialAnalytics(res.data || res);
+      const today = new Date().toISOString().split("T")[0];
+      const targetMonth = monthOverride || selectedStaffMonth;
+      const [staffRes, attRes, cashRes, monthRes] = await Promise.allSettled([
+        apiClient.get("/clinics/staff/"),
+        apiClient.get(`/clinics/staff/attendance/?date=${today}`),
+        apiClient.get("/clinics/reception/cash-summary/"),
+        apiClient.get(`/clinics/staff/monthly-summary/?month=${targetMonth}`),
+      ]);
+      if (staffRes.status === "fulfilled") {
+        setStaffList(
+          Array.isArray(staffRes.value)
+            ? staffRes.value
+            : staffRes.value?.results || []
+        );
+      }
+      if (attRes.status === "fulfilled") {
+        setStaffAttendanceList(
+          Array.isArray(attRes.value)
+            ? attRes.value
+            : attRes.value?.results || []
+        );
+      }
+      if (cashRes.status === "fulfilled") {
+        setDailyCashSummary(cashRes.value);
+      }
+      if (monthRes.status === "fulfilled") {
+        setStaffMonthlySummary(monthRes.value);
+      }
     } catch {
-      // Graceful fallback
     } finally {
-      setLoadingAnalytics(false);
+      setLoadingStaff(false);
     }
-  };
+  }, [selectedStaffMonth]);
 
-  useEffect(() => { loadData(); }, []);
-
-  useEffect(() => {
-    if (clinic && activeTab === "finance") {
-      fetchFinancialAnalytics();
-    }
-  }, [clinic, activeTab, analyticsDate]);
-
-  const fetchOverviewStats = async (clinicObj) => {
-    const c = clinicObj || clinic;
-    if (!c) return;
-    setLoadingOverviewStats(true);
+  const handleAddStaff = async (e) => {
+    e.preventDefault();
+    if (!staffForm.name || !staffForm.role)
+      return showErr("Staff name and role are required.");
+    setSubmittingStaff(true);
     try {
-      const res = await apiClient.get(`/clinics/${c.id}/overview-stats/`);
-      setOverviewStats(res);
-    } catch {
-      // graceful fallback
+      await apiClient.post("/clinics/staff/", {
+        ...staffForm,
+        monthly_salary: staffForm.monthly_salary
+          ? parseFloat(staffForm.monthly_salary)
+          : 0,
+      });
+      showMsg("Staff member added successfully!");
+      setStaffForm({
+        name: "",
+        phone: "",
+        role: "RECEPTIONIST",
+        monthly_salary: "",
+        notes: "",
+      });
+      setStaffModalOpen(false);
+      fetchStaffData();
+    } catch (err) {
+      showErr(err?.detail || "Failed to add staff member.");
     } finally {
-      setLoadingOverviewStats(false);
+      setSubmittingStaff(false);
     }
   };
 
-  const fetchAnnouncements = async (clinicObj) => {
-    const c = clinicObj || clinic;
-    if (!c) return;
+  const handleDeleteStaff = async (staffId) => {
+    if (!window.confirm("Are you sure you want to deactivate this staff member?"))
+      return;
     try {
-      const res = await apiClient.get(`/clinics/${c.id}/announcements/`);
-      setAnnouncements(Array.isArray(res) ? res : (res.results || []));
+      await apiClient.delete(`/clinics/staff/${staffId}/`);
+      showMsg("Staff member deactivated.");
+      fetchStaffData();
     } catch {
-      setAnnouncements([]);
+      showErr("Failed to deactivate staff member.");
     }
   };
 
-  useEffect(() => {
-    if (clinic && activeTab === "overview") {
-      fetchOverviewStats(clinic);
+  const handleOpenCreateLogin = (staff) => {
+    setSelectedStaffForLogin(staff);
+    const names = (staff.name || "").trim().split(" ");
+    setLoginForm({
+      email: staff.phone
+        ? `reception_${staff.phone.replace(/[^0-9]/g, "")}@clinic.internal`
+        : "",
+      first_name: names[0] || staff.name,
+      last_name: names.slice(1).join(" ") || "",
+      password: "",
+    });
+    setLoginModalOpen(true);
+  };
+
+  const handleCreateLoginSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedStaffForLogin || !loginForm.email || !loginForm.password) {
+      return showErr("Email and password are required.");
     }
-    if (clinic && (activeTab === "clinic" || activeTab === "overview")) {
-      fetchAnnouncements(clinic);
+    setSubmittingLogin(true);
+    try {
+      await apiClient.post("/clinics/staff/create-login/", {
+        staff_id: selectedStaffForLogin.id,
+        email: loginForm.email,
+        first_name: loginForm.first_name,
+        last_name: loginForm.last_name,
+        password: loginForm.password,
+      });
+      showMsg(
+        `Receptionist account created for ${selectedStaffForLogin.name}! Credentials can now be used on any counter device.`
+      );
+      setLoginModalOpen(false);
+      setSelectedStaffForLogin(null);
+      fetchStaffData();
+    } catch (err) {
+      showErr(err?.detail || "Failed to create receptionist login.");
+    } finally {
+      setSubmittingLogin(false);
     }
-    if (clinic && activeTab === "appointments") {
-      fetchFinancialAnalytics();
-    }
-  }, [clinic, activeTab]);
+  };
 
   const handleOpenAddAnnouncement = () => {
     setEditingAnnouncementId(null);
     setAnnouncementForm({
-      title: "", message: "", announcement_type: "GENERAL",
-      doctor: "", scheduled_date: "", scheduled_time: "",
-      is_active: true, starts_at: "", ends_at: "",
+      title: "",
+      message: "",
+      announcement_type: "GENERAL",
+      doctor: "",
+      scheduled_date: "",
+      scheduled_time: "",
+      is_active: true,
+      starts_at: "",
+      ends_at: "",
     });
     setAnnouncementModalOpen(true);
   };
@@ -768,7 +911,8 @@ export default function ClinicAdminDashboard() {
       };
       if (editingAnnouncementId) {
         const updated = await apiClient.patch(
-          `/clinics/${clinic.id}/announcements/${editingAnnouncementId}/`, payload
+          `/clinics/${clinic.id}/announcements/${editingAnnouncementId}/`,
+          payload
         );
         setAnnouncements((prev) =>
           prev.map((a) => (a.id === editingAnnouncementId ? updated : a))
@@ -776,14 +920,19 @@ export default function ClinicAdminDashboard() {
         showMsg("Announcement updated successfully!");
       } else {
         const created = await apiClient.post(
-          `/clinics/${clinic.id}/announcements/`, payload
+          `/clinics/${clinic.id}/announcements/`,
+          payload
         );
         setAnnouncements((prev) => [created, ...prev]);
         showMsg("Announcement created successfully!");
       }
       setAnnouncementModalOpen(false);
     } catch (err) {
-      showErr(typeof err === "object" ? Object.values(err).flat().join(" ") : "Failed to save announcement.");
+      showErr(
+        typeof err === "object"
+          ? Object.values(err).flat().join(" ")
+          : "Failed to save announcement."
+      );
     } finally {
       setSubmittingAnnouncement(false);
     }
@@ -796,7 +945,9 @@ export default function ClinicAdminDashboard() {
         `/clinics/${clinic.id}/announcements/${a.id}/`,
         { is_active: !a.is_active }
       );
-      setAnnouncements((prev) => prev.map((x) => (x.id === a.id ? updated : x)));
+      setAnnouncements((prev) =>
+        prev.map((x) => (x.id === a.id ? updated : x))
+      );
     } catch {
       showErr("Failed to update announcement status.");
     }
@@ -813,24 +964,77 @@ export default function ClinicAdminDashboard() {
     }
   };
 
-  const fetchReceptionChamberSession = async () => {
-    if (!clinic || !selectedDoctorId) return;
-    try {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const res = await apiClient.get(
-        `/doctors/chamber-session/?doctor_id=${selectedDoctorId}&clinic_id=${clinic.id}&date=${todayStr}`
-      );
-      setChamberSession(res);
-    } catch {}
-  };
+  // Live Sync & Auto-Polling State
+  const [liveSyncEnabled, setLiveSyncEnabled] = useState(true);
+  const [isLiveSyncing, setIsLiveSyncing] = useState(false);
+  const [lastSyncedTime, setLastSyncedTime] = useState(null);
 
-  useEffect(() => {
-    if (clinic && selectedDoctorId) {
-      fetchReceptionChamberSession();
+  const refreshDeskData = useCallback(async (isSilent = false) => {
+    if (!clinic) return;
+    if (!isSilent) setIsLiveSyncing(true);
+    try {
+      const promises = [];
+      if (selectedDoctorId) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        promises.push(
+          apiClient
+            .get(
+              `/doctors/chamber-session/?doctor_id=${selectedDoctorId}&clinic_id=${clinic.id}&date=${todayStr}`
+            )
+            .then((res) => setChamberSession(res))
+            .catch(() => {})
+        );
+      }
+      promises.push(
+        apiClient
+          .get("/appointments/")
+          .then((res) => {
+            const aptList = res.results || res || [];
+            setAppointments(aptList);
+          })
+          .catch(() => {})
+      );
+      await Promise.all(promises);
+      setLastSyncedTime(new Date());
+    } finally {
+      if (!isSilent) setIsLiveSyncing(false);
     }
   }, [clinic, selectedDoctorId]);
 
-  // Doctor Clinic Card: open slide panel and fetch today's session for a specific doctor
+  const fetchReceptionChamberSession = useCallback(async () => {
+    return refreshDeskData(false);
+  }, [refreshDeskData]);
+
+  useEffect(() => {
+    if (clinic && selectedDoctorId) {
+      refreshDeskData(false);
+    }
+  }, [clinic, selectedDoctorId, refreshDeskData]);
+
+  // Tab-visibility-aware auto-polling for Live Reception desk (every 15s)
+  useEffect(() => {
+    if (!liveSyncEnabled || !clinic || activeTab !== "chamber") return;
+
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        refreshDeskData(true);
+      }
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && liveSyncEnabled) {
+        refreshDeskData(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [liveSyncEnabled, clinic, activeTab, refreshDeskData]);
+
   const openDoctorCard = async (doctor) => {
     setSelectedDoctorCard(doctor);
     setDoctorCardSession(null);
@@ -853,7 +1057,12 @@ export default function ClinicAdminDashboard() {
     setDoctorCardSession(null);
   };
 
-  const handleReceptionChamberAction = async (action, newStatus = null, targetSerial = null) => {
+  const handleReceptionChamberAction = async (
+    action,
+    newStatus = null,
+    targetSerial = null,
+    extraPayload = {}
+  ) => {
     if (!clinic || !selectedDoctorId) return;
     setUpdatingChamber(true);
     try {
@@ -861,6 +1070,7 @@ export default function ClinicAdminDashboard() {
         doctor_id: selectedDoctorId,
         clinic_id: clinic.id,
         action: action,
+        ...extraPayload,
       };
       if (newStatus) payload.status = newStatus;
       if (targetSerial !== null) payload.current_serial = targetSerial;
@@ -874,12 +1084,18 @@ export default function ClinicAdminDashboard() {
           ? `Serial held. Advanced to #${res.current_serial}!`
           : action === "RECALL_SERIAL"
           ? `Recalled Serial #${res.current_serial} into chamber!`
+          : action === "ADMIT_EMERGENCY"
+          ? `Emergency patient admitted to chamber!`
+          : action === "COMPLETE_EMERGENCY"
+          ? `Emergency consultation marked complete!`
+          : action === "RESUME_HELD"
+          ? `Resumed held patient into chamber!`
           : action === "RESET"
           ? "Queue reset to Serial #0."
           : `Doctor chamber status set to ${res.status}`
       );
-    } catch {
-      showErr("Failed to update doctor chamber session.");
+    } catch (err) {
+      showErr(err?.response?.data?.error || err?.detail || "Failed to update doctor chamber session.");
     } finally {
       setUpdatingChamber(false);
     }
@@ -916,21 +1132,23 @@ export default function ClinicAdminDashboard() {
     }
     setSubmittingWalkIn(true);
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const currentTime = walkInForm.appointment_time || new Date().toTimeString().split(" ")[0].slice(0, 5);
+      const selectedDoc = assignedDoctors.find(
+        (d) => String(d.id) === String(walkInForm.doctor_id)
+      );
+      const fee = selectedDoc?.consultation_fee || 800;
 
       const payload = {
-        clinic_id: clinic.id,
         doctor_id: walkInForm.doctor_id,
-        appointment_date: todayStr,
-        appointment_time: currentTime,
-        problem_description: walkInForm.problem_description || "Walk-in patient registration",
-        is_walk_in: true,
-        walk_in_name: walkInForm.walk_in_name,
-        walk_in_phone: walkInForm.walk_in_phone || "01700000000",
+        patient_name: walkInForm.walk_in_name,
+        patient_phone: walkInForm.walk_in_phone || "01700000000",
+        problem_description:
+          walkInForm.problem_description || "Walk-in patient registration",
+        fee: fee,
+        is_emergency: !!walkInForm.is_emergency,
+        emergency_reason: walkInForm.emergency_reason || "",
       };
 
-      const res = await apiClient.post("/appointments/", payload);
+      const res = await apiClient.post("/clinics/reception/walk-in/", payload);
       setWalkInModalOpen(false);
       setWalkInForm({
         walk_in_name: "",
@@ -938,13 +1156,33 @@ export default function ClinicAdminDashboard() {
         doctor_id: assignedDoctors.length > 0 ? assignedDoctors[0].id : "",
         appointment_time: "",
         problem_description: "",
+        is_emergency: false,
+        emergency_reason: "",
       });
       loadData();
       fetchReceptionChamberSession();
-      setPrintTokenData(res);
-      showMsg(`Walk-in Serial #${res.serial_number} confirmed! Cash recorded.`);
+      setPrintTokenData({
+        id: res.appointment_id || res.id,
+        serial_number: res.serial_number,
+        patient_name: res.patient_name,
+        doctor_name: res.doctor_name || selectedDoc?.full_name || "Doctor",
+        amount: res.amount || fee,
+        appointment_date: new Date().toISOString().split("T")[0],
+        appointment_time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
+      showMsg(
+        `Walk-in Serial #${res.serial_number} confirmed! Cash recorded.`
+      );
     } catch (err) {
-      showErr(err?.detail || (typeof err === "object" ? Object.values(err).flat().join(" ") : "Failed to register walk-in patient."));
+      showErr(
+        err?.detail ||
+          (typeof err === "object"
+            ? Object.values(err).flat().join(" ")
+            : "Failed to register walk-in patient.")
+      );
     } finally {
       setSubmittingWalkIn(false);
     }
@@ -953,9 +1191,14 @@ export default function ClinicAdminDashboard() {
   const handleCashCheckIn = async (appointmentId) => {
     setCheckingInId(appointmentId);
     try {
-      const res = await apiClient.post(`/appointments/${appointmentId}/checkin/`);
+      const res = await apiClient.post(
+        `/appointments/${appointmentId}/checkin/`
+      );
       loadData();
-      showMsg(`Appointment Serial #${res.serial_number} marked as Paid (Cash) & Checked-in!`);
+      setPrintTokenData(res);
+      showMsg(
+        `Appointment Serial #${res.serial_number} marked as Paid (Cash) & Checked-in!`
+      );
     } catch {
       showErr("Failed to check-in appointment.");
     } finally {
@@ -963,34 +1206,15 @@ export default function ClinicAdminDashboard() {
     }
   };
 
-  const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
-  const showErr = (e) => { setError(e); setTimeout(() => setError(""), 5000); };
-
-  const handleCreateClinic = async (e) => {
-    e.preventDefault();
-    if (!newClinic.certificate_url) return showErr("Clinic Registration Certificate URL is required.");
-    setMsg(""); setError("");
-    try {
-      const payload = { ...newClinic };
-      if (!payload.latitude) delete payload.latitude;
-      if (!payload.longitude) delete payload.longitude;
-      await apiClient.post("/clinics/", payload);
-      showMsg("Clinic registered! Awaiting Admin approval.");
-      setNewClinic({ name: "", address: "", city: "", phone: "", email: "", subscription_plan: "FREE", latitude: "", longitude: "", certificate_url: "" });
-      loadData();
-    } catch (err) {
-      if (typeof err === "object") showErr(err.detail || Object.values(err).flat().join(" ") || "Failed to create clinic.");
-      else showErr(err || "Failed to create clinic.");
-    }
-  };
-
   const handleSendInvite = async (e) => {
     e.preventDefault();
     if (!clinic) return showErr("You must create a clinic first.");
-    if (clinic.verification_status !== "VERIFIED") return showErr("Your clinic registration is pending Admin approval.");
+    if (clinic.verification_status !== "VERIFIED")
+      return showErr("Your clinic registration is pending Admin approval.");
     if (!inviteForm.doctor_id || !inviteForm.consultation_fee) return;
 
-    setMsg(""); setError("");
+    setMsg("");
+    setError("");
     try {
       await apiClient.post("/doctors/requests/create/", {
         doctor_id: inviteForm.doctor_id,
@@ -998,19 +1222,30 @@ export default function ClinicAdminDashboard() {
         consultation_fee: parseFloat(inviteForm.consultation_fee),
         room_number: inviteForm.room_number || "",
       });
-      showMsg("Service request sent to doctor! Waiting for doctor's acceptance.");
-      setInviteForm({ doctor_id: "", department_id: "", consultation_fee: "", room_number: "" });
+      showMsg(
+        "Service request sent to doctor! Waiting for doctor's acceptance."
+      );
+      setInviteForm({
+        doctor_id: "",
+        department_id: "",
+        consultation_fee: "",
+        room_number: "",
+      });
       loadData();
     } catch (err) {
-      if (typeof err === "object") showErr(err.detail || Object.values(err).flat().join(" "));
+      if (typeof err === "object")
+        showErr(err.detail || Object.values(err).flat().join(" "));
       else showErr("Failed to send request to doctor.");
     }
   };
 
   const handleRespondRequest = async (requestId, action) => {
-    setMsg(""); setError("");
+    setMsg("");
+    setError("");
     try {
-      await apiClient.patch(`/doctors/requests/${requestId}/respond/`, { action });
+      await apiClient.patch(`/doctors/requests/${requestId}/respond/`, {
+        action,
+      });
       showMsg(`Request ${action === "ACCEPT" ? "accepted" : "rejected"}.`);
       loadData();
     } catch {
@@ -1021,49 +1256,113 @@ export default function ClinicAdminDashboard() {
   const handleLinkDept = async (e) => {
     e.preventDefault();
     if (!clinic || !clinicDeptForm.department_id) return;
-    if (clinic.verification_status !== "VERIFIED") return showErr("Your clinic is pending Admin approval.");
-    setMsg(""); setError("");
+    if (clinic.verification_status !== "VERIFIED")
+      return showErr("Your clinic is pending Admin approval.");
+    setMsg("");
+    setError("");
     try {
-      await apiClient.post(`/clinics/${clinic.id}/departments/`, { department_id: clinicDeptForm.department_id });
+      await apiClient.post(`/clinics/${clinic.id}/departments/`, {
+        department_id: clinicDeptForm.department_id,
+      });
       showMsg("Department linked to your clinic.");
       setClinicDeptForm({ department_id: "" });
       loadData();
-    } catch { showErr("Failed to link department."); }
+    } catch {
+      showErr("Failed to link department.");
+    }
   };
 
   const handleCreateSpec = async (e) => {
     e.preventDefault();
     if (!newSpec.name) return;
-    setMsg(""); setError("");
+    setMsg("");
+    setError("");
     try {
       await apiClient.post("/doctors/specializations/", newSpec);
       showMsg("Specialization created!");
       setNewSpec({ name: "", description: "" });
       loadData();
     } catch (err) {
-      if (typeof err === "object") showErr(err.name || Object.values(err).flat().join(" "));
+      if (typeof err === "object")
+        showErr(err.name || Object.values(err).flat().join(" "));
       else showErr(err || "Specialization name already exists.");
     }
   };
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (clinic && activeTab === "overview") {
+      fetchOverviewStats(clinic);
+    }
+    if (clinic && (activeTab === "clinic" || activeTab === "overview")) {
+      fetchAnnouncements(clinic);
+    }
+    if (clinic && (activeTab === "finance" || activeTab === "appointments")) {
+      fetchFinancialAnalytics();
+    }
+    if (clinic && activeTab === "staff") {
+      fetchStaffData();
+    }
+  }, [
+    clinic,
+    activeTab,
+    fetchOverviewStats,
+    fetchAnnouncements,
+    fetchFinancialAnalytics,
+    fetchStaffData,
+  ]);
+
   const tabs = [
     { key: "overview", label: "Dashboard", icon: <TrendingUp size={16} /> },
-    { key: "chamber", label: "Live Reception", icon: <Tv size={16} />, badge: "Live", badgeClass: "badge-error animate-pulse text-white" },
+    {
+      key: "chamber",
+      label: "Live Reception",
+      icon: <Tv size={16} />,
+      badge: "Live",
+      badgeClass: "badge-error animate-pulse text-white",
+    },
+    {
+      key: "appointments",
+      label: "Appointments",
+      icon: <Calendar size={16} />,
+      count: appointments.length,
+    },
+    {
+      key: "finance",
+      label: "Finance & Accounts",
+      icon: <DollarSign size={16} />,
+    },
+    {
+      key: "doctors",
+      label: "Doctors",
+      icon: <Stethoscope size={16} />,
+      count:
+        requests.filter((r) => r.status === "PENDING_CLINIC_APPROVAL").length ||
+        undefined,
+    },
+    {
+      key: "staff",
+      label: "Staff & Reception",
+      icon: <Users size={16} />,
+      count: staffList.length || undefined,
+    },
     { key: "clinic", label: "My Clinic", icon: <Building2 size={16} /> },
-    { key: "doctors", label: "Doctors", icon: <Stethoscope size={16} />, count: requests.filter(r => r.status === "PENDING_CLINIC_APPROVAL").length || undefined },
-    { key: "appointments", label: "Appointments", icon: <Calendar size={16} />, count: appointments.length },
   ];
 
-
-
-  const pendingIncomingRequests = requests.filter(r => r.status === "PENDING_CLINIC_APPROVAL");
-  const pendingOutgoingRequests = requests.filter(r => r.status === "PENDING_DOCTOR_APPROVAL");
+  const pendingIncomingRequests = requests.filter(
+    (r) => r.status === "PENDING_CLINIC_APPROVAL"
+  );
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[45vh] space-y-4">
         <span className="loading loading-spinner loading-lg text-primary" />
-        <p className="text-sm text-base-content/60 font-medium">Loading Clinic Administrator Portal...</p>
+        <p className="text-sm text-base-content/60 font-medium">
+          Loading Clinic Administrator Portal...
+        </p>
       </div>
     );
   }
@@ -1084,33 +1383,52 @@ export default function ClinicAdminDashboard() {
       {/* Executive Dark Gradient Hero Header */}
       <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 text-white p-6 md:p-8 rounded-3xl border border-indigo-900/50 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-        
+
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="badge badge-success badge-sm gap-1.5 font-bold shadow-sm py-2 px-3">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse" /> Active Facility
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />{" "}
+                Active Facility
               </span>
               <span className="text-xs text-indigo-200/70 font-mono">
-                Reg: {clinic?.id ? clinic.id.slice(0, 13).toUpperCase() : "BD-MED-9942"}
+                Reg:{" "}
+                {clinic?.id
+                  ? clinic.id.slice(0, 13).toUpperCase()
+                  : "BD-MED-9942"}
               </span>
             </div>
-            
+
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-3">
               <ShieldCheck className="text-primary-focus text-emerald-400 w-8 h-8" />
               <span>{clinic?.name || "Clinic Administration Portal"}</span>
             </h1>
-            
+
             {(() => {
               const todayDateStr = new Date().toISOString().split("T")[0];
-              const todayAptsCount = overviewStats?.appointments?.total_today ?? appointments.filter(a => a.appointment_date === todayDateStr).length;
+              const todayAptsCount =
+                overviewStats?.appointments?.total_today ??
+                appointments.filter((a) => a.appointment_date === todayDateStr)
+                  .length;
               return (
                 <p className="text-xs md:text-sm text-indigo-200/80 flex items-center gap-2 flex-wrap">
                   <MapPin size={14} className="text-emerald-400 shrink-0" />
-                  <span>{clinic ? `${clinic.address}, ${clinic.city}` : "Clinic Administrative Workspace"}</span>
+                  <span>
+                    {clinic
+                      ? `${clinic.address}, ${clinic.city}`
+                      : "Clinic Administrative Workspace"}
+                  </span>
                   <span className="text-indigo-400/50">•</span>
                   <span className="text-indigo-200/90 font-medium">
-                    Today&apos;s Load: <strong className="text-white">{todayAptsCount} Patients</strong> in Queue • <strong className="text-white">{assignedDoctors.length} Doctors</strong> Active
+                    Today&apos;s Load:{" "}
+                    <strong className="text-white">
+                      {todayAptsCount} Patients
+                    </strong>{" "}
+                    in Queue •{" "}
+                    <strong className="text-white">
+                      {assignedDoctors.length} Doctors
+                    </strong>{" "}
+                    Active
                   </span>
                 </p>
               );
@@ -1138,13 +1456,19 @@ export default function ClinicAdminDashboard() {
 
       {/* Admin Approval Banner for Clinic */}
       {clinic && clinic.verification_status !== "VERIFIED" && (
-        <div className={`p-5 rounded-3xl border flex items-start gap-4 ${
-          clinic.verification_status === "REJECTED" ? "bg-error/15 border-error/30 text-error-content" : "bg-warning/15 border-warning/30 text-warning-content"
-        }`}>
+        <div
+          className={`p-5 rounded-3xl border flex items-start gap-4 ${
+            clinic.verification_status === "REJECTED"
+              ? "bg-error/15 border-error/30 text-error-content"
+              : "bg-warning/15 border-warning/30 text-warning-content"
+          }`}
+        >
           <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />
           <div>
             <h3 className="font-bold text-base">
-              {clinic.verification_status === "REJECTED" ? "Clinic Registration Rejected" : "Clinic Registration Pending Admin Verification"}
+              {clinic.verification_status === "REJECTED"
+                ? "Clinic Registration Rejected"
+                : "Clinic Registration Pending Admin Verification"}
             </h3>
             <p className="text-xs mt-1">
               {clinic.verification_status === "REJECTED"
@@ -1156,3490 +1480,302 @@ export default function ClinicAdminDashboard() {
       )}
 
       {/* Alerts */}
-      {msg && <div className="alert alert-success text-sm py-3 px-4 flex items-center gap-2 shadow-sm rounded-2xl"><CheckCircle2 size={18} /><span>{msg}</span></div>}
-      {error && <div className="alert alert-error text-sm py-3 px-4 flex items-center gap-2 shadow-sm rounded-2xl"><AlertCircle size={18} /><span>{error}</span></div>}
+      {msg && (
+        <div className="alert alert-success text-sm py-3 px-4 flex items-center gap-2 shadow-sm rounded-2xl">
+          <CheckCircle2 size={18} />
+          <span>{msg}</span>
+        </div>
+      )}
+      {error && (
+        <div className="alert alert-error text-sm py-3 px-4 flex items-center gap-2 shadow-sm rounded-2xl">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Navigation Tabs with Badges */}
       <div className="flex flex-wrap gap-2 pt-1">
-        {tabs.map((t) => (
+        {tabs.map((tItem) => (
           <button
-            key={t.key}
-            onClick={() => { setActiveTab(t.key); setMsg(""); setError(""); }}
+            key={tItem.key}
+            onClick={() => {
+              setActiveTab(tItem.key);
+              setMsg("");
+              setError("");
+            }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border cursor-pointer ${
-              activeTab === t.key
+              activeTab === tItem.key
                 ? "bg-primary text-primary-content border-primary shadow-md"
                 : "bg-base-100 border-base-200 text-base-content/70 hover:border-primary/40 hover:text-base-content"
             }`}
           >
-            {t.icon}
-            <span>{t.label}</span>
-            {t.badge && (
-              <span className={`badge badge-xs px-1.5 py-0.5 font-extrabold uppercase ${t.badgeClass || "badge-primary"}`}>
-                {t.badge}
+            {tItem.icon}
+            <span>{tItem.label}</span>
+            {tItem.badge && (
+              <span
+                className={`badge badge-xs px-1.5 py-0.5 font-extrabold uppercase ${
+                  tItem.badgeClass || "badge-primary"
+                }`}
+              >
+                {tItem.badge}
               </span>
             )}
-            {typeof t.count === "number" && t.count > 0 && (
-              <span className={`badge badge-sm font-bold ${activeTab === t.key ? "bg-white/20 text-white" : "badge-neutral"}`}>
-                {t.count}
+            {typeof tItem.count === "number" && tItem.count > 0 && (
+              <span
+                className={`badge badge-sm font-bold ${
+                  activeTab === tItem.key
+                    ? "bg-white/20 text-white"
+                    : "badge-neutral"
+                }`}
+              >
+                {tItem.count}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {/* ===== OVERVIEW TAB — CLINIC MANAGEMENT COMMAND CENTER ===== */}
+      {/* Tab Panels */}
       {activeTab === "overview" && (
-        <div className="space-y-5">
-
-          {/* Loading State */}
-          {loadingOverviewStats && (
-            <div className="flex items-center gap-3 p-4 bg-base-100 border border-base-200 rounded-2xl text-sm text-base-content/60">
-              <span className="loading loading-spinner loading-sm text-primary" />
-              Loading clinic overview...
-            </div>
-          )}
-
-          {/* ── B. CLINIC AT A GLANCE ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                label: "Active Doctors",
-                value: overviewStats?.doctors?.active ?? assignedDoctors.length,
-                sub: overviewStats?.doctors?.inactive != null ? `${overviewStats.doctors.inactive} inactive` : null,
-                icon: <Stethoscope size={22} />,
-                color: "primary",
-                onClick: () => setActiveTab("doctors"),
-              },
-              {
-                label: "Working Today",
-                value: overviewStats?.doctors?.working_today ?? "—",
-                sub: "Doctors with active sessions",
-                icon: <Activity size={22} />,
-                color: "success",
-                onClick: () => setActiveTab("chamber"),
-              },
-              {
-                label: "Today's Revenue",
-                value: overviewStats?.financial_snapshot?.today_total != null
-                  ? `৳${overviewStats.financial_snapshot.today_total.toLocaleString("en-BD")}`
-                  : "৳0",
-                sub: overviewStats?.appointments?.completed != null
-                  ? `${overviewStats.appointments.completed} paid appointment${overviewStats.appointments.completed !== 1 ? "s" : ""}`
-                  : "No payments yet",
-                icon: <DollarSign size={22} />,
-                color: overviewStats?.financial_snapshot?.today_total > 0 ? "success" : "secondary",
-                onClick: () => setActiveTab("appointments"),
-              },
-              {
-                label: "Today's Appointments",
-                value: overviewStats?.appointments?.total_today ?? appointments.filter(a => a.appointment_date === new Date().toISOString().split("T")[0]).length,
-                sub: overviewStats?.appointments?.completed != null ? `${overviewStats.appointments.completed} completed` : null,
-                icon: <Calendar size={22} />,
-                color: "accent",
-                onClick: () => setActiveTab("appointments"),
-              },
-            ].map((s) => (
-              <button
-                key={s.label}
-                onClick={s.onClick}
-                className="p-5 bg-base-100 border border-base-200 rounded-2xl shadow-sm flex items-start gap-3 hover:border-primary/40 hover:shadow-md transition-all text-left group"
-              >
-                <div className={`p-2.5 bg-${s.color}/10 rounded-xl text-${s.color} shrink-0 group-hover:bg-${s.color}/20 transition-colors`}>
-                  {s.icon}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs text-base-content/60 font-medium">{s.label}</div>
-                  <div className="text-2xl font-extrabold text-base-content leading-tight">{s.value}</div>
-                  {s.sub && <div className="text-xs text-base-content/50 mt-0.5 truncate">{s.sub}</div>}
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* ── C. QUICK RECEPTION SHORTCUTS ── */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-sm text-base-content flex items-center gap-2">
-                <span>⚡ {t("quickShortcuts")}</span>
-                <span className="text-xs text-base-content/50 font-normal">({t("quickShortcutsHint")})</span>
-              </h3>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button
-                onClick={() => {
-                  setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
-                  setWalkInModalOpen(true);
-                }}
-                className="flex items-center gap-3 p-3 rounded-2xl bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary transition text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-xl bg-primary text-primary-content flex items-center justify-center text-base font-bold shadow-xs shrink-0">
-                  <UserPlus size={18} />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">{t("newWalkIn")}</div>
-                  <div className="text-[11px] text-base-content/60 truncate">{t("newWalkInSub")}</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("chamber")}
-                className="flex items-center gap-3 p-3 rounded-2xl bg-rose-50 hover:bg-rose-100/80 border border-rose-200/60 text-rose-900 transition text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center text-base font-bold shadow-xs shrink-0">
-                  <Tv size={18} />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">{t("waitingRoomTv")}</div>
-                  <div className="text-[11px] text-base-content/60 truncate">{t("waitingRoomTvSub")}</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("appointments")}
-                className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/60 text-emerald-900 transition text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-base font-bold shadow-xs shrink-0">
-                  <Printer size={18} />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">{t("dailyCashAudit")}</div>
-                  <div className="text-[11px] text-base-content/60 truncate">{t("dailyCashAuditSub")}</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("doctors")}
-                className="flex items-center gap-3 p-3 rounded-2xl bg-base-200/60 hover:bg-base-200 border border-base-300 text-base-content transition text-left group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-xl bg-base-content text-base-100 flex items-center justify-center text-base font-bold shadow-xs shrink-0">
-                  <Stethoscope size={18} />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-bold text-xs text-base-content">{t("inviteDoctor")}</div>
-                  <div className="text-[11px] text-base-content/60 truncate">{t("inviteDoctorSub")}</div>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* ── D. MAIN 2-COLUMN OPERATIONAL SECTION ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-
-            {/* LEFT: Today's Appointments & Real Actions (5 cols) */}
-            <div className="lg:col-span-5 space-y-5">
-
-              {/* Today's Appointment Breakdown */}
-              <div className="bg-base-100 border border-base-200 rounded-3xl p-6 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
-                    <Calendar size={16} className="text-primary" /> Today&apos;s Queue Status
-                  </h3>
-                  <span className="text-xs text-base-content/50 font-mono">
-                    {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                  </span>
-                </div>
-
-                {(() => {
-                  const todayDateStr = new Date().toISOString().split("T")[0];
-                  const todayApts = appointments.filter(a => a.appointment_date === todayDateStr);
-                  const totalBooked = overviewStats?.appointments?.total_today ?? todayApts.length;
-                  const completed = overviewStats?.appointments?.completed ?? todayApts.filter(a => a.status === "COMPLETED").length;
-                  const confirmed = overviewStats?.appointments?.confirmed_upcoming ?? todayApts.filter(a => a.status === "CONFIRMED").length;
-                  const pending = overviewStats?.appointments?.pending ?? todayApts.filter(a => a.status === "PENDING").length;
-                  const cancelled = overviewStats?.appointments?.cancelled ?? todayApts.filter(a => a.status === "CANCELLED").length;
-
-                  return (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm pb-2 border-b border-base-200 font-bold">
-                        <span className="text-base-content/70">Total Booked (Today)</span>
-                        <span className="text-base font-black text-base-content">
-                          {totalBooked} Patients
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs py-1">
-                        <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" /> Completed Visits
-                        </span>
-                        <span className="font-black text-emerald-700 font-mono">
-                          {completed}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs py-1">
-                        <span className="text-sky-700 font-semibold flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-sky-500" /> Confirmed in Lobby
-                        </span>
-                        <span className="font-black text-sky-700 font-mono">
-                          {confirmed}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs py-1">
-                        <span className="text-amber-700 font-semibold flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-amber-500" /> Pending Cash at Counter
-                        </span>
-                        <span className="font-black text-amber-700 font-mono">
-                          {pending}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs py-1">
-                        <span className="text-rose-700 font-semibold flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-rose-500" /> Cancelled
-                        </span>
-                        <span className="font-black text-rose-700 font-mono">
-                          {cancelled}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <button
-                  onClick={() => setActiveTab("appointments")}
-                  className="w-full text-center py-2.5 text-xs font-bold text-primary hover:text-primary-focus bg-primary/5 hover:bg-primary/10 rounded-xl transition mt-2 cursor-pointer"
-                >
-                  View All in Appointments Tab →
-                </button>
-              </div>
-
-              {/* Real Action Alerts */}
-              <div className="bg-base-100 border border-base-200 rounded-3xl p-5 shadow-xs space-y-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={16} className="text-warning" />
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-base-content/70">Action Required</h4>
-                </div>
-
-                {(() => {
-                  const pending = overviewStats?.doctors?.pending_requests ?? pendingIncomingRequests.length;
-                  const activeDocsCount = overviewStats?.doctors?.active ?? assignedDoctors.length;
-
-                  if (pending > 0) {
-                    return (
-                      <div className="flex items-start gap-3 p-3 rounded-xl border border-warning/30 bg-warning/5">
-                        <Send size={15} className="text-warning shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-base-content">
-                            {pending} doctor request{pending > 1 ? "s" : ""} waiting for review
-                          </div>
-                          <div className="text-xs text-base-content/60 mt-0.5">Doctor cannot start seeing patients until approved</div>
-                        </div>
-                        <button onClick={() => setActiveTab("doctors")} className="btn btn-xs btn-warning shrink-0 cursor-pointer">
-                          Review
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  if (activeDocsCount === 0) {
-                    return (
-                      <div className="flex items-start gap-3 p-3 rounded-xl border border-info/30 bg-info/5">
-                        <Stethoscope size={15} className="text-info shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-base-content">No active doctors in clinic</div>
-                          <div className="text-xs text-base-content/60 mt-0.5">Invite doctors to begin scheduling appointments</div>
-                        </div>
-                        <button onClick={() => setActiveTab("doctors")} className="btn btn-xs btn-info shrink-0 cursor-pointer">
-                          Invite
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="p-3 bg-success/10 border border-success/20 rounded-2xl flex items-center gap-2.5 text-success-content text-xs">
-                      <CheckCircle2 size={20} className="text-success shrink-0" />
-                      <div>
-                        <div className="font-bold text-base-content">Everything is running smoothly</div>
-                        <div className="text-[11px] text-base-content/60">0 pending doctor requests • All doctors verified</div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-
-            {/* RIGHT: Appointment Trend Graph (7 cols) */}
-            <div className="lg:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-6 shadow-xs space-y-4 flex flex-col justify-between">
-              {(() => {
-                const trendData = overviewStats?.appointment_trend || [];
-                const data = overviewTrendRange === "7d" ? trendData.slice(-7) : trendData;
-                const totalBookings = data.reduce((s, d) => s + (d.total || 0), 0);
-                const totalCompleted = data.reduce((s, d) => s + (d.completed || 0), 0);
-                const totalCancelled = data.reduce((s, d) => s + (d.cancelled || 0), 0);
-                const completionRate = totalBookings > 0 ? Math.round((totalCompleted / totalBookings) * 100) : 100;
-
-                // Date parsing helper without timezone drift
-                const parseDateInfo = (dStr) => {
-                  if (!dStr) return { day: "", month: "", fullDate: "", formatted: "", weekday: "" };
-                  const parts = dStr.split("-");
-                  if (parts.length === 3) {
-                    const y = parseInt(parts[0], 10);
-                    const m = parseInt(parts[1], 10) - 1;
-                    const d = parseInt(parts[2], 10);
-                    const dateObj = new Date(y, m, d);
-                    const monthShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                    const monthFull = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-                    const weekShort = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-                    return {
-                      day: String(d).padStart(2, "0"),
-                      dayNum: d,
-                      weekday: weekShort[dateObj.getDay()] || "",
-                      month: monthShort[m] || "",
-                      monthFull: monthFull[m] || "",
-                      year: parts[0],
-                      formatted: `${d} ${monthShort[m] || ""}`,
-                      fullDate: `${d} ${monthFull[m] || ""}, ${parts[0]}`,
-                    };
-                  }
-                  return { day: "", month: "", fullDate: dStr, formatted: dStr, weekday: "" };
-                };
-
-                // Determine Month Name Title
-                const firstInfo = data.length > 0 ? parseDateInfo(data[0].date) : null;
-                const lastInfo = data.length > 0 ? parseDateInfo(data[data.length - 1].date) : null;
-                const monthDisplayTitle = !firstInfo ? "Appointment Trends" :
-                  firstInfo.month === lastInfo?.month
-                    ? `${firstInfo.monthFull} ${firstInfo.year}`
-                    : `${firstInfo.monthFull} – ${lastInfo?.monthFull} ${lastInfo?.year}`;
-
-                // Calculate Rise / Fall Up-Down Trend
-                const half = Math.floor(data.length / 2);
-                const firstHalfTotal = data.slice(0, half).reduce((s, d) => s + (d.total || 0), 0);
-                const secondHalfTotal = data.slice(half).reduce((s, d) => s + (d.total || 0), 0);
-                const trendDiff = secondHalfTotal - firstHalfTotal;
-                const trendPct = firstHalfTotal > 0
-                  ? Math.round((Math.abs(trendDiff) / firstHalfTotal) * 100)
-                  : secondHalfTotal > 0 ? 100 : 0;
-                const isUpTrend = trendDiff >= 0;
-
-                // Peaks and Valleys
-                let peakMax = 0;
-                let peakDateStr = "";
-                data.forEach(d => {
-                  if ((d.total || 0) > peakMax) {
-                    peakMax = d.total || 0;
-                    peakDateStr = d.date;
-                  }
-                });
-
-                // Y-Axis Scale
-                const peakCount = Math.max(...data.map(d => d.total || 0), 0);
-                const yMax = peakCount <= 4 ? 6 : Math.ceil(peakCount / 4) * 4;
-                const yTicks = [yMax, Math.round(yMax * 0.75), Math.round(yMax * 0.5), Math.round(yMax * 0.25), 0];
-
-                // SVG Plot Dimensions for Up/Down Line Chart
-                const svgW = 680;
-                const svgH = 190;
-                const padL = 36;
-                const padR = 24;
-                const padT = 20;
-                const padB = 34;
-                const plotW = svgW - padL - padR;
-                const plotH = svgH - padT - padB;
-                const baseLineY = padT + plotH;
-                const nPts = data.length;
-
-                const points = data.map((d, i) => {
-                  const x = padL + (nPts > 1 ? (i / (nPts - 1)) * plotW : plotW / 2);
-                  const ratio = Math.min((d.total || 0) / yMax, 1);
-                  const y = padT + plotH - (ratio * plotH);
-                  return { x, y, data: d, idx: i };
-                });
-
-                const compPoints = data.map((d, i) => {
-                  const x = padL + (nPts > 1 ? (i / (nPts - 1)) * plotW : plotW / 2);
-                  const ratio = Math.min((d.completed || 0) / yMax, 1);
-                  const y = padT + plotH - (ratio * plotH);
-                  return { x, y, val: d.completed || 0 };
-                });
-
-                // Smooth Bezier Curve Path
-                const buildSmoothPath = (pts) => {
-                  if (!pts || pts.length === 0) return "";
-                  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
-                  let str = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-                  for (let i = 0; i < pts.length - 1; i++) {
-                    const p0 = pts[i === 0 ? 0 : i - 1];
-                    const p1 = pts[i];
-                    const p2 = pts[i + 1];
-                    const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
-
-                    const cp1x = p1.x + (p2.x - p0.x) * 0.18;
-                    const cp1y = p1.y + (p2.y - p0.y) * 0.18;
-                    const cp2x = p2.x - (p3.x - p1.x) * 0.18;
-                    const cp2y = p2.y - (p3.y - p1.y) * 0.18;
-
-                    str += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-                  }
-                  return str;
-                };
-
-                const linePath = buildSmoothPath(points);
-                const areaPath = points.length > 1
-                  ? `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${baseLineY} L ${points[0].x.toFixed(1)} ${baseLineY} Z`
-                  : "";
-                const compLinePath = buildSmoothPath(compPoints);
-
-                // Milestone X-axis ticks with Month names
-                const xTickIndices = overviewTrendRange === "7d"
-                  ? [0, 1, 2, 3, 4, 5, 6].filter(idx => idx < nPts)
-                  : [0, Math.floor((nPts - 1) * 0.2), Math.floor((nPts - 1) * 0.4), Math.floor((nPts - 1) * 0.6), Math.floor((nPts - 1) * 0.8), nPts - 1];
-
-                const activeHoverPoint = hoveredTrendIdx !== null && points[hoveredTrendIdx] ? points[hoveredTrendIdx] : null;
-
-                return (
-                  <div className="space-y-4">
-                    {/* Header */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                            <TrendingUp size={18} className="text-primary" /> Appointment Flow &amp; Trends
-                          </h3>
-                          {/* Month Name Badge */}
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-                            📅 {monthDisplayTitle}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-base-content/60 flex-wrap">
-                          <span>
-                            {overviewTrendRange === "7d" ? t("weeklyTrendSubtitle") : t("monthlyTrendSubtitle")}
-                          </span>
-                          {/* Up / Down Trend Indicator (Rise / Fall) */}
-                          {totalBookings > 0 && (
-                            <span className={`inline-flex items-center gap-1 font-extrabold text-[11px] px-2 py-0.5 rounded-md ${
-                              isUpTrend
-                                ? "text-emerald-700 bg-emerald-50 border border-emerald-200"
-                                : "text-rose-700 bg-rose-50 border border-rose-200"
-                            }`}>
-                              {isUpTrend ? <ArrowUpRight size={13} className="stroke-[3]" /> : <ArrowDownRight size={13} className="stroke-[3]" />}
-                              {isUpTrend ? `+${trendPct}% ${t("rise")}` : `-${trendPct}% ${t("fall")}`}
-                            </span>
-                          )}
-                          {peakMax > 0 && (
-                            <span className="text-[11px] font-mono text-base-content/50">
-                              • {language === "bn" ? "সর্বোচ্চ" : "Peak"}: {peakMax} {language === "bn" ? "অ্যাপয়েন্টমেন্ট" : "appts"} ({parseDateInfo(peakDateStr).formatted})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Controls: Range + Chart Type */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Chart Type Toggle: Line vs Bar */}
-                        <div className="flex bg-base-200/80 p-0.5 rounded-xl border border-base-200">
-                          <button
-                            type="button"
-                            onClick={() => setTrendChartType("line")}
-                            title="Up & Down Wave Line Chart"
-                            className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
-                              trendChartType === "line"
-                                ? "bg-primary text-primary-content shadow-xs"
-                                : "text-base-content/70 hover:text-base-content"
-                            }`}
-                          >
-                            <LineChart size={13} /> Line
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setTrendChartType("bar")}
-                            title="Column Bar Chart"
-                            className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
-                              trendChartType === "bar"
-                                ? "bg-primary text-primary-content shadow-xs"
-                                : "text-base-content/70 hover:text-base-content"
-                            }`}
-                          >
-                            <BarChart2 size={13} /> Bar
-                          </button>
-                        </div>
-
-                        {/* Range Toggle: 7d vs 30d */}
-                        <div className="flex bg-base-200/80 p-0.5 rounded-xl border border-base-200">
-                          <button
-                            type="button"
-                            onClick={() => { setOverviewTrendRange("7d"); setHoveredTrendIdx(null); }}
-                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                              overviewTrendRange === "7d"
-                                ? "bg-primary text-primary-content shadow-xs"
-                                : "text-base-content/70 hover:text-base-content"
-                            }`}
-                          >
-                            Weekly (7d)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setOverviewTrendRange("30d"); setHoveredTrendIdx(null); }}
-                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                              overviewTrendRange === "30d"
-                                ? "bg-primary text-primary-content shadow-xs"
-                                : "text-base-content/70 hover:text-base-content"
-                            }`}
-                          >
-                            Monthly (30d)
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Period Summary KPI Strip */}
-                    <div className="grid grid-cols-3 gap-3 bg-base-200/30 p-3 rounded-2xl border border-base-200 text-center">
-                      <div>
-                        <div className="text-[11px] text-base-content/50 font-medium">
-                          {overviewTrendRange === "7d" ? "Weekly Volume (7d)" : "Monthly Volume (30d)"}
-                        </div>
-                        <div className="text-base font-black text-base-content">{totalBookings} Bookings</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] text-emerald-600 font-medium">
-                          {overviewTrendRange === "7d" ? "Weekly Completed (7d)" : "Monthly Completed (30d)"}
-                        </div>
-                        <div className="text-base font-black text-emerald-600">{totalCompleted} Visits</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] text-indigo-600 font-medium">Period Success Rate</div>
-                        <div className="text-base font-black text-indigo-600">{completionRate}%</div>
-                      </div>
-                    </div>
-
-                    {/* CHART AREA */}
-                    {trendChartType === "line" ? (
-                      /* UP & DOWN TREND LINE / AREA CHART */
-                      <div className="relative pt-2 pb-1 select-none">
-                        {/* Interactive Floating Hover Details Strip */}
-                        <div className="h-6 flex items-center justify-between px-1 mb-1 text-xs">
-                          {activeHoverPoint ? (
-                            <div className="flex items-center gap-2 bg-slate-900 text-white px-3 py-1 rounded-xl shadow-lg">
-                              <span className="font-bold text-indigo-200">
-                                {parseDateInfo(activeHoverPoint.data.date).weekday}, {parseDateInfo(activeHoverPoint.data.date).fullDate}:
-                              </span>
-                              <span className="font-extrabold text-white">
-                                {activeHoverPoint.data.total || 0} Booked
-                              </span>
-                              <span className="text-emerald-400 font-semibold">
-                                • {activeHoverPoint.data.completed || 0} Done
-                              </span>
-                              {activeHoverPoint.data.cancelled > 0 && (
-                                <span className="text-rose-400 font-semibold">
-                                  • {activeHoverPoint.data.cancelled} Cancelled
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[11px] text-base-content/50 italic flex items-center gap-1">
-                              {t("trendHoverHint")}
-                            </span>
-                          )}
-                          <span className="text-[10px] font-mono text-base-content/40 hidden sm:inline">
-                            Range: {firstInfo?.formatted} – {lastInfo?.formatted}
-                          </span>
-                        </div>
-
-                        {/* Responsive SVG Container */}
-                        <div className="w-full relative overflow-x-auto overflow-y-visible bg-base-200/20 rounded-2xl border border-base-200/60 p-2">
-                          <svg
-                            viewBox={`0 0 ${svgW} ${svgH}`}
-                            className="w-full h-48 block overflow-visible"
-                            onMouseLeave={() => setHoveredTrendIdx(null)}
-                          >
-                            <defs>
-                              {/* Main Up-Down Area Gradient */}
-                              <linearGradient id="upDownAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.38" />
-                                <stop offset="60%" stopColor="#6366f1" stopOpacity="0.09" />
-                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
-                              </linearGradient>
-                            </defs>
-
-                            {/* Horizontal Gridlines & Y-Axis Labels */}
-                            {yTicks.map((val, idx) => {
-                              const yPos = padT + (idx / (yTicks.length - 1)) * plotH;
-                              return (
-                                <g key={idx}>
-                                  <text
-                                    x={padL - 8}
-                                    y={yPos + 3.5}
-                                    textAnchor="end"
-                                    className="text-[10px] font-mono fill-base-content/40 select-none"
-                                  >
-                                    {val}
-                                  </text>
-                                  <line
-                                    x1={padL}
-                                    y1={yPos}
-                                    x2={padL + plotW}
-                                    y2={yPos}
-                                    stroke="currentColor"
-                                    className="text-base-200/70"
-                                    strokeDasharray="4 4"
-                                    strokeWidth="1"
-                                  />
-                                </g>
-                              );
-                            })}
-
-                            {/* Area Gradient Fill under Up/Down Curve */}
-                            {areaPath && (
-                              <path
-                                d={areaPath}
-                                fill="url(#upDownAreaGrad)"
-                              />
-                            )}
-
-                            {/* Completed Curve (Green dashed line) */}
-                            {compLinePath && (
-                              <path
-                                d={compLinePath}
-                                fill="none"
-                                stroke="#10b981"
-                                strokeWidth="2"
-                                strokeDasharray="5 4"
-                                className="opacity-75"
-                              />
-                            )}
-
-                            {/* Main Total Curve Line (Indigo Up & Down Line) */}
-                            {linePath && (
-                              <path
-                                d={linePath}
-                                fill="none"
-                                stroke="#4f46e5"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            )}
-
-                            {/* Milestone X-Axis Month & Day Labels */}
-                            {xTickIndices.map((idx) => {
-                              const pt = points[idx];
-                              if (!pt) return null;
-                              const info = parseDateInfo(pt.data.date);
-                              return (
-                                <g key={idx}>
-                                  <line
-                                    x1={pt.x}
-                                    y1={baseLineY}
-                                    x2={pt.x}
-                                    y2={baseLineY + 5}
-                                    stroke="currentColor"
-                                    className="text-base-300"
-                                    strokeWidth="1.5"
-                                  />
-                                  <text
-                                    x={pt.x}
-                                    y={baseLineY + 18}
-                                    textAnchor="middle"
-                                    className="text-[10px] font-extrabold fill-base-content/70 font-mono select-none"
-                                  >
-                                    {info.formatted}
-                                  </text>
-                                  {overviewTrendRange === "7d" && (
-                                    <text
-                                      x={pt.x}
-                                      y={baseLineY + 28}
-                                      textAnchor="middle"
-                                      className="text-[9px] font-bold fill-base-content/40 select-none"
-                                    >
-                                      {info.weekday}
-                                    </text>
-                                  )}
-                                </g>
-                              );
-                            })}
-
-                            {/* Data Dots */}
-                            {points.map((pt, i) => {
-                              const isPeak = pt.data.total === peakMax && peakMax > 0;
-                              const isToday = i === points.length - 1;
-                              const isHovered = hoveredTrendIdx === i;
-                              return (
-                                <g key={i}>
-                                  {/* Peak Point Indicator */}
-                                  {isPeak && (
-                                    <g transform={`translate(${pt.x}, ${pt.y - 10})`}>
-                                      <circle r="3" fill="#f59e0b" />
-                                    </g>
-                                  )}
-                                  {/* The Point Dot */}
-                                  <circle
-                                    cx={pt.x}
-                                    cy={pt.y}
-                                    r={isHovered ? 6 : isPeak || isToday ? 4.5 : 3}
-                                    fill={isHovered ? "#4f46e5" : isPeak ? "#f59e0b" : isToday ? "#06b6d4" : "#4f46e5"}
-                                    stroke="#ffffff"
-                                    strokeWidth={isHovered ? "2.5" : "1.5"}
-                                    className="cursor-pointer"
-                                  />
-                                </g>
-                              );
-                            })}
-
-                            {/* Active Hover Vertical Crosshair */}
-                            {activeHoverPoint && (
-                              <g pointerEvents="none">
-                                <line
-                                  x1={activeHoverPoint.x}
-                                  y1={padT}
-                                  x2={activeHoverPoint.x}
-                                  y2={baseLineY}
-                                  stroke="#4f46e5"
-                                  strokeWidth="1.5"
-                                  strokeDasharray="3 3"
-                                />
-                                <circle
-                                  cx={activeHoverPoint.x}
-                                  cy={activeHoverPoint.y}
-                                  r="7"
-                                  fill="#4f46e5"
-                                  stroke="#ffffff"
-                                  strokeWidth="3"
-                                />
-                              </g>
-                            )}
-
-                            {/* Invisible Interactive Column Hitboxes */}
-                            {points.map((pt, i) => {
-                              const colW = plotW / Math.max(nPts, 1);
-                              return (
-                                <rect
-                                  key={i}
-                                  x={pt.x - colW / 2}
-                                  y={padT}
-                                  width={colW}
-                                  height={plotH + padB}
-                                  fill="transparent"
-                                  className="cursor-pointer"
-                                  onMouseEnter={() => setHoveredTrendIdx(i)}
-                                />
-                              );
-                            })}
-                          </svg>
-                        </div>
-                      </div>
-                    ) : (
-                      /* BAR COLUMN VIEW */
-                      <div className="relative pt-4 pb-2">
-                        {/* Grid Lines & Y-Axis Labels */}
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-9 pl-7">
-                          {yTicks.map((val, idx) => (
-                            <div key={idx} className="flex items-center w-full">
-                              <span className="text-[10px] font-mono text-base-content/40 w-6 text-right pr-2 select-none -translate-y-1/2">
-                                {val}
-                              </span>
-                              <div className="flex-1 border-b border-dashed border-base-200/70" />
-                            </div>
-                          ))}
-                        </div>
-
-                        {overviewTrendRange === "7d" ? (
-                          /* Weekly 7-Day Bar Chart */
-                          <div className="relative z-10 pl-7 h-44 flex items-end justify-around gap-2">
-                            {data.map((d, i) => {
-                              const info = parseDateInfo(d.date);
-                              const isToday = i === data.length - 1;
-                              const heightPct = Math.round(((d.total || 0) / yMax) * 100);
-                              const completedPct = d.total > 0 ? Math.round(((d.completed || 0) / d.total) * 100) : 0;
-
-                              return (
-                                <div
-                                  key={d.date}
-                                  className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
-                                >
-                                  {/* Tooltip on Hover */}
-                                  <div className="absolute -top-10 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[11px] px-2.5 py-1 rounded-xl shadow-xl z-30 whitespace-nowrap pointer-events-none">
-                                    <span className="font-bold">{info.weekday}, {info.formatted}</span>
-                                    <span className="text-indigo-300 font-medium">
-                                      {d.total} Booked • {d.completed} Done {d.cancelled > 0 ? `• ${d.cancelled} Cancelled` : ""}
-                                    </span>
-                                    <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 mt-0.5" />
-                                  </div>
-
-                                  {/* Value label above bar */}
-                                  <div className={`text-xs font-black mb-1.5 transition-all ${
-                                    isToday ? "text-primary scale-110" : d.total > 0 ? "text-base-content" : "text-base-content/30"
-                                  }`}>
-                                    {d.total > 0 ? d.total : "0"}
-                                  </div>
-
-                                  {/* The Bar Column */}
-                                  <div className="w-full max-w-[36px] flex flex-col justify-end">
-                                    {d.total > 0 ? (
-                                      <div
-                                        className={`w-full rounded-t-xl transition-all shadow-xs overflow-hidden flex flex-col justify-end ${
-                                          isToday ? "ring-2 ring-primary ring-offset-1" : ""
-                                        }`}
-                                        style={{ height: `${Math.max(heightPct, 12)}%` }}
-                                      >
-                                        {d.cancelled > 0 && (
-                                          <div
-                                            className="w-full bg-rose-400"
-                                            style={{ height: `${Math.round((d.cancelled / d.total) * 100)}%` }}
-                                          />
-                                        )}
-                                        <div className="w-full flex-1 bg-gradient-to-t from-indigo-700 to-indigo-500 relative">
-                                          {d.completed > 0 && (
-                                            <div
-                                              className="w-full bg-emerald-500 transition-all"
-                                              style={{ height: `${completedPct}%` }}
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="w-full h-1.5 bg-base-300 rounded-full mx-auto" />
-                                    )}
-                                  </div>
-
-                                  {/* Day of week & month+date label */}
-                                  <div className="text-center mt-2.5 pt-1 border-t border-base-200 w-full">
-                                    <div className={`text-xs font-black ${isToday ? "text-primary" : "text-base-content/80"}`}>
-                                      {info.weekday}
-                                    </div>
-                                    <div className="text-[10px] text-base-content/50 font-mono font-bold">
-                                      {info.formatted}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          /* Monthly 30-Day Column Chart with Month & Day Ticks */
-                          <div>
-                            <div className="relative z-10 pl-7 h-40 flex items-end gap-1">
-                              {data.map((d, i) => {
-                                const heightPct = Math.round(((d.total || 0) / yMax) * 100);
-                                const isToday = i === data.length - 1;
-                                const info = parseDateInfo(d.date);
-                                return (
-                                  <div
-                                    key={d.date}
-                                    className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
-                                  >
-                                    {/* Tooltip */}
-                                    <div className="absolute -top-9 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[10px] px-2.5 py-1 rounded-lg shadow-lg z-30 whitespace-nowrap pointer-events-none">
-                                      <span className="font-bold">{info.fullDate}</span>
-                                      <span>{d.total} appts ({d.completed} done)</span>
-                                    </div>
-
-                                    {/* Monthly Bar */}
-                                    <div
-                                      className={`w-full rounded-t-sm transition-all ${
-                                        isToday
-                                          ? "bg-primary shadow-xs ring-1 ring-primary"
-                                          : d.total > 0
-                                          ? "bg-indigo-500/80 group-hover:bg-indigo-600"
-                                          : "bg-base-200"
-                                      }`}
-                                      style={{
-                                        height: d.total > 0 ? `${Math.max(heightPct, 8)}%` : "3px",
-                                        minHeight: "3px",
-                                      }}
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {/* X-axis milestone dates with Month Names */}
-                            <div className="flex justify-between pl-7 pr-2 pt-2 border-t border-base-200 text-[10px] font-bold font-mono text-base-content/60">
-                              {xTickIndices.map((idx) => {
-                                const d = data[idx];
-                                if (!d) return null;
-                                return <span key={idx}>{parseDateInfo(d.date).formatted}</span>;
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Legend & Month Details */}
-                    <div className="flex flex-wrap items-center justify-between text-xs text-base-content/60 pt-2 border-t border-base-200 gap-2">
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block" /> Total Volume
-                        </span>
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Completed
-                        </span>
-                        {totalCancelled > 0 && (
-                          <span className="flex items-center gap-1.5 font-medium">
-                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" /> Cancelled
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] font-medium text-base-content/50">
-                        <span>🗓️ Timeline: <strong className="text-base-content/80">{monthDisplayTitle}</strong></span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-
-
-      {/* ===== LIVE RECEPTION QUEUE & TV TAB ===== */}
-      {activeTab === "chamber" && (
-        <div className="space-y-5">
-          {!clinic ? (
-            <div className="p-6 bg-warning/10 border border-warning/30 rounded-3xl flex items-start gap-4">
-              <AlertTriangle className="text-warning shrink-0 mt-1" size={20} />
-              <div>
-                <h3 className="font-bold text-base-content">No Clinic Registered</h3>
-                <p className="text-sm text-base-content/70 mt-1">Register your clinic first to manage live queue sessions.</p>
-              </div>
-            </div>
-          ) : assignedDoctors.length === 0 ? (
-            <div className="p-6 bg-info/10 border border-info/30 rounded-3xl flex items-start gap-4">
-              <AlertTriangle className="text-info shrink-0 mt-1" size={20} />
-              <div>
-                <h3 className="font-bold text-base-content">No Active Doctors</h3>
-                <p className="text-sm text-base-content/70 mt-1">Invite and get at least one doctor accepted before managing live queues.</p>
-              </div>
-            </div>
-          ) : (() => {
-            const todayDateStr = new Date().toISOString().split("T")[0];
-            const activeReceptionDoc = assignedDoctors.find((d) => String(d.id) === String(selectedDoctorId)) || assignedDoctors[0];
-
-            // Filter roster doctors based on search & department
-            const filteredRosterDoctors = assignedDoctors.filter((d) => {
-              const q = receptionSearchQuery.toLowerCase().trim();
-              const docName = (d.full_name || "").toLowerCase();
-              const deptName = (d.department_name || d.department || "").toLowerCase();
-              const room = (d.room_number || "").toLowerCase();
-              const matchesQ = !q || docName.includes(q) || deptName.includes(q) || room.includes(q);
-              const matchesDept = receptionDeptFilter === "ALL" || String(d.department) === String(receptionDeptFilter) || String(d.department_name) === String(receptionDeptFilter);
-              return matchesQ && matchesDept;
-            });
-
-            // Today's appointments specifically for the active selected doctor
-            const docTodayAppointments = appointments.filter(
-              (a) => a.appointment_date === todayDateStr && (String(a.doctor) === String(selectedDoctorId) || String(a.doctor_id) === String(selectedDoctorId))
-            );
-            const docSeenCount = docTodayAppointments.filter((a) => a.status === "COMPLETED").length;
-            const docWaitingCount = docTodayAppointments.filter((a) => a.status === "PENDING" || a.status === "CONFIRMED").length;
-
-            return (
-              <>
-                {/* 1. Header & Roster Filter Toolbar */}
-                <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md space-y-4">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-primary/10 rounded-2xl text-primary">
-                        <Tv size={24} />
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-black text-base-content flex items-center gap-2">
-                          Live Reception Command Desk
-                          <span className="badge badge-primary badge-sm font-bold">{assignedDoctors.length} Doctors Active</span>
-                        </h2>
-                        <p className="text-xs text-base-content/60">
-                          Manage chamber serials and real-time patient arrivals across all doctors without switching tabs
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <button
-                        onClick={() => {
-                          setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
-                          setWalkInModalOpen(true);
-                        }}
-                        className="btn btn-primary btn-sm gap-1.5 shadow-md font-bold flex-1 sm:flex-initial"
-                        title="Issue instant walk-in token"
-                      >
-                        <UserPlus size={15} /> + Walk-in Token
-                      </button>
-                      <button
-                        onClick={fetchReceptionChamberSession}
-                        className="btn btn-ghost btn-sm gap-1 text-xs"
-                        title="Refresh session data"
-                      >
-                        <RotateCcw size={14} /> Refresh
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Search and Department Filter Toolbar */}
-                  <div className="flex flex-col sm:flex-row items-center gap-3 pt-1 border-t border-base-200">
-                    <div className="relative flex-1 w-full">
-                      <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base-content/40" />
-                      <input
-                        type="text"
-                        value={receptionSearchQuery}
-                        onChange={(e) => setReceptionSearchQuery(e.target.value)}
-                        placeholder="Search doctor by name, room # or department..."
-                        className="input input-bordered input-sm w-full pl-9 rounded-xl text-xs"
-                      />
-                    </div>
-                    <select
-                      value={receptionDeptFilter}
-                      onChange={(e) => setReceptionDeptFilter(e.target.value)}
-                      className="select select-bordered select-sm rounded-xl text-xs w-full sm:w-56 font-medium"
-                    >
-                      <option value="ALL">All Departments ({assignedDoctors.length})</option>
-                      {clinic?.departments?.map((dept) => (
-                        <option key={dept.id} value={dept.id}>{dept.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* 2. Scalable Doctor Carousel Strip */}
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      document.getElementById("receptionDoctorStrip")?.scrollBy({ left: -260, behavior: "smooth" });
-                    }}
-                    className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-base-100 border border-base-300 shadow-lg flex items-center justify-center text-base-content z-10 hover:bg-primary hover:text-white transition-all hidden sm:flex"
-                    title="Scroll Left"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-
-                  <div
-                    id="receptionDoctorStrip"
-                    className="flex gap-3 overflow-x-auto pb-2 scroll-smooth no-scrollbar px-1"
-                    style={{ scrollbarWidth: "thin" }}
-                  >
-                    {filteredRosterDoctors.length === 0 ? (
-                      <div className="p-4 text-xs text-base-content/50 italic bg-base-100 rounded-2xl border border-base-200 w-full text-center">
-                        No doctors match your search or filter.
-                      </div>
-                    ) : (
-                      filteredRosterDoctors.map((d) => {
-                        const isSelected = String(d.id) === String(selectedDoctorId);
-                        const docApts = appointments.filter(
-                          (a) => a.appointment_date === todayDateStr && (String(a.doctor) === String(d.id) || String(a.doctor_id) === String(d.id))
-                        );
-                        const docSeen = docApts.filter((a) => a.status === "COMPLETED").length;
-                        const docTotal = docApts.length;
-
-                        return (
-                          <button
-                            key={d.id}
-                            onClick={() => {
-                              setSelectedDoctorId(d.id);
-                              setChamberSession(null);
-                            }}
-                            className={`flex-shrink-0 w-64 text-left p-3.5 rounded-2xl border transition-all duration-150 relative ${
-                              isSelected
-                                ? "bg-primary/10 border-primary shadow-md ring-1 ring-primary"
-                                : "bg-base-100 border-base-200 hover:border-primary/50 hover:bg-base-200/40"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 text-white flex items-center justify-center font-bold text-xs">
-                                {(d.full_name || "D")[0].toUpperCase()}
-                              </div>
-                              <span className="badge badge-xs badge-neutral font-bold">
-                                {d.room_number ? `Room ${d.room_number}` : "Chamber"}
-                              </span>
-                            </div>
-                            <div className="font-extrabold text-xs text-base-content truncate">
-                              {d.full_name?.startsWith("Dr.") ? d.full_name : `Dr. ${d.full_name}`}
-                            </div>
-                            <div className="text-[11px] text-base-content/60 truncate mt-0.5">
-                              {d.department_name || d.qualification || "General Practice"}
-                            </div>
-                            <div className="flex items-center justify-between mt-3 pt-2 border-t border-base-200/80 text-[11px]">
-                              <span className="text-success font-bold flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
-                                Active
-                              </span>
-                              <span className="font-mono font-bold text-primary">
-                                {docSeen}/{docTotal} seen
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      document.getElementById("receptionDoctorStrip")?.scrollBy({ left: 260, behavior: "smooth" });
-                    }}
-                    className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-base-100 border border-base-300 shadow-lg flex items-center justify-center text-base-content z-10 hover:bg-primary hover:text-white transition-all hidden sm:flex"
-                    title="Scroll Right"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-
-                {/* 3. Main Split-Screen Workspace (Left: Chamber Control | Right: Live Patient Queue) */}
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
-
-                  {/* LEFT COLUMN (xl:col-span-5): Chamber & Serial Control */}
-                  <div className="xl:col-span-5 space-y-4">
-                    {/* Active Doctor Info Banner */}
-                    <div className="bg-base-100 border border-base-200 p-4 rounded-2xl shadow-sm flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                          <Stethoscope size={20} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-sm text-base-content truncate">
-                            {activeReceptionDoc?.full_name?.startsWith("Dr.") ? activeReceptionDoc.full_name : `Dr. ${activeReceptionDoc?.full_name}`}
-                          </div>
-                          <div className="text-xs text-base-content/60 truncate">
-                            {activeReceptionDoc?.room_number ? `Room ${activeReceptionDoc.room_number}` : "Chamber Desk"} · Fee: ৳{activeReceptionDoc?.consultation_fee || "—"}
-                          </div>
-                        </div>
-                      </div>
-                      {selectedDoctorId && clinic && (
-                        <a
-                          href={`/queue-display/${clinic.id}/${selectedDoctorId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-outline btn-xs gap-1 shrink-0 font-bold"
-                          title="Open TV screen for waiting room"
-                        >
-                          <Tv size={12} /> TV Screen ↗
-                        </a>
-                      )}
-                    </div>
-
-                    {/* Chamber Session Controls */}
-                    {chamberSession ? (
-                      <div className="space-y-4">
-                        {/* Notice if any delay */}
-                        {(chamberSession.delay_minutes > 0 || chamberSession.announcement_note) && (
-                          <div className="p-3.5 bg-warning/15 border border-warning/40 rounded-2xl flex items-start gap-2.5">
-                            <AlertTriangle className="text-warning shrink-0 mt-0.5" size={16} />
-                            <div className="text-xs">
-                              {chamberSession.delay_minutes > 0 && (
-                                <span className="font-bold text-warning-content">⏱ +{chamberSession.delay_minutes} min delay broadcast. </span>
-                              )}
-                              {chamberSession.announcement_note && (
-                                <span className="text-base-content/80">{chamberSession.announcement_note}</span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Large "Now Serving" Display Box */}
-                        <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-purple-950 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden text-center">
-                          <div className="text-xs font-black tracking-widest uppercase text-indigo-300 mb-1">
-                            Currently In Chamber
-                          </div>
-                          <div className="text-5xl font-black font-mono tracking-tight my-2">
-                            #{chamberSession.current_serial || 0}
-                          </div>
-                          <div className="text-xs text-indigo-200/80 font-medium">
-                            Status: <span className="font-bold text-white uppercase">{chamberSession.status?.replace("_", " ") || "ACTIVE"}</span>
-                          </div>
-
-                          {/* Mini metrics inside counter */}
-                          <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-white/10">
-                            <div className="bg-white/10 rounded-xl p-2">
-                              <div className="text-xs text-indigo-200 font-bold">Total</div>
-                              <div className="text-lg font-black">{chamberSession.total_serials || docTodayAppointments.length}</div>
-                            </div>
-                            <div className="bg-white/10 rounded-xl p-2">
-                              <div className="text-xs text-indigo-200 font-bold">Waiting</div>
-                              <div className="text-lg font-black text-warning">{docWaitingCount}</div>
-                            </div>
-                            <div className="bg-white/10 rounded-xl p-2">
-                              <div className="text-xs text-indigo-200 font-bold">Completed</div>
-                              <div className="text-lg font-black text-success">{docSeenCount}</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Skipped / Held Serials */}
-                        {chamberSession.skipped_serials?.length > 0 && (
-                          <div className="bg-base-100 border border-base-200 p-3.5 rounded-2xl shadow-sm">
-                            <div className="text-xs font-bold text-base-content/70 mb-2 flex items-center gap-1.5">
-                              <Pause size={13} className="text-warning" /> Skipped Serials (Click to Recall):
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {chamberSession.skipped_serials.map((sn) => (
-                                <button
-                                  key={sn}
-                                  onClick={() => handleReceptionChamberAction("RECALL_SERIAL", null, sn)}
-                                  disabled={updatingChamber}
-                                  className="badge badge-warning badge-sm font-bold cursor-pointer hover:badge-error"
-                                  title={`Recall Serial #${sn}`}
-                                >
-                                  #{sn} Recall
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Fast Queue Actions */}
-                        <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md space-y-4">
-                          <div className="text-xs font-black uppercase tracking-wider text-base-content/60">
-                            Queue Actions
-                          </div>
-                          <div className="grid grid-cols-2 gap-2.5">
-                            <button
-                              onClick={() => handleReceptionChamberAction("NEXT_SERIAL")}
-                              disabled={updatingChamber}
-                              className="btn btn-primary gap-2 col-span-2 shadow-md font-extrabold text-sm"
-                            >
-                              <FastForward size={16} /> Call Next Serial
-                            </button>
-                            <button
-                              onClick={() => handleReceptionChamberAction("SKIP_SERIAL")}
-                              disabled={updatingChamber}
-                              className="btn btn-warning btn-sm gap-1.5 font-bold"
-                            >
-                              <Pause size={14} /> Skip &amp; Hold
-                            </button>
-                            <button
-                              onClick={() => handleReceptionChamberAction("RESET")}
-                              disabled={updatingChamber}
-                              className="btn btn-ghost btn-outline btn-sm gap-1.5 text-xs"
-                            >
-                              <RotateCcw size={14} /> Reset
-                            </button>
-                          </div>
-
-                          {/* Doctor Status Quick Switch */}
-                          <div className="pt-2 border-t border-base-200">
-                            <div className="text-[11px] font-bold text-base-content/50 uppercase tracking-wide mb-2">
-                              Chamber State
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {[
-                                { label: "🏥 In Chamber", status: "IN_CHAMBER", cls: "btn-success" },
-                                { label: "🕌 Break", status: "PRAYER_BREAK", cls: "btn-warning" },
-                                { label: "⏸ Paused", status: "PAUSED", cls: "btn-ghost btn-outline" },
-                                { label: "✅ Done", status: "COMPLETED", cls: "btn-neutral" },
-                              ].map((b) => (
-                                <button
-                                  key={b.status}
-                                  onClick={() => handleReceptionChamberAction("UPDATE_STATUS", b.status)}
-                                  disabled={updatingChamber || chamberSession.status === b.status}
-                                  className={`btn btn-xs gap-1 ${b.cls} ${chamberSession.status === b.status ? "ring-2 ring-offset-1 ring-primary" : ""}`}
-                                >
-                                  {b.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Delay Notice Button */}
-                          <div className="pt-1">
-                            <button
-                              onClick={() => setDelayModalOpen(true)}
-                              className="btn btn-outline btn-xs gap-1.5 w-full text-base-content/70"
-                            >
-                              <AlertTriangle size={13} /> Broadcast Delay / Notice
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-base-100 border border-base-200 rounded-3xl p-8 text-center space-y-3 shadow-md">
-                        <Tv size={36} className="mx-auto text-base-content/25" />
-                        <div className="text-sm font-bold text-base-content">No active queue session found for today.</div>
-                        <p className="text-xs text-base-content/50 max-w-xs mx-auto">
-                          Start today&apos;s live chamber session for this doctor to enable serial call and TV screen sync.
-                        </p>
-                        <button
-                          onClick={() => handleReceptionChamberAction("UPDATE_STATUS", "NOT_STARTED")}
-                          disabled={updatingChamber}
-                          className="btn btn-primary btn-sm gap-2 font-bold"
-                        >
-                          <Play size={14} /> Start Chamber Session
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* RIGHT COLUMN (xl:col-span-7): Today's Live Patient Queue */}
-                  <div className="xl:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-5 shadow-md space-y-4">
-                    <div className="flex items-center justify-between border-b border-base-200 pb-3">
-                      <div>
-                        <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                          <Users size={18} className="text-primary" />
-                          Today&apos;s Live Patient Queue
-                          <span className="badge badge-primary badge-sm font-bold">{docTodayAppointments.length}</span>
-                        </h3>
-                        <p className="text-xs text-base-content/55 mt-0.5">
-                          Patients scheduled for Dr. {activeReceptionDoc?.full_name || "Doctor"} today
-                        </p>
-                      </div>
-                      <div className="text-xs font-bold text-base-content/60">
-                        {docSeenCount} Completed · {docWaitingCount} Waiting
-                      </div>
-                    </div>
-
-                    {/* Patient List */}
-                    {docTodayAppointments.length === 0 ? (
-                      <div className="text-center py-12 text-xs text-base-content/50 space-y-2">
-                        <Users size={32} className="mx-auto text-base-content/20" />
-                        <div>No appointments booked for this doctor today.</div>
-                        <button
-                          onClick={() => {
-                            setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
-                            setWalkInModalOpen(true);
-                          }}
-                          className="btn btn-outline btn-xs gap-1 font-bold text-primary"
-                        >
-                          <UserPlus size={13} /> + Issue Walk-in Token
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
-                        {docTodayAppointments.map((apt, index) => {
-                          const isCompleted = apt.status === "COMPLETED";
-                          const isCancelled = apt.status === "CANCELLED";
-                          const isInChamber = chamberSession && chamberSession.current_serial === (apt.serial_number || index + 1);
-
-                          return (
-                            <div
-                              key={apt.id || index}
-                              className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                                isInChamber
-                                  ? "bg-success/10 border-success/40 shadow-sm"
-                                  : isCompleted
-                                  ? "bg-base-200/30 border-base-200 opacity-65"
-                                  : "bg-base-100 border-base-200 hover:border-primary/40 hover:bg-base-200/20"
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div
-                                  className={`w-9 h-9 rounded-xl font-mono font-black text-sm flex items-center justify-center shrink-0 ${
-                                    isInChamber
-                                      ? "bg-success text-white shadow-sm"
-                                      : isCompleted
-                                      ? "bg-base-300 text-base-content/60"
-                                      : "bg-primary/10 text-primary"
-                                  }`}
-                                >
-                                  #{apt.serial_number || index + 1}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="font-extrabold text-sm text-base-content truncate flex items-center gap-1.5">
-                                    {apt.patient_name || apt.user_name || "Patient"}
-                                    {isInChamber && (
-                                      <span className="badge badge-success badge-xs font-bold text-white">In Chamber</span>
-                                    )}
-                                  </div>
-                                  <div className="text-xs text-base-content/60 truncate">
-                                    📞 {apt.patient_phone || apt.phone || "—"} · ⏰ {apt.appointment_time || "Morning"}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span
-                                  className={`badge badge-sm font-bold ${
-                                    isCompleted
-                                      ? "badge-ghost"
-                                      : isCancelled
-                                      ? "badge-error"
-                                      : isInChamber
-                                      ? "badge-success text-white"
-                                      : "badge-info"
-                                  }`}
-                                >
-                                  {isCompleted ? "Completed" : isCancelled ? "Cancelled" : isInChamber ? "Serving" : "Waiting"}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-
-      {/* ===== BROADCAST DELAY MODAL ===== */}
-      {delayModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-base-100 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
-                <AlertTriangle className="text-warning" size={20} /> Broadcast Delay &amp; Notice
-              </h3>
-              <button onClick={() => setDelayModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
-            </div>
-            <p className="text-xs text-base-content/60">
-              This will immediately push a delay notice to all patient waiting room displays for this doctor&apos;s queue.
-            </p>
-            <form onSubmit={handleBroadcastReceptionDelay} className="space-y-4">
-              <div>
-                <label className="label text-xs font-semibold">Delay (minutes)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="180"
-                  value={receptionDelayMins}
-                  onChange={(e) => setReceptionDelayMins(e.target.value)}
-                  className="input input-bordered w-full"
-                  placeholder="e.g. 30"
-                />
-              </div>
-              <div>
-                <label className="label text-xs font-semibold">Announcement Message (optional)</label>
-                <textarea
-                  value={receptionNotice}
-                  onChange={(e) => setReceptionNotice(e.target.value)}
-                  className="textarea textarea-bordered w-full"
-                  placeholder="e.g. Doctor is in surgery, please wait..."
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-3">
-                <button type="submit" disabled={broadcastingDelay} className="btn btn-warning flex-1 gap-2">
-                  {broadcastingDelay ? <span className="loading loading-spinner loading-xs" /> : <AlertTriangle size={15} />}
-                  Broadcast Now
-                </button>
-                <button type="button" onClick={() => setDelayModalOpen(false)} className="btn btn-ghost flex-1">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== MY CLINIC TAB: DECORATION & SERVICES SUITE ===== */}
-      {activeTab === "clinic" && (
-        <div className="space-y-8">
-          {/* 1. Clinic Branding & Profile Card */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-base-200">
-              <div className="flex items-center gap-4">
-                {clinic?.logo_url ? (
-                  <img
-                    src={clinic.logo_url}
-                    alt={clinic.name}
-                    className="w-20 h-20 rounded-2xl object-cover shadow-sm shrink-0 border border-base-200"
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-indigo-600 text-white font-black text-3xl flex items-center justify-center shadow-sm shrink-0">
-                    {clinic?.name?.charAt(0)?.toUpperCase() || "C"}
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-2xl font-black text-base-content">{clinic?.name}</h2>
-                    <span className="badge badge-success badge-sm font-bold gap-1 py-1 px-2.5">
-                      <CheckCircle2 size={12} /> VERIFIED
-                    </span>
-                  </div>
-                  <p className="text-xs text-base-content/60 flex items-center gap-1.5">
-                    <MapPin size={14} className="text-primary shrink-0" /> {clinic?.address}, {clinic?.city}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      {clinic?.opening_hours ? clinic.opening_hours : "Open 24/7 (Emergency & Pharmacy)"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setEditClinicModalOpen(true)}
-                  className="btn btn-primary btn-sm gap-2 shadow-sm font-bold"
-                >
-                  <Edit3 size={15} /> Edit Clinic Details
-                </button>
-                <a
-                  href={`/clinics/${clinic?.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-outline btn-sm gap-1.5 font-bold"
-                >
-                  <span>Public View</span> <ExternalLink size={13} />
-                </a>
-              </div>
-            </div>
-
-            {/* Care Mission Statement */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-base-content/50">
-                  About Clinic &amp; Care Mission
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setEditClinicModalOpen(true)}
-                  className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
-                >
-                  <Edit3 size={12} /> Add / Edit Mission Statement
-                </button>
-              </div>
-              <p className="text-sm text-base-content/80 leading-relaxed bg-base-200/40 p-4 rounded-2xl border border-base-200">
-                {clinic?.description || "Dedicated to providing accessible, high-quality healthcare and advanced outpatient diagnostic services with compassion, state-of-the-art laboratory testing, and distinguished medical specialists."}
-              </p>
-            </div>
-
-            {/* 4-Card Color-Tinted Contact & Ambulance Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1 text-xs">
-              <div className="p-3.5 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 flex flex-col justify-between space-y-1">
-                <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold">
-                  <PhoneCall size={14} /> General Helpline
-                </div>
-                <div className="font-extrabold text-sm text-base-content tracking-tight">
-                  {clinic?.phone || "01887530601"}
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-teal-50/60 dark:bg-teal-950/30 rounded-2xl border border-teal-200/60 dark:border-teal-900/40 flex flex-col justify-between space-y-1">
-                <div className="flex items-center gap-1.5 text-teal-700 dark:text-teal-300 font-bold">
-                  <Globe size={14} /> Official Email
-                </div>
-                <div className="font-bold text-sm text-base-content truncate">
-                  {clinic?.email || "admin@smartclinic.com"}
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-sky-50/60 dark:bg-sky-950/30 rounded-2xl border border-sky-200/60 dark:border-sky-900/40 flex flex-col justify-between space-y-1">
-                <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 font-bold">
-                  <ExternalLink size={14} /> Official Website
-                </div>
-                <div className="font-bold text-sm truncate">
-                  {clinic?.website ? (
-                    <a href={clinic.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                      {clinic.website}
-                    </a>
-                  ) : (
-                    <span className="text-base-content/40 italic font-normal">Not configured</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-rose-50/60 dark:bg-rose-950/30 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 flex flex-col justify-between space-y-1">
-                <div className="flex items-center gap-1.5 text-rose-700 dark:text-rose-300 font-bold">
-                  <Activity size={14} /> Emergency Ambulance
-                </div>
-                <div className="font-extrabold text-sm text-rose-600 dark:text-rose-400">
-                  {clinic?.emergency_contact || "+880 1700 - 000000"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Clinical Services & Diagnostics Suite (Core Feature) */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-6 md:p-8 shadow-md space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-base-200 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Activity className="text-primary" size={24} />
-                  <h2 className="text-xl font-black text-base-content">
-                    Clinical Services &amp; Diagnostic Tests
-                  </h2>
-                  <span className="badge badge-primary badge-sm font-bold">{services.length}</span>
-                </div>
-                <p className="text-xs text-base-content/60 mt-1">
-                  Configure clinical tests, packages, and treatments offered with BDT pricing and prep instructions.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleLoadDefaultDiagnosticCatalog}
-                  disabled={submittingService}
-                  className="btn btn-outline btn-primary btn-sm gap-1.5 font-bold"
-                  title="Bulk load standard diagnostic tests with pre-set BDT fees"
-                >
-                  <Sparkles size={14} className="text-amber-500" />
-                  <span>Load Default Bangladesh Diagnostic Catalog</span>
-                </button>
-                <button
-                  onClick={() => handleOpenAddService()}
-                  className="btn btn-primary btn-sm gap-2 shadow-md font-bold"
-                >
-                  <Plus size={16} /> Add Clinical Service
-                </button>
-              </div>
-            </div>
-
-            {/* Quick 1-Click Presets */}
-            <div className="space-y-2 bg-base-200/30 p-4 rounded-2xl border border-base-200">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-base-content/70">
-                <Sparkles size={14} className="text-amber-500" />
-                <span>1-Click Popular Service Presets (Click to Add):</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {SERVICE_PRESETS.map((preset, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleOpenAddService(preset)}
-                    className="btn btn-xs btn-outline hover:btn-primary gap-1 font-semibold rounded-lg"
-                  >
-                    <span>+ {preset.name}</span>
-                    <span className="opacity-70 font-mono">৳{preset.fee}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Services List Table / Cards */}
-            {services.length === 0 ? (
-              <div className="text-center py-12 px-4 bg-base-200/20 rounded-3xl border border-base-200 space-y-3">
-                <Activity size={40} className="mx-auto text-base-content/20" />
-                <div className="font-bold text-base-content text-base">No clinical services added yet</div>
-                <p className="text-xs text-base-content/60 max-w-md mx-auto">
-                  Use the 1-click presets above, click &quot;Add Clinical Service&quot;, or bulk-load the standard Bangladesh diagnostic catalog to showcase your lab investigations, imaging tests, and outpatient care.
-                </p>
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={handleLoadDefaultDiagnosticCatalog}
-                    disabled={submittingService}
-                    className="btn btn-primary btn-sm gap-2 font-bold shadow-md"
-                  >
-                    <Sparkles size={14} /> Load Default Bangladesh Diagnostic Catalog
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="table w-full">
-                  <thead>
-                    <tr className="border-b border-base-200 text-xs text-base-content/60 uppercase">
-                      <th>Service Name</th>
-                      <th>Fee (BDT)</th>
-                      <th>Duration</th>
-                      <th>Preparation / Patient Instructions</th>
-                      <th>Status</th>
-                      <th className="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {services.map((s) => (
-                      <tr key={s.id} className="hover:bg-base-200/40 border-b border-base-200">
-                        <td>
-                          <div className="font-extrabold text-sm text-base-content">{s.name}</div>
-                          {s.description && (
-                            <div className="text-xs text-base-content/60 line-clamp-1">{s.description}</div>
-                          )}
-                          {s.department_name && (
-                            <span className="badge badge-ghost badge-xs mt-1 font-semibold">
-                              {s.department_name}
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <span className="font-black text-sm text-primary font-mono">
-                            ৳{parseFloat(s.fee).toLocaleString()}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="text-xs text-base-content/70 flex items-center gap-1">
-                            <Clock size={12} /> {s.duration_minutes} mins
-                          </span>
-                        </td>
-                        <td>
-                          <span className="text-xs text-base-content/70 italic max-w-xs block truncate">
-                            {s.preparation_instructions || "None required"}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleServiceAvailability(s)}
-                            className={`badge badge-sm font-bold cursor-pointer transition-all ${
-                              s.is_available
-                                ? "badge-success text-success-content"
-                                : "badge-error text-error-content"
-                            }`}
-                          >
-                            {s.is_available ? "Active / Available" : "Unavailable"}
-                          </button>
-                        </td>
-                        <td className="text-right space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditService(s)}
-                            className="btn btn-ghost btn-xs text-primary"
-                            title="Edit Service"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteService(s.id)}
-                            className="btn btn-ghost btn-xs text-error"
-                            title="Delete Service"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* 3. Visual Gallery & Virtual Tour Showcase */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-6 md:p-8 shadow-md space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-base-200 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Camera className="text-primary" size={24} />
-                  <h2 className="text-xl font-black text-base-content">
-                    Clinic Photo Gallery &amp; Virtual Tour
-                  </h2>
-                  <span className="badge badge-primary badge-sm font-bold">{gallery.length}</span>
-                </div>
-                <p className="text-xs text-base-content/60 mt-0.5">
-                  Upload or link real photos of your reception, chambers, waiting lounges, and labs with descriptions to give patients an inspiring virtual tour.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleLoadSampleGallery}
-                  className="btn btn-outline btn-secondary btn-sm gap-1.5 font-bold shadow-xs"
-                  title="Load preset high-res clinic photos to get started immediately"
-                >
-                  <Sparkles size={14} /> Sample Tour Pack
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenAddPhoto}
-                  className="btn btn-primary btn-sm gap-2 shadow-xs font-bold"
-                >
-                  <Plus size={16} /> Add Photo
-                </button>
-              </div>
-            </div>
-
-            {gallery.length === 0 ? (
-              <div className="text-center py-12 px-4 bg-base-200/40 rounded-3xl border-2 border-dashed border-base-300 space-y-3">
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-                  <Camera size={32} />
-                </div>
-                <div className="max-w-md mx-auto space-y-1">
-                  <h3 className="font-extrabold text-base text-base-content">No Clinic Photos Uploaded Yet</h3>
-                  <p className="text-xs text-base-content/60">
-                    Clinics with high-quality photos of their consultation chambers, hygienic waiting rooms, and diagnostic labs attract up to 3x more patient bookings!
-                  </p>
-                </div>
-                <div className="flex justify-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleOpenAddPhoto}
-                    className="btn btn-primary btn-sm gap-2 font-bold"
-                  >
-                    <Upload size={14} /> Upload First Photo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleLoadSampleGallery}
-                    className="btn btn-ghost btn-sm gap-1.5 text-secondary font-bold"
-                  >
-                    <Sparkles size={14} /> Load Sample Photos
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {gallery.map((item) => (
-                  <div
-                    key={item.id}
-                    className="group relative bg-base-200/40 rounded-2xl border border-base-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
-                  >
-                    <div className="relative aspect-video w-full overflow-hidden bg-base-300">
-                      <img
-                        src={item.image_url}
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80"; }}
-                      />
-                      {item.is_featured && (
-                        <span className="absolute top-2.5 left-2.5 badge badge-warning gap-1 font-bold text-xs shadow-md">
-                          <Star size={12} className="fill-current" /> Cover Photo
-                        </span>
-                      )}
-                      <span className="absolute top-2.5 right-2.5 badge badge-neutral/80 backdrop-blur-md text-[11px] font-semibold text-white">
-                        {item.category || "Facility"}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => setPreviewPhoto(item)}
-                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs cursor-pointer"
-                      >
-                        <Eye size={16} /> Click to Preview
-                      </button>
-                    </div>
-
-                    <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                      <div className="space-y-1">
-                        <h4 className="font-extrabold text-sm text-base-content leading-snug">{item.title}</h4>
-                        <p className="text-xs text-base-content/70 line-clamp-2 leading-relaxed">
-                          {item.description || "No description provided."}
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t border-base-200/80 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleFeaturedPhoto(item.id)}
-                          className={`btn btn-xs gap-1 font-bold ${item.is_featured ? "btn-warning" : "btn-ghost text-base-content/60"}`}
-                          title={item.is_featured ? "Remove featured cover status" : "Set as primary clinic cover photo"}
-                        >
-                          <Star size={12} className={item.is_featured ? "fill-current" : ""} />
-                          {item.is_featured ? "Cover" : "Set Cover"}
-                        </button>
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditPhoto(item)}
-                            className="btn btn-ghost btn-xs text-primary"
-                            title="Edit details"
-                          >
-                            <Edit3 size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePhoto(item.id)}
-                            className="btn btn-ghost btn-xs text-error"
-                            title="Delete photo"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 4. Facilities & Amenities Decorator */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-base-200 pb-3">
-              <div>
-                <h2 className="text-xl font-black text-base-content flex items-center gap-2">
-                  <Building2 className="text-primary" size={22} /> Clinic Facilities &amp; Key Amenities
-                </h2>
-                <p className="text-xs text-base-content/60 mt-0.5">
-                  Click any amenity to enable or disable it for your clinic. Active amenities are highlighted on your public clinic profile for patients.
-                </p>
-              </div>
-              <span className="badge badge-outline text-xs font-bold">
-                {Array.isArray(clinic?.facilities) ? clinic.facilities.length : 0} / {POPULAR_AMENITIES.length} Enabled
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-              {POPULAR_AMENITIES.map((am) => {
-                const isSelected = Array.isArray(clinic?.facilities) && clinic.facilities.includes(am.id);
-                return (
-                  <button
-                    key={am.id}
-                    type="button"
-                    onClick={() => handleToggleAmenity(am.id)}
-                    className={`p-4 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer ${
-                      isSelected
-                        ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 font-bold shadow-xs ring-1 ring-emerald-500/30"
-                        : "border-base-200 bg-base-100 hover:border-base-300 text-base-content/70 font-medium hover:bg-base-200/40"
-                    }`}
-                  >
-                    <div className="text-2xl mb-2">{am.icon}</div>
-                    <div className="text-xs font-bold leading-tight">{am.label}</div>
-                    <div className="mt-3 text-[10px] uppercase font-black tracking-wider flex items-center gap-1">
-                      {isSelected ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          ✓ ACTIVE
-                        </span>
-                      ) : (
-                        <span className="text-base-content/40">+ ADD</span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 5. Medical Departments & Associated Specialists */}
-          <div className="bg-base-100 border border-base-200 p-6 md:p-8 rounded-3xl shadow-sm space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-base-200 pb-3">
-              <div>
-                <h2 className="text-xl font-black text-base-content flex items-center gap-2">
-                  <Layers className="text-primary" size={22} /> Medical Departments &amp; Specialties
-                </h2>
-                <p className="text-xs text-base-content/60 mt-0.5">
-                  Link medical departments to allow specialist doctors in those disciplines to practice at your clinic.
-                </p>
-              </div>
-              <span className="badge badge-outline text-xs font-bold">
-                {clinic?.departments?.length || 0} Departments Active
-              </span>
-            </div>
-
-            <form onSubmit={handleLinkDept} className="flex flex-col sm:flex-row gap-3">
-              <select
-                required
-                value={clinicDeptForm.department_id}
-                onChange={(e) => setClinicDeptForm({ department_id: e.target.value })}
-                className="select select-bordered flex-1 rounded-xl"
-              >
-                <option value="">-- Choose Medical Department to Link --</option>
-                {departments
-                  .filter((d) => !clinic?.departments?.some((cd) => cd.id === d.id))
-                  .map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-              </select>
-              <button type="submit" className="btn btn-primary gap-2 shrink-0 rounded-xl font-bold">
-                <Plus size={16} /> Link Department
-              </button>
-            </form>
-
-            {clinic?.departments && clinic.departments.length > 0 ? (
-              <div className="flex flex-wrap gap-2.5 pt-2">
-                {clinic.departments.map((dept) => {
-                  const doctorsInDept = assignedDoctors.filter(
-                    (d) => d.department === dept.id || d.department_name === dept.name
-                  ).length;
-                  return (
-                    <span
-                      key={dept.id}
-                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-base-200/70 border border-base-300 text-xs font-bold text-base-content"
-                    >
-                      <Stethoscope size={14} className="text-primary shrink-0" />
-                      <span>{dept.name}</span>
-                      <span className="badge badge-xs badge-neutral font-semibold">
-                        {doctorsInDept} {doctorsInDept === 1 ? "Doctor" : "Doctors"}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-base-content/50 italic">
-                No medical departments linked yet. Select a department from the dropdown above to link it.
-              </p>
-            )}
-          </div>
-
-          {/* 6. Specializations — moved from separate tab */}
-          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-            <div className="flex items-center gap-2">
-              <Award className="text-primary" size={20} />
-              <h2 className="text-base font-extrabold text-base-content">Medical Specializations</h2>
-              <span className="badge badge-ghost badge-sm text-xs">{specializations.length} total</span>
-            </div>
-            <p className="text-xs text-base-content/50">
-              Create custom specializations for doctors to be categorized under on this platform.
-            </p>
-            <form onSubmit={handleCreateSpec} className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                required
-                placeholder="Specialization name (e.g. Pediatric Surgery)"
-                value={newSpec.name}
-                onChange={(e) => setNewSpec({ ...newSpec, name: e.target.value })}
-                className="input input-bordered flex-1 text-sm rounded-xl"
-              />
-              <input
-                type="text"
-                placeholder="Brief description (optional)"
-                value={newSpec.description}
-                onChange={(e) => setNewSpec({ ...newSpec, description: e.target.value })}
-                className="input input-bordered flex-1 text-sm rounded-xl"
-              />
-              <button type="submit" className="btn btn-primary gap-2 shrink-0 rounded-xl">
-                <Plus size={15} /> Add
-              </button>
-            </form>
-            {specializations.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {specializations.map((s) => (
-                  <span key={s.id} className="badge badge-outline badge-sm font-semibold">{s.name}</span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 7. Clinic Announcements & Patient Notices (নোটিশ বোর্ড) */}
-          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-primary/10 rounded-xl text-primary">
-                  <Megaphone size={20} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-extrabold text-base-content">
-                      {t("announcementsTitle")}
-                    </h2>
-                    {announcements.filter(a => a.is_active).length > 0 && (
-                      <span className="badge badge-primary badge-sm font-bold">
-                        {announcements.filter(a => a.is_active).length} active
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-base-content/50">
-                    Publish notices on your public clinic page for doctor visits, schedule changes, or holiday closures.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenAddAnnouncement}
-                className="btn btn-primary btn-sm gap-1.5 font-bold shadow-sm rounded-xl"
-              >
-                <Plus size={14} /> New Announcement
-              </button>
-            </div>
-
-            {announcements.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-3 text-center bg-base-200/30 rounded-2xl border border-dashed border-base-300">
-                <Megaphone size={32} className="text-base-content/20" />
-                <div>
-                  <div className="text-sm font-semibold text-base-content/60">No announcements yet</div>
-                  <div className="text-xs text-base-content/40 mt-0.5 max-w-sm">
-                    Inform patients about upcoming doctor visits, schedule changes, or holiday notices.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddAnnouncement}
-                  className="btn btn-outline btn-sm gap-1.5 rounded-xl font-bold"
-                >
-                  <Plus size={13} /> Create First Announcement
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {announcements.map((a) => {
-                  const typeColors = {
-                    DOCTOR_VISIT: "badge-primary",
-                    SCHEDULE_CHANGE: "badge-warning",
-                    NEW_SERVICE: "badge-success",
-                    CLINIC_NOTICE: "badge-info",
-                    HOLIDAY: "badge-error",
-                    GENERAL: "badge-neutral",
-                  };
-                  const typeLabels = {
-                    DOCTOR_VISIT: "Doctor Visit",
-                    SCHEDULE_CHANGE: "Schedule Change",
-                    NEW_SERVICE: "New Service",
-                    CLINIC_NOTICE: "Notice",
-                    HOLIDAY: "Holiday",
-                    GENERAL: "General",
-                  };
-                  return (
-                    <div
-                      key={a.id}
-                      className={`p-4 rounded-2xl border transition-all space-y-2.5 ${
-                        a.is_active ? "border-base-200 bg-base-50/60 shadow-xs" : "border-base-200 opacity-60 bg-base-100"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <span className="font-bold text-sm text-base-content truncate">{a.title}</span>
-                            <span className={`badge badge-xs font-bold ${typeColors[a.announcement_type] || "badge-neutral"}`}>
-                              {typeLabels[a.announcement_type] || a.announcement_type}
-                            </span>
-                            {!a.is_active && <span className="badge badge-ghost badge-xs">Inactive</span>}
-                          </div>
-                          {a.scheduled_date && (
-                            <div className="text-[11px] text-base-content/50 flex items-center gap-1">
-                              <Calendar size={11} /> {a.scheduled_date}{a.scheduled_time ? ` at ${a.scheduled_time.slice(0, 5)}` : ""}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleAnnouncementActive(a)}
-                            className={`btn btn-xs ${a.is_active ? "btn-success" : "btn-ghost btn-outline"}`}
-                            title={a.is_active ? "Deactivate" : "Activate"}
-                          >
-                            {a.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditAnnouncement(a)}
-                            className="btn btn-ghost btn-xs"
-                            title="Edit"
-                          >
-                            <Edit3 size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAnnouncement(a.id)}
-                            className="btn btn-ghost btn-xs text-error"
-                            title="Delete"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-base-content/70 leading-relaxed whitespace-pre-line line-clamp-3">
-                        {a.message}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ===== DOCTORS & REQUESTS TAB ===== */}
-      {activeTab === "doctors" && (
-        <div className="space-y-6">
-          {/* Active Doctors (Top) */}
-          <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-                <Stethoscope className="text-primary" /> Active Doctors
-                <span className="badge badge-primary badge-sm font-bold">{assignedDoctors.length}</span>
-              </h2>
-              <span className="text-xs text-base-content/40 italic">Tap any doctor for full details →</span>
-            </div>
-            {assignedDoctors.length === 0 ? (
-              <div className="text-center py-6 text-xs text-base-content/60">No active doctors linked to your clinic.</div>
-            ) : (
-              <div className="flex flex-col gap-2.5 max-h-[360px] overflow-y-auto pr-1">
-                {assignedDoctors.map((d) => {
-                  const todayStr = new Date().toISOString().split("T")[0];
-                  const docAptsToday = appointments.filter(
-                    (a) => a.appointment_date === todayStr && (a.doctor === d.id || a.doctor_id === d.id)
-                  );
-                  const seenToday = docAptsToday.filter((a) => a.status === "COMPLETED").length;
-                  const totalToday = docAptsToday.length;
-                  const isSelected = selectedDoctorCard?.id === d.id;
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => clinic && openDoctorCard(d)}
-                      className={`w-full text-left p-4 rounded-2xl border flex items-center gap-3 transition-all duration-150
-                        ${isSelected
-                          ? "border-primary bg-primary/10 shadow-md"
-                          : "border-base-200 bg-base-200/40 hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm"
-                        }`}
-                    >
-                      {/* Avatar */}
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-extrabold text-base shrink-0 shadow-sm">
-                        {(d.full_name || "?")[0].toUpperCase()}
-                      </div>
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-extrabold text-sm text-base-content truncate">
-                          {d.full_name?.startsWith("Dr.") ? d.full_name : `Dr. ${d.full_name}`}
-                        </div>
-                        <div className="text-xs text-base-content/55 mt-0.5 truncate">{d.qualification || "—"}</div>
-                      </div>
-                      {/* Meta */}
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="text-xs font-bold text-success flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-success inline-block"></span>
-                          Active
-                        </span>
-                        {totalToday > 0 ? (
-                          <span className="text-xs font-bold text-primary">{seenToday}/{totalToday} seen</span>
-                        ) : (
-                          <span className="text-xs text-base-content/35">No apts today</span>
-                        )}
-                      </div>
-                      <ChevronRight size={14} className="text-base-content/30 shrink-0" />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Incoming Doctor Requests */}
-          {pendingIncomingRequests.length > 0 && (
-            <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-              <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-                <Info className="text-warning" /> Incoming Join Requests from Doctors ({pendingIncomingRequests.length})
-              </h2>
-              <div className="space-y-3">
-                {pendingIncomingRequests.map((r) => (
-                  <div key={r.id} className="p-4 bg-base-200/50 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                      <div className="font-bold text-base-content">
-                        {r.doctor?.full_name?.startsWith("Dr.") ? r.doctor?.full_name : `Dr. ${r.doctor?.full_name}`}
-                      </div>
-                      <div className="text-xs text-base-content/60">Proposed Fee: ৳{r.consultation_fee} · Room: {r.room_number || "N/A"}</div>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button onClick={() => handleRespondRequest(r.id, "ACCEPT")} className="btn btn-success btn-xs text-white">Accept</button>
-                      <button onClick={() => handleRespondRequest(r.id, "REJECT")} className="btn btn-error btn-xs text-white">Reject</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Send Invite Form (Bottom) */}
-          {clinic && clinic.verification_status === "VERIFIED" && (
-            <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-              <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-                <Send className="text-primary" /> Send Service Request to Doctor
-              </h2>
-              <p className="text-xs text-base-content/60">Invite a registered, approved doctor to provide services at your clinic. They must accept before becoming active.</p>
-
-              <form onSubmit={handleSendInvite} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label text-xs font-semibold">Select Doctor *</label>
-                    <select required value={inviteForm.doctor_id}
-                      onChange={(e) => setInviteForm({ ...inviteForm, doctor_id: e.target.value })}
-                      className="select select-bordered w-full">
-                      <option value="">-- Choose Doctor --</option>
-                      {allDoctors.filter(d => d.verification_status === "VERIFIED").map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.full_name?.startsWith("Dr.") ? d.full_name : `Dr. ${d.full_name}`} ({d.qualification || d.email})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label text-xs font-semibold">Consultation Fee (৳ / BDT) *</label>
-                    <input type="number" step="0.01" required placeholder="500.00" value={inviteForm.consultation_fee}
-                      onChange={(e) => setInviteForm({ ...inviteForm, consultation_fee: e.target.value })}
-                      className="input input-bordered w-full" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label text-xs font-semibold">Department (optional)</label>
-                    <select value={inviteForm.department_id}
-                      onChange={(e) => setInviteForm({ ...inviteForm, department_id: e.target.value })}
-                      className="select select-bordered w-full">
-                      <option value="">-- No department --</option>
-                      {departments.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label text-xs font-semibold">Room Number (optional)</label>
-                    <input type="text" placeholder="Room 204" value={inviteForm.room_number}
-                      onChange={(e) => setInviteForm({ ...inviteForm, room_number: e.target.value })}
-                      className="input input-bordered w-full" />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-primary w-full gap-2"><Send size={16} /> Send Service Invite</button>
-              </form>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ===== APPOINTMENTS TAB ===== */}
-      {activeTab === "appointments" && (
-        <div className="space-y-4">
-          {/* Header */}
-          <div className="bg-base-100 p-4 rounded-2xl border border-base-200 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Calendar size={18} className="text-primary" />
-              <span className="font-bold">Clinic Appointments</span>
-              <span className="badge badge-primary">{appointments.length}</span>
-            </div>
-            <button
-              onClick={() => {
-                setWalkInForm(prev => ({ ...prev, doctor_id: selectedDoctorId || (assignedDoctors[0]?.id || "") }));
-                setWalkInModalOpen(true);
-              }}
-              className="btn btn-primary btn-sm gap-1.5 shadow-md font-bold"
-            >
-              <UserPlus size={15} /> + New Walk-in Patient
-            </button>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "ALL", label: "All", color: "btn-neutral" },
-              { key: "CONFIRMED", label: "✅ Confirmed", color: "btn-success" },
-              { key: "COMPLETED", label: "🔵 Completed", color: "btn-info" },
-              { key: "CANCELLED", label: "🔴 Cancelled", color: "btn-error" },
-              { key: "PENDING", label: "🟡 Pending", color: "btn-warning" },
-              { key: "WALK_IN", label: "🚶 Walk-in", color: "btn-secondary" },
-            ].map(f => (
-              <button
-                key={f.key}
-                onClick={() => setAppointmentFilter(f.key)}
-                className={`btn btn-xs font-bold rounded-xl border ${appointmentFilter === f.key ? f.color + " text-white shadow-sm" : "btn-ghost border-base-300"}`}
-              >
-                {f.label}
-                {f.key !== "ALL" && (
-                  <span className="ml-1 opacity-70">
-                    ({f.key === "WALK_IN"
-                      ? appointments.filter(a => a.is_walk_in).length
-                      : appointments.filter(a => a.status === f.key).length})
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Appointment Cards */}
-          {(() => {
-            const filtered = appointments.filter(apt => {
-              if (appointmentFilter === "ALL") return true;
-              if (appointmentFilter === "WALK_IN") return apt.is_walk_in;
-              return apt.status === appointmentFilter;
-            });
-            const borderColors = {
-              CONFIRMED: "border-l-4 border-l-emerald-400",
-              COMPLETED: "border-l-4 border-l-sky-400",
-              CANCELLED: "border-l-4 border-l-rose-400",
-              PENDING: "border-l-4 border-l-amber-400",
-            };
-            if (filtered.length === 0) {
-              return (
-                <div className="text-center py-12 bg-base-100 rounded-3xl border border-base-200 text-base-content/60">
-                  No {appointmentFilter !== "ALL" ? appointmentFilter.toLowerCase() : ""} appointments found.
-                </div>
-              );
-            }
-            return (
-              <div className="space-y-3">
-                {filtered.map((apt) => (
-                  <div key={apt.id} className={`bg-base-100 border border-base-200 rounded-2xl p-5 shadow-sm space-y-3 hover:shadow-md transition-shadow ${borderColors[apt.status] || ""}`}>
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="badge badge-secondary font-black text-xs">
-                            Serial #{apt.serial_number || "—"}
-                          </span>
-                          <div className="font-bold text-base-content">
-                            {apt.patient?.first_name} {apt.patient?.last_name}
-                            {apt.is_walk_in && <span className="ml-1 badge badge-ghost badge-xs font-semibold">Walk-in</span>}
-                          </div>
-                          {apt.patient?.phone && (
-                            <span className="text-xs text-base-content/60">({apt.patient.phone})</span>
-                          )}
-                          <span className={`badge badge-sm font-bold ${
-                            apt.status === "CONFIRMED" ? "badge-success" :
-                            apt.status === "COMPLETED" ? "badge-info" :
-                            apt.status === "CANCELLED" ? "badge-error" : "badge-warning"
-                          }`}>{apt.status}</span>
-                        </div>
-                        <div className="text-sm text-base-content/60 flex flex-wrap gap-3 pt-1">
-                          <span className="flex items-center gap-1"><Stethoscope size={13} className="text-primary" /> Dr. {apt.doctor?.full_name}</span>
-                          <span className="flex items-center gap-1"><Calendar size={13} className="text-primary" /> {apt.appointment_date}</span>
-                          <span className="flex items-center gap-1"><Clock size={13} className="text-primary" /> {apt.appointment_time}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
-                        <div className="text-primary font-bold text-lg">৳{apt.amount} BDT</div>
-                        <div className="flex items-center gap-2">
-                          {apt.status === "PENDING" && (
-                            <button
-                              onClick={() => handleCashCheckIn(apt.id)}
-                              disabled={checkingInId === apt.id}
-                              className="btn btn-success btn-xs text-white font-bold gap-1 shadow-sm"
-                              title="Confirm cash paid at counter & check-in patient"
-                            >
-                              <CreditCard size={12} />
-                              {checkingInId === apt.id ? "Checking in..." : "Mark Paid (Cash)"}
-                            </button>
-                          )}
-                          <a
-                            href={`/track-queue/${apt.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-outline btn-primary btn-xs gap-1 font-bold"
-                            title="Open Live Patient Queue Tracker"
-                          >
-                            <Activity size={12} /> Track Live
-                          </a>
-                          <button
-                            onClick={() => setPrintTokenData(apt)}
-                            className="btn btn-outline btn-xs gap-1 font-semibold"
-                            title="Print thermal token slip with QR code"
-                          >
-                            <Printer size={12} /> Print Token
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-
-          {/* ── ACCOUNTS & SETTLEMENTS SUMMARY (merged from finance tab) ── */}
-          <div className="bg-base-100 border border-base-200 rounded-2xl p-5 space-y-4 mt-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-              <div>
-                <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                  <DollarSign size={18} className="text-emerald-500" /> Daily Cash Register & Doctor Settlements
-                </h3>
-                <p className="text-xs text-base-content/50 mt-0.5">20% clinic share · 80% doctor payout · {analyticsDate}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-1.5 bg-base-200/50 px-2.5 py-1.5 rounded-xl border border-base-200 text-xs">
-                  <Calendar size={13} className="text-primary shrink-0" />
-                  <input
-                    type="date"
-                    value={analyticsDate}
-                    onChange={(e) => { setAnalyticsDate(e.target.value); fetchFinancialAnalytics(e.target.value); }}
-                    className="bg-transparent font-mono font-bold focus:outline-none cursor-pointer text-xs"
-                  />
-                </div>
-                <button onClick={() => fetchFinancialAnalytics()} className="btn btn-outline btn-xs gap-1 font-bold">
-                  <RefreshCw size={12} className={loadingAnalytics ? "animate-spin" : ""} /> Refresh
-                </button>
-                <button onClick={() => window.print()} className="btn btn-primary btn-xs gap-1 font-bold shadow-sm print:hidden">
-                  <Printer size={12} /> Print Audit Sheet
-                </button>
-              </div>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { label: "Gross Revenue", value: financialAnalytics?.summary?.today_gross_revenue || 0, color: "text-emerald-600", sub: `${financialAnalytics?.summary?.today_confirmed_appointments || 0} paid appts` },
-                { label: "Counter Cash", value: financialAnalytics?.summary?.today_cash_collected || 0, color: "text-primary", sub: "Direct in cash drawer" },
-                { label: "Clinic Share (20%)", value: financialAnalytics?.summary?.today_clinic_net_share || 0, color: "text-indigo-600", sub: "Operational income" },
-                { label: "Doctors Payout (80%)", value: financialAnalytics?.summary?.today_doctors_total_payout || 0, color: "text-amber-600", sub: "Payable to practitioners" },
-              ].map(k => (
-                <div key={k.label} className="bg-base-200/40 p-4 rounded-xl space-y-0.5">
-                  <div className="text-xs text-base-content/60 font-semibold">{k.label}</div>
-                  <div className={`text-xl font-black font-mono ${k.color}`}>৳{parseFloat(k.value).toLocaleString()}</div>
-                  <div className="text-[11px] text-base-content/50">{k.sub}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Doctor Settlement Table */}
-            {financialAnalytics?.doctor_settlements?.length > 0 && (
-              <div className="overflow-x-auto rounded-xl border border-base-200">
-                <table className="table table-sm w-full">
-                  <thead>
-                    <tr className="text-xs text-base-content/60 uppercase bg-base-200/50">
-                      <th>Doctor</th>
-                      <th>Specialty</th>
-                      <th>Slot Fee</th>
-                      <th className="text-center">Patients</th>
-                      <th>Gross</th>
-                      <th>Clinic (20%)</th>
-                      <th className="text-right text-emerald-700">Net Payout (80%)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {financialAnalytics.doctor_settlements.map((doc) => (
-                      <tr key={doc.doctor_id} className="hover:bg-base-200/40 border-b border-base-200 text-xs">
-                        <td><div className="font-bold text-base-content">{doc.doctor_name}</div></td>
-                        <td><span className="badge badge-ghost badge-xs">{doc.specialization}</span></td>
-                        <td className="font-mono">৳{doc.consultation_fee}</td>
-                        <td className="font-bold text-center">{doc.patients_seen_today}</td>
-                        <td className="font-mono font-bold">৳{doc.gross_collected.toLocaleString()}</td>
-                        <td className="font-mono text-indigo-600">৳{doc.clinic_facility_cut.toLocaleString()}</td>
-                        <td className="text-right font-black font-mono text-emerald-600">৳{doc.doctor_net_payout.toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-
-
-
-
-
-      {/* ===== WALK-IN PATIENT ENTRY MODAL ===== */}
-      {walkInModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-base-100 rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-base-200 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-primary/10 rounded-xl text-primary font-bold">
-                  <UserPlus size={20} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-lg text-base-content">
-                    {t("walkInModalTitle")}
-                  </h3>
-                  <p className="text-xs text-base-content/60">Issue instant serial token for walk-in patient at clinic counter</p>
-                </div>
-              </div>
-              <button onClick={() => setWalkInModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
-            </div>
-
-            <form onSubmit={handleCreateWalkIn} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">Patient Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={walkInForm.walk_in_name}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, walk_in_name: e.target.value })}
-                    className="input input-bordered w-full font-medium"
-                    placeholder="e.g. Md. Rafiqul Islam"
-                  />
-                </div>
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">Mobile Number *</label>
-                  <input
-                    type="text"
-                    required
-                    value={walkInForm.walk_in_phone}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, walk_in_phone: e.target.value })}
-                    className="input input-bordered w-full font-medium"
-                    placeholder="e.g. 01712345678"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">Doctor *</label>
-                  <select
-                    required
-                    value={walkInForm.doctor_id}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, doctor_id: e.target.value })}
-                    className="select select-bordered w-full"
-                  >
-                    <option value="">-- Select Doctor --</option>
-                    {assignedDoctors.map((d) => (
-                      <option key={d.id} value={d.id}>Dr. {d.full_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">Time Slot (Optional)</label>
-                  <input
-                    type="time"
-                    value={walkInForm.appointment_time}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, appointment_time: e.target.value })}
-                    className="input input-bordered w-full"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label text-xs font-bold uppercase tracking-wider">Chief Complaint / Notes (Optional)</label>
-                <input
-                  type="text"
-                  value={walkInForm.problem_description}
-                  onChange={(e) => setWalkInForm({ ...walkInForm, problem_description: e.target.value })}
-                  className="input input-bordered w-full text-xs"
-                  placeholder="e.g. High fever for 3 days, headache"
-                />
-              </div>
-
-              <div className="p-3 bg-base-200/60 rounded-2xl text-xs space-y-1">
-                <div className="flex justify-between font-bold text-base-content">
-                  <span>Payment Mode:</span>
-                  <span className="text-success font-black">{t("cashAtCounterInstant")}</span>
-                </div>
-                <div className="text-[11px] text-base-content/60">
-                  Appointment will be immediately confirmed, serial token assigned, and cash transaction recorded.
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={submittingWalkIn}
-                  className="btn btn-primary flex-1 gap-2 font-bold shadow-md"
-                >
-                  {submittingWalkIn ? <span className="loading loading-spinner loading-xs" /> : <Printer size={16} />}
-                  Confirm & Issue Token Slip
-                </button>
-                <button type="button" onClick={() => setWalkInModalOpen(false)} className="btn btn-ghost flex-1">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== PRINTABLE THERMAL TOKEN SLIP MODAL ===== */}
-      {printTokenData && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white text-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3 print:hidden">
-              <span className="font-bold text-xs uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
-                <Printer size={15} /> Thermal Token Preview
-              </span>
-              <button onClick={() => setPrintTokenData(null)} className="btn btn-ghost btn-xs btn-circle">✕</button>
-            </div>
-
-            {/* Printable Slip Container */}
-            <div className="border-2 border-dashed border-slate-300 rounded-2xl p-5 text-center space-y-3 font-mono text-xs bg-slate-50">
-              <div className="space-y-0.5 border-b border-slate-200 pb-2">
-                <div className="font-black text-sm uppercase tracking-wide">{clinic?.name || "Smart Clinic BD"}</div>
-                <div className="text-[10px] text-slate-500">{clinic?.address || ""}, {clinic?.city || "Dhaka"}</div>
-                <div className="text-[10px] text-slate-500">Phone: {clinic?.phone || "01700-000000"}</div>
-              </div>
-
-              <div className="py-2">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">PATIENT SERIAL TOKEN</div>
-                <div className="text-5xl font-black text-emerald-600 my-1">
-                  #{printTokenData.serial_number || 1}
-                </div>
-                <div className="text-[10px] text-slate-400">Date: {printTokenData.appointment_date}</div>
-              </div>
-
-              <div className="text-left space-y-1 bg-white p-3 rounded-xl border border-slate-200 text-[11px]">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Patient:</span>
-                  <span className="font-bold">{printTokenData.patient?.first_name} {printTokenData.patient?.last_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Doctor:</span>
-                  <span className="font-bold">Dr. {printTokenData.doctor?.full_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Fee:</span>
-                  <span className="font-bold text-emerald-600">৳{printTokenData.amount} BDT (PAID)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Time:</span>
-                  <span className="font-bold">{printTokenData.appointment_time}</span>
-                </div>
-              </div>
-
-              {/* Scannable Live Queue QR Code */}
-              <div className="pt-2 border-t border-slate-200 flex flex-col items-center justify-center space-y-1.5">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
-                    `${window.location.origin}/track-queue/${printTokenData.id}`
-                  )}`}
-                  alt="Track Queue QR"
-                  className="w-24 h-24 border border-slate-300 rounded-lg p-1 bg-white"
-                />
-                <span className="text-[10px] font-bold text-emerald-700 tracking-tight">
-                  Scan QR with Phone to Track Live Queue
-                </span>
-                <span className="text-[9px] text-slate-400 font-mono">
-                  {window.location.origin}/track-queue/{printTokenData.id.slice(0, 8)}
-                </span>
-              </div>
-
-              <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-200">
-                Please wait in lobby until your serial is called on the TV screen.
-              </div>
-            </div>
-
-            <div className="flex gap-2 print:hidden">
-              <a
-                href={`/track-queue/${printTokenData.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-outline btn-sm flex-1 gap-1 font-bold text-xs"
-              >
-                <span>Live Preview</span>
-              </a>
-              <button
-                onClick={() => window.print()}
-                className="btn btn-primary btn-sm flex-1 gap-1.5 font-bold shadow-md"
-              >
-                <Printer size={15} /> Print Slip
-              </button>
-              <button
-                onClick={() => setPrintTokenData(null)}
-                className="btn btn-ghost btn-sm flex-1"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== EDIT CLINIC PROFILE & BRANDING MODAL ===== */}
-      {editClinicModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-base-100 rounded-3xl shadow-2xl w-full max-w-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto border border-base-200 my-8">
-            <div className="flex items-center justify-between border-b border-base-200 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary/10 text-primary rounded-2xl">
-                  <Building2 size={24} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-lg text-base-content">
-                    Edit Clinic Profile &amp; Decoration
-                  </h3>
-                  <p className="text-xs text-base-content/60">
-                    Update your clinic identity, operating hours, emergency contact, and branding.
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setEditClinicModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveClinicProfile} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">Clinic Official Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={clinicEditForm.name}
-                    onChange={(e) => setClinicEditForm({ ...clinicEditForm, name: e.target.value })}
-                    className="input input-bordered w-full text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">City / Division *</label>
-                  <input
-                    type="text"
-                    required
-                    value={clinicEditForm.city}
-                    onChange={(e) => setClinicEditForm({ ...clinicEditForm, city: e.target.value })}
-                    className="input input-bordered w-full text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Complete Physical Address *</label>
-                <textarea
-                  required
-                  rows={2}
-                  value={clinicEditForm.address}
-                  onChange={(e) => setClinicEditForm({ ...clinicEditForm, address: e.target.value })}
-                  className="textarea textarea-bordered w-full text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">General Phone</label>
-                  <input
-                    type="text"
-                    value={clinicEditForm.phone}
-                    onChange={(e) => setClinicEditForm({ ...clinicEditForm, phone: e.target.value })}
-                    className="input input-bordered w-full text-sm"
-                    placeholder="e.g. 01700000000"
-                  />
-                </div>
-
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">Contact Email</label>
-                  <input
-                    type="email"
-                    value={clinicEditForm.email}
-                    onChange={(e) => setClinicEditForm({ ...clinicEditForm, email: e.target.value })}
-                    className="input input-bordered w-full text-sm"
-                    placeholder="contact@clinic.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70 flex items-center gap-1 text-error">
-                    <PhoneCall size={12} /> Emergency Hotline
-                  </label>
-                  <input
-                    type="text"
-                    value={clinicEditForm.emergency_contact}
-                    onChange={(e) => setClinicEditForm({ ...clinicEditForm, emergency_contact: e.target.value })}
-                    className="input input-bordered w-full text-sm"
-                    placeholder="e.g. 01711999999"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70 flex items-center gap-1">
-                    <Clock size={12} className="text-primary" /> Operating Hours
-                  </label>
-                  <input
-                    type="text"
-                    value={clinicEditForm.opening_hours}
-                    onChange={(e) => setClinicEditForm({ ...clinicEditForm, opening_hours: e.target.value })}
-                    className="input input-bordered w-full text-sm"
-                    placeholder="e.g. Sat - Thu: 8:00 AM - 10:00 PM"
-                  />
-                </div>
-
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70 flex items-center gap-1">
-                    <Globe size={12} className="text-primary" /> Official Website
-                  </label>
-                  <input
-                    type="url"
-                    value={clinicEditForm.website}
-                    onChange={(e) => setClinicEditForm({ ...clinicEditForm, website: e.target.value })}
-                    className="input input-bordered w-full text-sm"
-                    placeholder="https://yourclinic.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Clinic Logo URL</label>
-                <input
-                  type="url"
-                  value={clinicEditForm.logo_url}
-                  onChange={(e) => setClinicEditForm({ ...clinicEditForm, logo_url: e.target.value })}
-                  className="input input-bordered w-full text-sm font-mono"
-                  placeholder="https://res.cloudinary.com/... or image link"
-                />
-              </div>
-
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">
-                  About Clinic &amp; Medical Mission (Public Bio)
-                </label>
-                <textarea
-                  rows={4}
-                  value={clinicEditForm.description}
-                  onChange={(e) => setClinicEditForm({ ...clinicEditForm, description: e.target.value })}
-                  className="textarea textarea-bordered w-full text-sm"
-                  placeholder="Describe your clinic's modern facilities, clinical specialties, and patient-centered services..."
-                />
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setEditClinicModalOpen(false)}
-                  className="btn btn-outline flex-1 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingClinicEdit}
-                  className="btn btn-primary flex-2 font-bold shadow-lg gap-2"
-                >
-                  {submittingClinicEdit ? <span className="loading loading-spinner loading-xs" /> : <Edit3 size={16} />}
-                  Save Clinic Profile
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== ADD / EDIT CLINICAL SERVICE MODAL ===== */}
-      {serviceModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-base-100 rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 border border-base-200 my-8">
-            <div className="flex items-center justify-between border-b border-base-200 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary/10 text-primary rounded-2xl">
-                  <Activity size={24} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-lg text-base-content">
-                    {editingServiceId ? "Edit Clinical Service" : "Add Clinical Service"}
-                  </h3>
-                  <p className="text-xs text-base-content/60">
-                    Specify service name, diagnostic pricing in BDT, and patient prep notes.
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setServiceModalOpen(false)} className="btn btn-ghost btn-sm btn-circle">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveService} className="space-y-4">
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Service / Test Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={serviceForm.name}
-                  onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
-                  className="input input-bordered w-full text-sm"
-                  placeholder="e.g. Ultrasound (USG) Whole Abdomen"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">Service Fee (BDT) *</label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-3 text-sm font-bold text-base-content/40">৳</span>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      step="any"
-                      value={serviceForm.fee}
-                      onChange={(e) => setServiceForm({ ...serviceForm, fee: e.target.value })}
-                      className="input input-bordered w-full pl-8 text-sm font-mono font-bold"
-                      placeholder="e.g. 1200"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">Estimated Duration (Mins)</label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="300"
-                    value={serviceForm.duration_minutes}
-                    onChange={(e) => setServiceForm({ ...serviceForm, duration_minutes: e.target.value })}
-                    className="input input-bordered w-full text-sm font-mono"
-                    placeholder="e.g. 20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Department (Optional)</label>
-                <select
-                  value={serviceForm.department_id}
-                  onChange={(e) => setServiceForm({ ...serviceForm, department_id: e.target.value })}
-                  className="select select-bordered w-full text-sm"
-                >
-                  <option value="">-- None / General Facility --</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">
-                  Preparation / Patient Instructions
-                </label>
-                <input
-                  type="text"
-                  value={serviceForm.preparation_instructions}
-                  onChange={(e) => setServiceForm({ ...serviceForm, preparation_instructions: e.target.value })}
-                  className="input input-bordered w-full text-sm"
-                  placeholder="e.g. Overnight 8-hour fasting required; bring prior reports"
-                />
-              </div>
-
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Service Description / Notes</label>
-                <textarea
-                  rows={2}
-                  value={serviceForm.description}
-                  onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
-                  className="textarea textarea-bordered w-full text-sm"
-                  placeholder="Additional details about the investigation, equipment, or doctor consultation included..."
-                />
-              </div>
-
-              <div className="p-3 bg-base-200/50 rounded-2xl flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-xs text-base-content">Service Availability Status</div>
-                  <div className="text-[11px] text-base-content/60">
-                    When active, patients can view this service on your clinic page.
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={serviceForm.is_available}
-                  onChange={(e) => setServiceForm({ ...serviceForm, is_available: e.target.checked })}
-                  className="toggle toggle-primary toggle-sm"
-                />
-              </div>
-
-              <div className="pt-3 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setServiceModalOpen(false)}
-                  className="btn btn-outline flex-1 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingService}
-                  className="btn btn-primary flex-2 font-bold shadow-lg gap-2"
-                >
-                  {submittingService ? <span className="loading loading-spinner loading-xs" /> : <Activity size={16} />}
-                  {editingServiceId ? "Save Changes" : "Create Service"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== ADD / EDIT CLINIC PHOTO MODAL ===== */}
-      {photoModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-base-100 rounded-3xl shadow-2xl w-full max-w-lg p-6 sm:p-8 space-y-5 border border-base-200 my-8">
-            <div className="flex items-center justify-between border-b border-base-200 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
-                  <Camera size={20} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-lg text-base-content">
-                    {editingPhotoId ? "Edit Clinic Photo" : "Add Clinic Photo"}
-                  </h3>
-                  <p className="text-xs text-base-content/60">Showcase your clinic rooms, labs, and amenities</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPhotoModalOpen(false)}
-                className="btn btn-ghost btn-sm btn-circle"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePhoto} className="space-y-4">
-              {/* Mode Selector: Device File Upload vs Web URL */}
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Photo Source</label>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-base-200 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setUploadMode("file")}
-                    className={`btn btn-sm font-bold ${uploadMode === "file" ? "btn-primary shadow-xs" : "btn-ghost"}`}
-                  >
-                    <Upload size={14} /> Upload from Device
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUploadMode("url")}
-                    className={`btn btn-sm font-bold ${uploadMode === "url" ? "btn-primary shadow-xs" : "btn-ghost"}`}
-                  >
-                    <Globe size={14} /> Image Web Link
-                  </button>
-                </div>
-              </div>
-
-              {uploadMode === "file" ? (
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">
-                    Select Image File (JPG, PNG, WEBP)
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageFileUpload}
-                    className="file-input file-input-bordered file-input-primary w-full text-xs rounded-xl"
-                  />
-                  <span className="text-[11px] text-base-content/50 mt-1 block">
-                    Supported up to 10MB. Reads directly and uploads seamlessly.
-                  </span>
-                </div>
-              ) : (
-                <div>
-                  <label className="label text-xs font-bold text-base-content/70">
-                    Image URL *
-                  </label>
-                  <input
-                    type="url"
-                    required={!photoForm.image_url}
-                    value={photoForm.image_url}
-                    onChange={(e) => setPhotoForm({ ...photoForm, image_url: e.target.value })}
-                    placeholder="https://images.unsplash.com/... or cloud storage URL"
-                    className="input input-bordered w-full rounded-xl text-sm"
-                  />
-                </div>
-              )}
-
-              {/* Live Preview if image_url exists */}
-              {photoForm.image_url && (
-                <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-base-300 bg-base-200">
-                  <img
-                    src={photoForm.image_url}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80"; }}
-                  />
-                  <span className="absolute bottom-2 left-2 badge badge-neutral/90 text-xs">
-                    Live Preview
-                  </span>
-                </div>
-              )}
-
-              {/* Category */}
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Facility Area / Category *</label>
-                <select
-                  value={photoForm.category}
-                  onChange={(e) => setPhotoForm({ ...photoForm, category: e.target.value })}
-                  className="select select-bordered w-full rounded-xl text-sm"
-                >
-                  {GALLERY_CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Title / Caption */}
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">Photo Title / Caption *</label>
-                <input
-                  type="text"
-                  required
-                  value={photoForm.title}
-                  onChange={(e) => setPhotoForm({ ...photoForm, title: e.target.value })}
-                  placeholder="e.g. Modern Waiting Lounge with AC"
-                  className="input input-bordered w-full rounded-xl text-sm"
-                />
-              </div>
-
-              {/* Detailed Description */}
-              <div>
-                <label className="label text-xs font-bold text-base-content/70">
-                  Detailed Description / Story for Patients
-                </label>
-                <textarea
-                  rows={3}
-                  value={photoForm.description}
-                  onChange={(e) => setPhotoForm({ ...photoForm, description: e.target.value })}
-                  placeholder="Tell patients about this room, hygiene practices, comfortable seating, modern equipment..."
-                  className="textarea textarea-bordered w-full rounded-xl text-sm"
-                />
-              </div>
-
-              {/* Set as Featured Cover toggle */}
-              <label className="label cursor-pointer justify-start gap-3 bg-base-200/50 p-3 rounded-xl border border-base-200">
-                <input
-                  type="checkbox"
-                  checked={photoForm.is_featured}
-                  onChange={(e) => setPhotoForm({ ...photoForm, is_featured: e.target.checked })}
-                  className="checkbox checkbox-primary checkbox-sm"
-                />
-                <div className="text-xs">
-                  <span className="font-bold text-base-content block">Set as Primary Featured Cover</span>
-                  <span className="text-base-content/60">This photo will be displayed prominently as hero in your virtual tour.</span>
-                </div>
-              </label>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setPhotoModalOpen(false)}
-                  className="btn btn-outline flex-1 rounded-xl font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingPhoto || !photoForm.image_url || !photoForm.title.trim()}
-                  className="btn btn-primary flex-2 rounded-xl shadow-lg font-bold gap-2"
-                >
-                  {submittingPhoto ? (
-                    <span className="loading loading-spinner loading-xs" />
-                  ) : (
-                    <Check size={16} />
-                  )}
-                  {editingPhotoId ? "Update Photo" : "Add to Gallery"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== PREVIEW LIGHTBOX MODAL IN DASHBOARD ===== */}
-      {previewPhoto && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setPreviewPhoto(null)}
-        >
-          <div
-            className="bg-base-100 rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl border border-base-200 cursor-default"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="relative aspect-video w-full bg-black">
-              <img
-                src={previewPhoto.image_url}
-                alt={previewPhoto.title}
-                className="w-full h-full object-contain"
-              />
-              <button
-                onClick={() => setPreviewPhoto(null)}
-                className="btn btn-circle btn-sm btn-ghost absolute top-3 right-3 text-white bg-black/60 hover:bg-black/80"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-6 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="font-extrabold text-lg text-base-content">{previewPhoto.title}</h3>
-                <span className="badge badge-primary font-bold text-xs">{previewPhoto.category}</span>
-              </div>
-              <p className="text-sm text-base-content/80 whitespace-pre-line leading-relaxed">
-                {previewPhoto.description || "No description provided."}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="border-t border-base-200/80 pt-4 mt-6 pb-6 text-xs text-base-content/40 text-center">
-        Smart Clinic — Clinic Administration Portal &copy; {new Date().getFullYear()}
-      </div>
-
-      {/* ===== DOCTOR CLINIC CARD SLIDE PANEL ===== */}
-      {/* Overlay */}
-      {selectedDoctorCard && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-200"
-          onClick={closeDoctorCard}
+        <OverviewTab
+          clinic={clinic}
+          overviewStats={overviewStats}
+          loadingOverviewStats={loadingOverviewStats}
+          assignedDoctors={assignedDoctors}
+          appointments={appointments}
+          pendingIncomingRequests={pendingIncomingRequests}
+          overviewTrendRange={overviewTrendRange}
+          setOverviewTrendRange={setOverviewTrendRange}
+          trendChartType={trendChartType}
+          setTrendChartType={setTrendChartType}
+          hoveredTrendIdx={hoveredTrendIdx}
+          setHoveredTrendIdx={setHoveredTrendIdx}
+          setActiveTab={setActiveTab}
+          setWalkInForm={setWalkInForm}
+          setWalkInModalOpen={setWalkInModalOpen}
+          selectedDoctorId={selectedDoctorId}
+          openDoctorCard={openDoctorCard}
+          language={language}
+          t={t}
         />
       )}
 
-      {/* Slide Panel */}
-      <div
-        className={`fixed top-0 right-0 h-full w-full sm:w-[420px] bg-base-100 z-50 shadow-2xl flex flex-col
-          transition-transform duration-300 ease-in-out
-          ${selectedDoctorCard ? "translate-x-0" : "translate-x-full"}`}
-      >
-        {selectedDoctorCard && (() => {
-          const d = selectedDoctorCard;
-          const todayStr = new Date().toISOString().split("T")[0];
-          const docAptsToday = appointments.filter(
-            (a) => a.appointment_date === todayStr && (a.doctor === d.id || a.doctor_id === d.id)
-          );
-          const seenToday = docAptsToday.filter((a) => a.status === "COMPLETED").length;
-          const totalToday = docAptsToday.length;
-          const pct = totalToday > 0 ? Math.round((seenToday / totalToday) * 100) : 0;
+      {activeTab === "chamber" && (
+        <ChamberReceptionTab
+          clinic={clinic}
+          assignedDoctors={assignedDoctors}
+          selectedDoctorId={selectedDoctorId}
+          setSelectedDoctorId={setSelectedDoctorId}
+          receptionSearchQuery={receptionSearchQuery}
+          setReceptionSearchQuery={setReceptionSearchQuery}
+          receptionDeptFilter={receptionDeptFilter}
+          setReceptionDeptFilter={setReceptionDeptFilter}
+          appointments={appointments}
+          chamberSession={chamberSession}
+          setChamberSession={setChamberSession}
+          updatingChamber={updatingChamber}
+          handleReceptionChamberAction={handleReceptionChamberAction}
+          fetchReceptionChamberSession={fetchReceptionChamberSession}
+          liveSyncEnabled={liveSyncEnabled}
+          setLiveSyncEnabled={setLiveSyncEnabled}
+          isLiveSyncing={isLiveSyncing}
+          lastSyncedTime={lastSyncedTime}
+          refreshDeskData={refreshDeskData}
+          delayModalOpen={delayModalOpen}
+          setDelayModalOpen={setDelayModalOpen}
+          receptionDelayMins={receptionDelayMins}
+          setReceptionDelayMins={setReceptionDelayMins}
+          receptionNotice={receptionNotice}
+          setReceptionNotice={setReceptionNotice}
+          handleBroadcastReceptionDelay={handleBroadcastReceptionDelay}
+          broadcastingDelay={broadcastingDelay}
+          walkInModalOpen={walkInModalOpen}
+          setWalkInModalOpen={setWalkInModalOpen}
+          walkInForm={walkInForm}
+          setWalkInForm={setWalkInForm}
+          submittingWalkIn={submittingWalkIn}
+          handleCreateWalkIn={handleCreateWalkIn}
+          setPrintTokenData={setPrintTokenData}
+          t={t}
+        />
+      )}
 
-          // 7-day data from appointments array
-          const last7 = Array.from({ length: 7 }, (_, i) => {
-            const d2 = new Date();
-            d2.setDate(d2.getDate() - (6 - i));
-            const ds = d2.toISOString().split("T")[0];
-            const label = d2.toLocaleDateString("en-BD", { weekday: "short" });
-            const count = appointments.filter(
-              (a) => a.appointment_date === ds && (a.doctor === d.id || a.doctor_id === d.id)
-            ).length;
-            return { label, count, isToday: i === 6 };
-          });
-          const maxBar = Math.max(...last7.map((x) => x.count), 1);
+      {activeTab === "clinic" && (
+        <ClinicBrandingTab
+          clinic={clinic}
+          services={services}
+          departments={departments}
+          specializations={specializations}
+          gallery={gallery}
+          announcements={announcements}
+          assignedDoctors={assignedDoctors}
+          editClinicModalOpen={editClinicModalOpen}
+          setEditClinicModalOpen={setEditClinicModalOpen}
+          submittingClinicEdit={submittingClinicEdit}
+          clinicEditForm={clinicEditForm}
+          setClinicEditForm={setClinicEditForm}
+          handleSaveClinicProfile={handleSaveClinicProfile}
+          handleToggleAmenity={handleToggleAmenity}
+          handleLoadDefaultDiagnosticCatalog={handleLoadDefaultDiagnosticCatalog}
+          handleOpenAddService={handleOpenAddService}
+          handleOpenEditService={handleOpenEditService}
+          handleDeleteService={handleDeleteService}
+          handleToggleServiceAvailability={handleToggleServiceAvailability}
+          serviceModalOpen={serviceModalOpen}
+          setServiceModalOpen={setServiceModalOpen}
+          editingServiceId={editingServiceId}
+          submittingService={submittingService}
+          serviceForm={serviceForm}
+          setServiceForm={setServiceForm}
+          handleSaveService={handleSaveService}
+          handleLoadSampleGallery={handleLoadSampleGallery}
+          handleOpenAddPhoto={handleOpenAddPhoto}
+          handleOpenEditPhoto={handleOpenEditPhoto}
+          handleDeletePhoto={handleDeletePhoto}
+          handleToggleFeaturedPhoto={handleToggleFeaturedPhoto}
+          photoModalOpen={photoModalOpen}
+          setPhotoModalOpen={setPhotoModalOpen}
+          editingPhotoId={editingPhotoId}
+          submittingPhoto={submittingPhoto}
+          uploadMode={uploadMode}
+          setUploadMode={setUploadMode}
+          previewPhoto={previewPhoto}
+          setPreviewPhoto={setPreviewPhoto}
+          photoForm={photoForm}
+          setPhotoForm={setPhotoForm}
+          handleImageFileUpload={handleImageFileUpload}
+          handleSavePhoto={handleSavePhoto}
+          clinicDeptForm={clinicDeptForm}
+          setClinicDeptForm={setClinicDeptForm}
+          handleLinkDept={handleLinkDept}
+          newSpec={newSpec}
+          setNewSpec={setNewSpec}
+          handleCreateSpec={handleCreateSpec}
+          announcementModalOpen={announcementModalOpen}
+          setAnnouncementModalOpen={setAnnouncementModalOpen}
+          editingAnnouncementId={editingAnnouncementId}
+          submittingAnnouncement={submittingAnnouncement}
+          announcementForm={announcementForm}
+          setAnnouncementForm={setAnnouncementForm}
+          handleOpenAddAnnouncement={handleOpenAddAnnouncement}
+          handleOpenEditAnnouncement={handleOpenEditAnnouncement}
+          handleSaveAnnouncement={handleSaveAnnouncement}
+          handleDeleteAnnouncement={handleDeleteAnnouncement}
+          handleToggleAnnouncementActive={handleToggleAnnouncementActive}
+          t={t}
+        />
+      )}
 
-          // Monthly stats from appointments (last 30 days)
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          const monthApts = appointments.filter((a) => {
-            if (a.doctor !== d.id && a.doctor_id !== d.id) return false;
-            const dt = new Date(a.appointment_date);
-            return dt >= thirtyDaysAgo;
-          });
-          const monthTotal = monthApts.length;
-          const monthCompleted = monthApts.filter((a) => a.status === "COMPLETED").length;
-          const monthCR = monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
+      {activeTab === "doctors" && (
+        <DoctorsTab
+          clinic={clinic}
+          assignedDoctors={assignedDoctors}
+          appointments={appointments}
+          selectedDoctorCard={selectedDoctorCard}
+          openDoctorCard={openDoctorCard}
+          pendingIncomingRequests={pendingIncomingRequests}
+          handleRespondRequest={handleRespondRequest}
+          allDoctors={allDoctors}
+          departments={departments}
+          inviteForm={inviteForm}
+          setInviteForm={setInviteForm}
+          handleSendInvite={handleSendInvite}
+        />
+      )}
 
-          // Session info from doctorCardSession
-          const sess = doctorCardSession;
-          const hasSession = !!sess;
-          const sessionStatus = sess?.status || null;
-          const isLive = hasSession && sessionStatus && sessionStatus !== "ENDED" && sessionStatus !== "CANCELLED";
-          const isEnded = hasSession && (sessionStatus === "ENDED" || sessionStatus === "CANCELLED");
+      {activeTab === "appointments" && (
+        <AppointmentsTab
+          appointments={appointments}
+          appointmentFilter={appointmentFilter}
+          setAppointmentFilter={setAppointmentFilter}
+          setWalkInForm={setWalkInForm}
+          setWalkInModalOpen={setWalkInModalOpen}
+          selectedDoctorId={selectedDoctorId}
+          assignedDoctors={assignedDoctors}
+          handleCashCheckIn={handleCashCheckIn}
+          checkingInId={checkingInId}
+          setPrintTokenData={setPrintTokenData}
+        />
+      )}
 
-          const statusBadge = isLive
-            ? <span className="badge badge-success badge-sm font-bold gap-1">🟢 Live Session</span>
-            : isEnded
-            ? <span className="badge badge-error badge-sm font-bold gap-1">🔴 Session Ended</span>
-            : <span className="badge badge-ghost badge-sm font-bold gap-1">⚪ No Session Today</span>;
+      {activeTab === "finance" && (
+        <FinanceTab
+          financialAnalytics={financialAnalytics}
+          analyticsDate={analyticsDate}
+          setAnalyticsDate={setAnalyticsDate}
+          analyticsRange={analyticsRange}
+          setAnalyticsRange={setAnalyticsRange}
+          analyticsCustomStart={analyticsCustomStart}
+          setAnalyticsCustomStart={setAnalyticsCustomStart}
+          analyticsCustomEnd={analyticsCustomEnd}
+          setAnalyticsCustomEnd={setAnalyticsCustomEnd}
+          fetchFinancialAnalytics={fetchFinancialAnalytics}
+          loadingAnalytics={loadingAnalytics}
+          onViewPendingAppointments={() => {
+            setAppointmentFilter("PENDING");
+            setActiveTab("appointments");
+          }}
+        />
+      )}
 
-          return (
-            <>
-              {/* Panel Header */}
-              <div className="bg-gradient-to-br from-primary to-purple-700 text-white px-6 pt-8 pb-10 relative">
-                <button
-                  onClick={closeDoctorCard}
-                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/35 flex items-center justify-center transition-colors"
-                >
-                  <X size={16} />
-                </button>
-                {/* Avatar */}
-                <div className="w-16 h-16 rounded-2xl bg-white/25 flex items-center justify-center text-3xl font-black mb-3">
-                  {(d.full_name || "?")[0].toUpperCase()}
-                </div>
-                <div className="text-xl font-black leading-tight">
-                  {d.full_name?.startsWith("Dr.") ? d.full_name : `Dr. ${d.full_name}`}
-                </div>
-                <div className="text-sm opacity-80 mt-1">{d.qualification || "—"}</div>
-                <div className="mt-3 flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold">
-                    🚪 {d.room_number || (sess?.room_number ? `Room ${sess.room_number}` : "No Room")}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-bold">
-                    💊 Fee: ৳{d.consultation_fee || sess?.consultation_fee || "—"}
-                  </span>
-                </div>
-              </div>
+      {activeTab === "staff" && (
+        <StaffTab
+          staffList={staffList}
+          loadingStaff={loadingStaff}
+          fetchStaffData={fetchStaffData}
+          dailyCashSummary={dailyCashSummary}
+          staffAttendanceList={staffAttendanceList}
+          staffModalOpen={staffModalOpen}
+          setStaffModalOpen={setStaffModalOpen}
+          staffForm={staffForm}
+          setStaffForm={setStaffForm}
+          submittingStaff={submittingStaff}
+          handleAddStaff={handleAddStaff}
+          loginModalOpen={loginModalOpen}
+          setLoginModalOpen={setLoginModalOpen}
+          selectedStaffForLogin={selectedStaffForLogin}
+          setSelectedStaffForLogin={setSelectedStaffForLogin}
+          loginForm={loginForm}
+          setLoginForm={setLoginForm}
+          submittingLogin={submittingLogin}
+          handleCreateLoginSubmit={handleCreateLoginSubmit}
+          handleOpenCreateLogin={handleOpenCreateLogin}
+          handleDeleteStaff={handleDeleteStaff}
+          staffMonthlySummary={staffMonthlySummary}
+          selectedStaffMonth={selectedStaffMonth}
+          setSelectedStaffMonth={setSelectedStaffMonth}
+        />
+      )}
 
-              {/* Panel Body */}
-              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+      {/* Shared Modals and Overlays */}
+      <DoctorSlideoverCard
+        selectedDoctorCard={selectedDoctorCard}
+        doctorCardSession={doctorCardSession}
+        loadingDoctorCard={loadingDoctorCard}
+        appointments={appointments}
+        onClose={closeDoctorCard}
+        onGoToLiveQueue={(docId) => {
+          closeDoctorCard();
+          setSelectedDoctorId(docId);
+          setActiveTab("chamber");
+        }}
+        onViewAppointments={() => {
+          closeDoctorCard();
+          setActiveTab("appointments");
+        }}
+      />
 
-                {/* Today's Session */}
-                <div>
-                  <div className="text-xs font-black text-base-content/50 uppercase tracking-widest mb-2">📅 Today's Session</div>
-                  <div className="bg-base-200/50 rounded-2xl p-4 space-y-3 border border-base-300">
-                    <div className="flex items-center justify-between">
-                      {statusBadge}
-                      <span className="text-xs text-base-content/50">
-                        {new Date().toLocaleDateString("en-BD", { day: "numeric", month: "short", year: "numeric" })}
-                      </span>
-                    </div>
+      <TokenPrintModal
+        printTokenData={printTokenData}
+        clinic={clinic}
+        onClose={() => setPrintTokenData(null)}
+      />
 
-                    {loadingDoctorCard ? (
-                      <div className="text-xs text-center text-base-content/40 py-2">Loading session data…</div>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-base-100 rounded-xl p-3 border border-base-300">
-                            <div className="text-[10px] text-base-content/40 font-bold uppercase tracking-wide mb-1">▶ Start Time</div>
-                            <div className="text-lg font-black text-base-content font-mono">
-                              {sess?.session_start
-                                ? new Date("1970-01-01T" + sess.session_start).toLocaleTimeString("en-BD", { hour: "2-digit", minute: "2-digit" })
-                                : sess?.started_at
-                                ? new Date(sess.started_at).toLocaleTimeString("en-BD", { hour: "2-digit", minute: "2-digit" })
-                                : "—"}
-                            </div>
-                          </div>
-                          <div className="bg-base-100 rounded-xl p-3 border border-base-300">
-                            <div className="text-[10px] text-base-content/40 font-bold uppercase tracking-wide mb-1">⏹ End Time</div>
-                            <div className="text-lg font-black text-base-content font-mono">
-                              {sess?.session_end
-                                ? new Date("1970-01-01T" + sess.session_end).toLocaleTimeString("en-BD", { hour: "2-digit", minute: "2-digit" })
-                                : sess?.ended_at
-                                ? new Date(sess.ended_at).toLocaleTimeString("en-BD", { hour: "2-digit", minute: "2-digit" })
-                                : "—"}
-                            </div>
-                          </div>
-                        </div>
-
-                        {hasSession && (
-                          <div className="bg-base-100 rounded-xl p-3 border border-base-300">
-                            <div className="flex justify-between text-xs font-bold text-base-content mb-2">
-                              <span>Queue Progress</span>
-                              <span>#{sess?.current_serial || 0} / {sess?.total_serials || 0} serials</span>
-                            </div>
-                            <div className="w-full bg-base-300 rounded-full h-2">
-                              <div
-                                className="bg-gradient-to-r from-primary to-purple-600 rounded-full h-2 transition-all"
-                                style={{ width: sess?.total_serials > 0 ? `${Math.round((sess.current_serial / sess.total_serials) * 100)}%` : "0%" }}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {totalToday > 0 && (
-                          <div className="bg-base-100 rounded-xl p-3 border border-base-300">
-                            <div className="flex justify-between text-xs font-bold text-base-content mb-2">
-                              <span>Appointments Seen</span>
-                              <span>{seenToday} / {totalToday} ({pct}%)</span>
-                            </div>
-                            <div className="w-full bg-base-300 rounded-full h-2">
-                              <div
-                                className="bg-gradient-to-r from-success to-emerald-400 rounded-full h-2 transition-all"
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Monthly Stats */}
-                <div>
-                  <div className="text-xs font-black text-base-content/50 uppercase tracking-widest mb-2">📊 Last 30 Days</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-base-200/50 rounded-xl p-3 border border-base-300">
-                      <div className="text-2xl font-black text-base-content">{monthTotal}</div>
-                      <div className="text-xs text-base-content/55 font-semibold mt-0.5">Total Visits</div>
-                    </div>
-                    <div className="bg-base-200/50 rounded-xl p-3 border border-base-300">
-                      <div className="text-2xl font-black text-base-content">{monthCR}%</div>
-                      <div className="text-xs text-base-content/55 font-semibold mt-0.5">Completion Rate</div>
-                    </div>
-                    <div className="bg-base-200/50 rounded-xl p-3 border border-base-300 col-span-2">
-                      <div className="text-lg font-black text-base-content">{monthCompleted} completed</div>
-                      <div className="text-xs text-base-content/55 font-semibold mt-0.5">Appointments marked done</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 7-Day Mini Chart */}
-                <div>
-                  <div className="text-xs font-black text-base-content/50 uppercase tracking-widest mb-2">📈 Last 7 Days — Patients</div>
-                  <div className="bg-base-200/50 rounded-2xl p-4 border border-base-300">
-                    <div className="flex items-end gap-1.5 h-14">
-                      {last7.map((bar, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                          <div
-                            className={`w-full rounded-t-lg transition-all ${bar.isToday ? "bg-primary" : "bg-primary/30"}`}
-                            style={{ height: `${Math.max(Math.round((bar.count / maxBar) * 100), bar.count > 0 ? 15 : 5)}%` }}
-                            title={`${bar.label}: ${bar.count} patient${bar.count !== 1 ? "s" : ""}`}
-                          />
-                          <div className="text-[9px] text-base-content/40 font-bold">{bar.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div>
-                  <div className="text-xs font-black text-base-content/50 uppercase tracking-widest mb-2">⚡ Quick Actions</div>
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={() => { closeDoctorCard(); setSelectedDoctorId(d.id.toString()); setActiveTab("chamber"); }}
-                      className="btn btn-primary btn-sm w-full gap-2 rounded-xl font-bold"
-                    >
-                      <Tv size={14} /> Go to Live Queue Control
-                    </button>
-                    <button
-                      onClick={() => { closeDoctorCard(); setActiveTab("appointments"); }}
-                      className="btn btn-outline btn-sm w-full gap-2 rounded-xl font-bold"
-                    >
-                      <Calendar size={14} /> View All Appointments
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            </>
-          );
-        })()}
+      {/* Footer */}
+      <div className="border-t border-base-200/80 pt-4 mt-6 pb-6 text-xs text-base-content/40 text-center">
+        Smart Clinic — Clinic Administration Portal &copy;{" "}
+        {new Date().getFullYear()}
       </div>
     </div>
   );
 }
-

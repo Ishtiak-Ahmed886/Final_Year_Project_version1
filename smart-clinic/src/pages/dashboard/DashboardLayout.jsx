@@ -9,6 +9,7 @@ const ClinicAdminDashboard = lazy(() => import("./ClinicAdminDashboard"));
 const SuperAdminDashboard = lazy(() => import("./SuperAdminDashboard"));
 const ProfileSettings = lazy(() => import("./ProfileSettings"));
 const PrivacyPolicy = lazy(() => import("../legal/PrivacyPolicy"));
+const ReceptionistPanel = lazy(() => import("./ReceptionistPanel"));
 
 const DashboardLoader = () => (
   <div className="flex flex-col items-center justify-center p-16 text-center">
@@ -43,6 +44,9 @@ export default function DashboardLayout() {
       case "ADMIN":
         content = <SuperAdminDashboard />;
         break;
+      case "RECEPTIONIST":
+        content = <ReceptionistPanel />;
+        break;
       case "PATIENT":
       default:
         content = <PatientDashboard />;
@@ -59,6 +63,8 @@ export default function DashboardLayout() {
         return <span className="badge badge-primary badge-sm mt-1">Clinic Admin</span>;
       case "DOCTOR":
         return <span className="badge badge-secondary badge-sm mt-1">Doctor</span>;
+      case "RECEPTIONIST":
+        return <span className="badge badge-warning badge-sm mt-1">Receptionist</span>;
       default:
         return <span className="badge badge-accent badge-sm mt-1">Patient</span>;
     }
@@ -133,19 +139,23 @@ export default function DashboardLayout() {
               </NavLink>
             )}
 
-            <NavLink
-              to="/clinics"
-              className="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-base-content/70 hover:bg-base-200 transition-colors"
-            >
-              <Building2 size={18} /> Clinics Directory
-            </NavLink>
-            
-            <NavLink
-              to="/doctors"
-              className="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-base-content/70 hover:bg-base-200 transition-colors"
-            >
-              <Stethoscope size={18} /> Doctors Directory
-            </NavLink>
+            {user?.role !== "RECEPTIONIST" && (
+              <>
+                <NavLink
+                  to="/clinics"
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-base-content/70 hover:bg-base-200 transition-colors"
+                >
+                  <Building2 size={18} /> Clinics Directory
+                </NavLink>
+                
+                <NavLink
+                  to="/doctors"
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-base-content/70 hover:bg-base-200 transition-colors"
+                >
+                  <Stethoscope size={18} /> Doctors Directory
+                </NavLink>
+              </>
+            )}
           </nav>
         </aside>
 

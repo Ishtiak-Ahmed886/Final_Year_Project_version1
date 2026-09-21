@@ -370,7 +370,7 @@ export default function DoctorDashboard() {
     return `${mins.toString().padStart(2, "0")}:${remainingSec.toString().padStart(2, "0")}`;
   };
 
-  const handleChamberAction = async (action, newStatus = null, targetSerial = null) => {
+  const handleChamberAction = async (action, newStatus = null, targetSerial = null, extraPayload = {}) => {
     if (!profile || !selectedClinicId) return;
     setUpdatingChamber(true);
     try {
@@ -378,6 +378,7 @@ export default function DoctorDashboard() {
         doctor_id: profile.id,
         clinic_id: selectedClinicId,
         action: action,
+        ...extraPayload,
       };
       if (newStatus) payload.status = newStatus;
       if (targetSerial !== null) payload.current_serial = targetSerial;
@@ -385,7 +386,13 @@ export default function DoctorDashboard() {
       const res = await apiClient.post("/doctors/chamber-session/", payload);
       setChamberSession(res);
 
-      if (action === "NEXT_SERIAL" || action === "RECALL_SERIAL" || action === "SKIP_SERIAL") {
+      if (
+        action === "NEXT_SERIAL" ||
+        action === "RECALL_SERIAL" ||
+        action === "SKIP_SERIAL" ||
+        action === "ADMIT_EMERGENCY" ||
+        action === "RESUME_HELD"
+      ) {
         setPatientSeconds(0);
       }
 
@@ -396,14 +403,39 @@ export default function DoctorDashboard() {
           ? `Serial held. Advanced to #${res.current_serial}!`
           : action === "RECALL_SERIAL"
           ? `Recalled Serial #${res.current_serial} into chamber!`
+          : action === "ADMIT_EMERGENCY"
+          ? `Emergency patient admitted to chamber!`
+          : action === "COMPLETE_EMERGENCY"
+          ? `Emergency consultation completed!`
+          : action === "RESUME_HELD"
+          ? `Resumed held patient into chamber!`
           : action === "RESET"
           ? "Chamber queue reset to start."
           : `Chamber status updated to ${res.status}`
       );
-    } catch {
-      showErr("Failed to update chamber session.");
+    } catch (err) {
+      showErr(err?.response?.data?.error || err?.detail || "Failed to update chamber session.");
     } finally {
       setUpdatingChamber(false);
+    }
+  };
+
+  const handleToggleEmergency = async (apt) => {
+    try {
+      const res = await apiClient.post(`/appointments/${apt.id}/emergency/`, {
+        is_emergency: !apt.is_emergency,
+        emergency_reason: !apt.is_emergency ? "Flagged by Doctor" : "",
+      });
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === apt.id
+            ? { ...a, is_emergency: res.is_emergency, emergency_reason: res.emergency_reason }
+            : a
+        )
+      );
+      showMsg(res.is_emergency ? "Marked as Emergency Priority!" : "Emergency priority removed.");
+    } catch (err) {
+      showErr(err?.response?.data?.error || err?.detail || "Failed to update emergency status.");
     }
   };
 
@@ -874,6 +906,118 @@ export default function DoctorDashboard() {
                 </div>
               </div>
 
+              {/* Active Emergency In Chamber Banner */}
+              {chamberSession?.active_emergency && (
+                <div className="bg-rose-500/10 border-2 border-rose-500/40 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg shadow-rose-950/20">
+                  <div className="flex items-start gap-3">
+                    <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping mt-1 shrink-0" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="badge badge-error text-white font-black text-xs uppercase tracking-wider">
+                          🚨 Active Emergency In Chamber
+                        </span>
+                        <span className="font-mono font-black text-base-content text-sm">
+                          Serial #{chamberSession.active_emergency_details?.serial_number || "—"}
+                        </span>
+                      </div>
+                      <div className="text-sm font-extrabold text-base-content mt-1">
+                        {chamberSession.active_emergency_details?.patient_name || "Emergency Patient"}
+                      </div>
+                      {chamberSession.active_emergency_details?.emergency_reason && (
+                        <div className="text-xs text-rose-600 dark:text-rose-400 font-medium mt-0.5">
+                          Reason: {chamberSession.active_emergency_details.emergency_reason}
+                        </div>
+                      )}
+                      {chamberSession.held_patient_details && (
+                        <div className="text-[11px] text-warning font-semibold mt-1 flex items-center gap-1">
+                          <Pause size={12} /> Normal Patient Serial #{chamberSession.held_patient_details.serial_number} ({chamberSession.held_patient_details.patient_name}) is held on pause and will resume next.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleChamberAction("COMPLETE_EMERGENCY")}
+                    disabled={updatingChamber}
+                    className="btn btn-error btn-sm text-white font-black gap-1.5 shadow-md w-full md:w-auto cursor-pointer"
+                  >
+                    <CheckCircle2 size={15} /> Complete Emergency Consultation
+                  </button>
+                </div>
+              )}
+
+              {/* Held Patient Awaiting Resume Banner */}
+              {chamberSession?.held_patient && !chamberSession?.active_emergency && (
+                <div className="bg-amber-500/10 border-2 border-amber-500/40 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                  <div className="flex items-start gap-3">
+                    <Pause size={18} className="text-warning shrink-0 mt-0.5" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="badge badge-warning text-black font-black text-xs uppercase tracking-wider">
+                          ⏸️ Held Patient Paused
+                        </span>
+                        <span className="font-mono font-black text-base-content text-sm">
+                          Serial #{chamberSession.held_patient_details?.serial_number || "—"}
+                        </span>
+                      </div>
+                      <div className="text-sm font-bold text-base-content mt-0.5">
+                        {chamberSession.held_patient_details?.patient_name || "Held Patient"}
+                      </div>
+                      <div className="text-xs text-base-content/70">
+                        This patient was paused for emergency care and is ready to resume.
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleChamberAction("RESUME_HELD")}
+                    disabled={updatingChamber}
+                    className="btn btn-warning text-black btn-sm font-black gap-1.5 shadow-md w-full md:w-auto cursor-pointer"
+                  >
+                    <Play size={15} /> Resume Held Patient Consultation
+                  </button>
+                </div>
+              )}
+
+              {/* Emergency Priority Waiting Tray */}
+              {appointments.filter(a => a.is_emergency && a.status === "CONFIRMED" && a.id !== chamberSession?.active_emergency).length > 0 && (
+                <div className="bg-rose-500/5 border border-rose-500/30 p-4 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle size={15} /> Emergency Priority Queue ({appointments.filter(a => a.is_emergency && a.status === "CONFIRMED" && a.id !== chamberSession?.active_emergency).length})
+                    </span>
+                    <span className="text-[11px] text-base-content/60">
+                      Admitting holds current patient without changing serial numbers
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {appointments
+                      .filter(a => a.is_emergency && a.status === "CONFIRMED" && a.id !== chamberSession?.active_emergency)
+                      .map(a => (
+                        <div key={a.id} className="bg-base-100 border border-rose-500/30 p-3 rounded-xl flex items-center justify-between gap-2 shadow-sm">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="badge badge-error badge-xs font-black text-white shrink-0">#{a.serial_number}</span>
+                              <span className="font-bold text-xs text-base-content truncate">{a.patient?.first_name} {a.patient?.last_name}</span>
+                            </div>
+                            {a.emergency_reason && (
+                              <div className="text-[11px] text-rose-500 font-medium truncate">
+                                {a.emergency_reason}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleChamberAction("ADMIT_EMERGENCY", null, null, { appointment_id: a.id, hold_current: true })}
+                            disabled={updatingChamber || !!chamberSession?.active_emergency}
+                            className="btn btn-error btn-xs text-white font-bold shrink-0 cursor-pointer"
+                            title={chamberSession?.active_emergency ? "Complete current emergency first" : "Admit this emergency patient immediately"}
+                          >
+                            Admit Now
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               {/* Skipped Serials Chips (Quick Recall) */}
               {chamberSession?.skipped_serials?.length > 0 && (
                 <div className="bg-base-200/50 p-3 rounded-2xl border border-warning/30 flex flex-wrap items-center gap-2">
@@ -884,7 +1028,7 @@ export default function DoctorDashboard() {
                     <button
                       key={sn}
                       onClick={() => handleChamberAction("RECALL_SERIAL", "IN_CHAMBER", sn)}
-                      disabled={updatingChamber}
+                      disabled={updatingChamber || !!chamberSession?.active_emergency}
                       className="btn btn-warning btn-xs font-black gap-1 shadow-sm"
                       title={`Recall Serial #${sn} into Chamber`}
                     >
@@ -900,18 +1044,24 @@ export default function DoctorDashboard() {
                   {/* Call Next Serial */}
                   <button
                     onClick={() => handleChamberAction("NEXT_SERIAL")}
-                    disabled={updatingChamber}
+                    disabled={updatingChamber || !!chamberSession?.active_emergency || !!chamberSession?.held_patient}
                     className="btn btn-primary font-black gap-2 text-base shadow-md flex-1 md:flex-initial"
-                    title="Call Next Serial (Keyboard Shortcut: N)"
+                    title={
+                      chamberSession?.active_emergency
+                        ? "Cannot call next serial while emergency patient is in chamber"
+                        : chamberSession?.held_patient
+                        ? "Resume held patient before calling next serial"
+                        : "Call Next Serial (Keyboard Shortcut: N)"
+                    }
                   >
-                    <FastForward size={18} /> Call Next Serial (#{(chamberSession?.current_serial || 0) + 1})
+                    <FastForward size={18} /> Call Next Serial
                     <kbd className="kbd kbd-xs bg-primary-focus text-white border-white/30 hidden sm:inline-block">N</kbd>
                   </button>
 
                   {/* Skip and Hold Current */}
                   <button
                     onClick={() => handleChamberAction("SKIP_SERIAL")}
-                    disabled={updatingChamber || (chamberSession?.current_serial || 0) === 0}
+                    disabled={updatingChamber || (chamberSession?.current_serial || 0) === 0 || !!chamberSession?.active_emergency || !!chamberSession?.held_patient}
                     className="btn btn-warning btn-outline font-bold gap-1.5 flex-1 md:flex-initial"
                     title="Hold current serial and call next patient (Keyboard Shortcut: S)"
                   >
@@ -922,7 +1072,7 @@ export default function DoctorDashboard() {
                   {/* Previous Serial */}
                   <button
                     onClick={() => handleChamberAction("PREV_SERIAL")}
-                    disabled={updatingChamber || (chamberSession?.current_serial || 0) === 0}
+                    disabled={updatingChamber || (chamberSession?.current_serial || 0) === 0 || !!chamberSession?.active_emergency}
                     className="btn btn-ghost btn-outline btn-sm font-bold gap-1"
                     title="Step back to previous serial"
                   >
@@ -936,7 +1086,7 @@ export default function DoctorDashboard() {
                         handleChamberAction("RESET");
                       }
                     }}
-                    disabled={updatingChamber}
+                    disabled={updatingChamber || !!chamberSession?.active_emergency || !!chamberSession?.held_patient}
                     className="btn btn-ghost btn-xs text-base-content/50 hover:text-error self-center ml-auto"
                     title="Reset chamber session"
                   >
@@ -1057,6 +1207,11 @@ export default function DoctorDashboard() {
                           }`}>
                             {apt.status}
                           </span>
+                          {apt.is_emergency && (
+                            <span className="badge badge-error text-white font-black gap-1 animate-pulse text-xs">
+                              <AlertTriangle size={12} /> Emergency Priority
+                            </span>
+                          )}
                           {apt.family_member && (
                             <span className="badge badge-secondary badge-soft font-bold gap-1 text-xs">
                               <Heart size={12} /> Patient: {apt.family_member.full_name} ({apt.family_member.relationship_display})
@@ -1081,6 +1236,13 @@ export default function DoctorDashboard() {
                           )}
                         </div>
 
+                        {apt.is_emergency && apt.emergency_reason && (
+                          <div className="text-xs bg-error/10 border border-error/30 p-2.5 rounded-xl text-error font-semibold mt-2 flex items-center gap-1.5">
+                            <AlertTriangle size={14} className="shrink-0" />
+                            <span><strong>Emergency Reason:</strong> {apt.emergency_reason}</span>
+                          </div>
+                        )}
+
                         {apt.problem_description && (
                           <div className="text-xs bg-base-200/60 p-3 rounded-xl text-base-content/80 mt-2">
                             <span className="font-semibold">Patient Symptoms: </span>{apt.problem_description}
@@ -1088,7 +1250,7 @@ export default function DoctorDashboard() {
                         )}
                       </div>
 
-                      <div className="flex flex-wrap gap-2 shrink-0 w-full md:w-auto">
+                      <div className="flex flex-wrap gap-2 shrink-0 w-full md:w-auto items-center">
                         <button
                           onClick={() => openHealthVault(apt)}
                           className="btn btn-outline btn-secondary btn-sm gap-1 flex-1 md:flex-initial"
@@ -1111,6 +1273,28 @@ export default function DoctorDashboard() {
                           <Printer size={15} /> Print Rx
                         </button>
 
+                        {apt.status === "CONFIRMED" && apt.is_emergency && apt.id !== chamberSession?.active_emergency && (
+                          <button
+                            onClick={() => handleChamberAction("ADMIT_EMERGENCY", null, null, { appointment_id: apt.id, hold_current: true })}
+                            disabled={updatingChamber || !!chamberSession?.active_emergency}
+                            className="btn btn-error text-white btn-sm gap-1 flex-1 md:flex-initial cursor-pointer"
+                            title="Admit to chamber immediately"
+                          >
+                            <FastForward size={15} /> Admit Emergency
+                          </button>
+                        )}
+
+                        {apt.status === "CONFIRMED" && (
+                          <button
+                            onClick={() => handleToggleEmergency(apt)}
+                            className={`btn btn-xs btn-outline gap-1 flex-1 md:flex-initial ${
+                              apt.is_emergency ? "btn-warning text-xs" : "btn-ghost text-base-content/60"
+                            }`}
+                            title={apt.is_emergency ? "Remove emergency priority" : "Flag patient as medical emergency"}
+                          >
+                            <AlertTriangle size={12} /> {apt.is_emergency ? "Unflag Emergency" : "Flag Emergency"}
+                          </button>
+                        )}
 
                         {apt.status === "CONFIRMED" && (
                           <button

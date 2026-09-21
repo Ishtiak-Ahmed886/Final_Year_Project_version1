@@ -8,6 +8,7 @@ class UserRole(models.TextChoices):
     CLINIC_ADMIN = 'CLINIC_ADMIN', 'ClinicAdmin'
     DOCTOR = 'DOCTOR', 'Doctor'
     PATIENT = 'PATIENT', 'Patient'
+    RECEPTIONIST = 'RECEPTIONIST', 'Receptionist'
 
 class RelationshipType(models.TextChoices):
     FATHER = 'FATHER', 'Father'

@@ -16,7 +16,8 @@ class AppointmentSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'patient', 'family_member', 'clinic', 'doctor', 'department',
             'appointment_date', 'appointment_time', 'serial_number', 'status',
-            'problem_description', 'amount', 'created_at', 'updated_at'
+            'problem_description', 'amount', 'is_arrived', 'arrived_at',
+            'is_emergency', 'emergency_reason', 'created_at', 'updated_at'
         )
         read_only_fields = ('id', 'serial_number', 'status', 'amount', 'created_at', 'updated_at')
 
@@ -30,4 +31,6 @@ class AppointmentCreateSerializer(serializers.Serializer):
     is_walk_in = serializers.BooleanField(required=False, default=False)
     walk_in_name = serializers.CharField(required=False, allow_blank=True, default='')
     walk_in_phone = serializers.CharField(required=False, allow_blank=True, default='')
+    is_emergency = serializers.BooleanField(required=False, default=False)
+    emergency_reason = serializers.CharField(required=False, allow_blank=True, default='')
 

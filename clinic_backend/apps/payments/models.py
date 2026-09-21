@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from apps.core.models import BaseModel
 from apps.appointments.models import Appointment
 
@@ -43,6 +44,17 @@ class Payment(BaseModel):
         default=PaymentStatus.PENDING,
         db_index=True
     )
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='received_payments',
+        help_text="Receptionist who collected cash payment"
+    )
+    is_walk_in = models.BooleanField(default=False)
+    walk_in_patient_name = models.CharField(max_length=150, blank=True, default='')
+    walk_in_patient_phone = models.CharField(max_length=20, blank=True, default='')
 
     class Meta:
         ordering = ['-created_at']

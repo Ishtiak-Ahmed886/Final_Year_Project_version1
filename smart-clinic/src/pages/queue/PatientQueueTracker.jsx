@@ -4,7 +4,7 @@ import apiClient from "../../api/axios";
 import {
   Clock, MapPin, AlertTriangle, Users, Building2, Stethoscope,
   Volume2, VolumeX, Sparkles, ArrowLeft, RefreshCw, CheckCircle2,
-  Calendar, Phone, ShieldCheck, QrCode, Hourglass, BellRing
+  Calendar, Phone, ShieldCheck, QrCode, Hourglass, BellRing, Pause
 } from "lucide-react";
 
 // Synthesize pleasant attention chime via Web Audio API when serial is called
@@ -147,6 +147,10 @@ export default function PatientQueueTracker() {
   const isTurn = live_queue.is_turn_now;
   const isPassed = live_queue.is_passed;
   const patientsAhead = live_queue.patients_ahead;
+  const isActiveEmergency = live_queue.is_active_emergency;
+  const isHeld = live_queue.is_held;
+  const hasActiveEmergency = live_queue.has_active_emergency;
+  const isEmergencyPatient = appointment.is_emergency;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
@@ -185,7 +189,27 @@ export default function PatientQueueTracker() {
       {/* Main Content Area */}
       <main className="max-w-xl mx-auto w-full p-4 sm:p-6 space-y-5 flex-1 flex flex-col justify-center">
         {/* Dynamic Status Alert Banner */}
-        {isTurn ? (
+        {isActiveEmergency ? (
+          <div className="p-4 rounded-3xl bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-xl shadow-rose-500/30 border border-rose-400 animate-bounce flex items-center gap-3.5">
+            <BellRing size={28} className="shrink-0 animate-spin" />
+            <div>
+              <div className="font-black text-base uppercase tracking-wider">🚨 EMERGENCY TURN NOW!</div>
+              <div className="text-xs text-rose-100 font-medium">
+                Your priority emergency consultation is ready. Please proceed directly inside Chamber ({live_queue.room_number}).
+              </div>
+            </div>
+          </div>
+        ) : isHeld ? (
+          <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-3">
+            <Pause size={22} className="shrink-0 text-amber-400" />
+            <div>
+              <div className="font-bold text-white text-sm">Consultation Temporarily Paused</div>
+              <div className="text-amber-200 mt-0.5">
+                An urgent medical emergency is currently being attended. Your consultation is on hold and will resume immediately next.
+              </div>
+            </div>
+          </div>
+        ) : isTurn ? (
           <div className="p-4 rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xl shadow-emerald-500/20 border border-emerald-400 animate-bounce flex items-center gap-3.5">
             <BellRing size={28} className="shrink-0 animate-spin" />
             <div>
@@ -200,6 +224,13 @@ export default function PatientQueueTracker() {
             <AlertTriangle size={20} className="shrink-0 text-amber-400" />
             <div>
               <span className="font-bold">Your serial was already called.</span> If you missed it, please speak with the reception desk to recall your serial.
+            </div>
+          </div>
+        ) : hasActiveEmergency ? (
+          <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2.5">
+            <AlertTriangle size={18} className="shrink-0 text-rose-400 animate-pulse" />
+            <div>
+              <strong className="text-white">Emergency in Chamber:</strong> The doctor is attending an urgent medical emergency. Normal queue will resume shortly.
             </div>
           </div>
         ) : patientsAhead <= 3 ? (
@@ -238,8 +269,15 @@ export default function PatientQueueTracker() {
                 Token ID: <span className="font-mono text-slate-300">{appointment.id.slice(0, 8).toUpperCase()}</span>
               </div>
             </div>
-            <div className="badge badge-success badge-sm font-bold uppercase tracking-wider">
-              {appointment.status}
+            <div className="flex items-center gap-2">
+              {isEmergencyPatient && (
+                <span className="badge badge-error badge-sm text-white font-black uppercase tracking-wider animate-pulse">
+                  EMERGENCY
+                </span>
+              )}
+              <div className="badge badge-success badge-sm font-bold uppercase tracking-wider">
+                {appointment.status}
+              </div>
             </div>
           </div>
 
@@ -250,23 +288,45 @@ export default function PatientQueueTracker() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Your Serial
               </span>
-              <div className="text-5xl font-black text-emerald-400 font-mono tracking-tight">
+              <div className={`text-5xl font-black font-mono tracking-tight ${isEmergencyPatient ? "text-rose-400" : "text-emerald-400"}`}>
                 #{appointment.serial_number}
               </div>
               <span className="text-[10px] text-slate-400 block font-medium">Assigned to You</span>
             </div>
 
             {/* Now In Chamber */}
-            <div className={`border rounded-2xl p-4 text-center space-y-1 transition-all ${isTurn ? "bg-emerald-950/50 border-emerald-500 shadow-lg" : "bg-slate-950/80 border-slate-800"}`}>
-              <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center justify-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" /> Now Serving
-              </span>
-              <div className="text-5xl font-black text-indigo-300 font-mono tracking-tight">
-                #{live_queue.current_serving_serial || 0}
-              </div>
-              <span className="text-[10px] text-slate-400 block truncate font-medium">
-                {live_queue.room_number || "Chamber"}
-              </span>
+            <div className={`border rounded-2xl p-4 text-center space-y-1 transition-all ${
+              isActiveEmergency
+                ? "bg-rose-950/50 border-rose-500 shadow-lg"
+                : isTurn
+                ? "bg-emerald-950/50 border-emerald-500 shadow-lg"
+                : "bg-slate-950/80 border-slate-800"
+            }`}>
+              {hasActiveEmergency ? (
+                <>
+                  <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider flex items-center justify-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" /> Emergency In Chamber
+                  </span>
+                  <div className="text-3xl sm:text-4xl font-black text-rose-400 font-mono tracking-tight py-1.5">
+                    🚨 Urgent
+                  </div>
+                  <span className="text-[10px] text-slate-400 block truncate font-medium">
+                    {live_queue.room_number || "Chamber"}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center justify-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" /> Now Serving
+                  </span>
+                  <div className="text-5xl font-black text-indigo-300 font-mono tracking-tight">
+                    #{live_queue.current_serving_serial || 0}
+                  </div>
+                  <span className="text-[10px] text-slate-400 block truncate font-medium">
+                    {live_queue.room_number || "Chamber"}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 

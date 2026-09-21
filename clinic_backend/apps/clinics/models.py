@@ -166,3 +166,101 @@ class Announcement(BaseModel):
     def __str__(self):
         return f"[{self.clinic.name}] {self.title} ({self.announcement_type})"
 
+
+class StaffRole(models.TextChoices):
+    RECEPTIONIST = 'RECEPTIONIST', 'Receptionist'
+    COMPOUNDER   = 'COMPOUNDER',   'Compounder'
+    HELPER       = 'HELPER',       'Helper'
+    CLEANER      = 'CLEANER',      'Cleaner'
+    SECURITY     = 'SECURITY',     'Security'
+    MANAGER      = 'MANAGER',      'Manager'
+
+
+class ClinicStaff(BaseModel):
+    """
+    Staff members linked to a clinic.
+    RECEPTIONIST has a User account (can login).
+    Others (CLEANER, HELPER etc.) have no login — tracked by attendance only.
+    """
+    clinic = models.ForeignKey(
+        Clinic,
+        on_delete=models.CASCADE,
+        related_name='staff_members'
+    )
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='staff_profile'
+    )
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=20, blank=True, default='')
+    role = models.CharField(max_length=20, choices=StaffRole.choices)
+    is_active = models.BooleanField(default=True)
+    monthly_salary = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=0.00
+    )
+    joined_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='')
+    permissions = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Dict of permissions e.g. {can_call_next: true, can_add_walkin: true, can_receive_cash: true, can_mark_attendance: true}"
+    )
+
+    class Meta:
+        ordering = ['role', 'name']
+        verbose_name = 'Clinic Staff'
+        verbose_name_plural = 'Clinic Staff'
+
+    def __str__(self):
+        return f"{self.name} ({self.role}) - {self.clinic.name}"
+
+
+class AttendanceStatus(models.TextChoices):
+    PRESENT = 'PRESENT', 'Present'
+    ABSENT  = 'ABSENT',  'Absent'
+    LATE    = 'LATE',    'Late'
+    LEAVE   = 'LEAVE',   'On Leave'
+
+
+class StaffAttendance(BaseModel):
+    """
+    Daily attendance record for each staff member.
+    Marked by Receptionist or Admin.
+    """
+    staff = models.ForeignKey(
+        ClinicStaff,
+        on_delete=models.CASCADE,
+        related_name='attendance_records'
+    )
+    date = models.DateField()
+    status = models.CharField(
+        max_length=10,
+        choices=AttendanceStatus.choices,
+        default=AttendanceStatus.PRESENT
+    )
+    check_in_time = models.TimeField(null=True, blank=True)
+    check_out_time = models.TimeField(null=True, blank=True)
+    marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='marked_attendances'
+    )
+    note = models.TextField(blank=True, default='')
+
+    class Meta:
+        unique_together = ('staff', 'date')
+        ordering = ['-date']
+        verbose_name = 'Staff Attendance'
+        verbose_name_plural = 'Staff Attendances'
+
+    def __str__(self):
+        return f"{self.staff.name} - {self.date} ({self.status})"

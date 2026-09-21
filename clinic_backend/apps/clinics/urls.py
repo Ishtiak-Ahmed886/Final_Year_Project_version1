@@ -14,6 +14,20 @@ from .views import (
     ClinicAnnouncementListCreateView,
     ClinicAnnouncementDetailView,
 )
+from .staff_views import (
+    ClinicStaffListCreateView,
+    ClinicStaffDetailView,
+    CreateReceptionistLoginView,
+    StaffAttendanceListCreateView,
+    StaffAttendanceDetailView,
+    ReceptionMyClinicView,
+    ReceptionPatientCheckInView,
+    ReceptionWalkInCreateView,
+    ReceptionCashPaymentView,
+    ReceptionDailyCashSummaryView,
+    StaffMonthlyAttendanceSummaryView,
+    ReceptionPatientLookupView,
+)
 
 app_name = 'clinics'
 
@@ -31,6 +45,22 @@ urlpatterns = [
     path('<uuid:clinic_id>/overview-stats/', ClinicOverviewStatsView.as_view(), name='clinic_overview_stats'),
     path('<uuid:clinic_id>/announcements/', ClinicAnnouncementListCreateView.as_view(), name='clinic_announcements'),
     path('<uuid:clinic_id>/announcements/<uuid:pk>/', ClinicAnnouncementDetailView.as_view(), name='clinic_announcement_detail'),
+
+    # Staff Management (Admin only)
+    path('staff/', ClinicStaffListCreateView.as_view(), name='staff_list_create'),
+    path('staff/<uuid:pk>/', ClinicStaffDetailView.as_view(), name='staff_detail'),
+    path('staff/create-login/', CreateReceptionistLoginView.as_view(), name='staff_create_login'),
+    path('staff/attendance/', StaffAttendanceListCreateView.as_view(), name='staff_attendance'),
+    path('staff/attendance/<uuid:pk>/', StaffAttendanceDetailView.as_view(), name='staff_attendance_detail'),
+    path('staff/monthly-summary/', StaffMonthlyAttendanceSummaryView.as_view(), name='staff_monthly_summary'),
+
+    # Reception Desk Operations
+    path('reception/my-clinic/', ReceptionMyClinicView.as_view(), name='reception_my_clinic'),
+    path('reception/check-in/', ReceptionPatientCheckInView.as_view(), name='reception_check_in'),
+    path('reception/walk-in/', ReceptionWalkInCreateView.as_view(), name='reception_walk_in'),
+    path('reception/patient-lookup/', ReceptionPatientLookupView.as_view(), name='reception_patient_lookup'),
+    path('reception/cash-payment/', ReceptionCashPaymentView.as_view(), name='reception_cash_payment'),
+    path('reception/cash-summary/', ReceptionDailyCashSummaryView.as_view(), name='reception_cash_summary'),
 ]
 
 

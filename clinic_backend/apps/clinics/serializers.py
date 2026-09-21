@@ -107,3 +107,49 @@ class AnnouncementSerializer(serializers.ModelSerializer):
         return obj.doctor.full_name if obj.doctor else None
 
 
+from .models import ClinicStaff, StaffAttendance, StaffRole, AttendanceStatus
+
+class ClinicStaffSerializer(serializers.ModelSerializer):
+    clinic_name = serializers.CharField(source='clinic.name', read_only=True)
+    user_email = serializers.EmailField(source='user.email', read_only=True, allow_null=True)
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+
+    class Meta:
+        model = ClinicStaff
+        fields = (
+            'id', 'clinic', 'clinic_name', 'user', 'user_email',
+            'name', 'phone', 'role', 'role_display', 'monthly_salary',
+            'is_active', 'joined_date', 'notes', 'permissions', 'created_at'
+        )
+        read_only_fields = ('id', 'clinic', 'clinic_name', 'user', 'user_email', 'created_at')
+
+
+class StaffAttendanceSerializer(serializers.ModelSerializer):
+    staff_name = serializers.CharField(source='staff.name', read_only=True)
+    staff_role = serializers.CharField(source='staff.role', read_only=True)
+    marked_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StaffAttendance
+        fields = (
+            'id', 'staff', 'staff_name', 'staff_role',
+            'date', 'status', 'check_in_time', 'check_out_time',
+            'marked_by', 'marked_by_name', 'note', 'created_at'
+        )
+        read_only_fields = ('id', 'marked_by', 'created_at')
+
+    def get_marked_by_name(self, obj):
+        if obj.marked_by:
+            return obj.marked_by.full_name
+        return None
+
+
+class CreateReceptionistAccountSerializer(serializers.Serializer):
+    """Used by Clinic Admin to create a login account for a Receptionist staff member."""
+    staff_id = serializers.UUIDField()
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150, required=False, default='')
+    password = serializers.CharField(min_length=6, write_only=True)
+
+

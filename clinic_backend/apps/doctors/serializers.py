@@ -114,6 +114,9 @@ class ChamberSessionSerializer(serializers.ModelSerializer):
     doctor_qualification = serializers.CharField(source='doctor.qualification', read_only=True)
     clinic_name = serializers.CharField(source='clinic.name', read_only=True)
     clinic_address = serializers.CharField(source='clinic.address', read_only=True)
+    active_emergency_details = serializers.SerializerMethodField()
+    held_patient_details = serializers.SerializerMethodField()
+    next_serials = serializers.SerializerMethodField()
 
     class Meta:
         model = ChamberSession
@@ -121,9 +124,52 @@ class ChamberSessionSerializer(serializers.ModelSerializer):
             'id', 'doctor', 'doctor_name', 'doctor_qualification', 'clinic', 'clinic_name', 'clinic_address',
             'session_date', 'status', 'current_serial',
             'estimated_mins_per_patient', 'delay_minutes', 'announcement_note', 'room_number', 'skipped_serials',
+            'active_emergency', 'active_emergency_details', 'held_patient', 'held_patient_details', 'next_serials',
             'started_at', 'ended_at', 'created_at'
         )
         read_only_fields = ('id', 'created_at')
+
+    def get_active_emergency_details(self, obj):
+        if not obj.active_emergency:
+            return None
+        apt = obj.active_emergency
+        name = apt.family_member.full_name if apt.family_member else (f"{apt.patient.first_name} {apt.patient.last_name}".strip() if apt.patient else 'Emergency Patient')
+        return {
+            'id': str(apt.id),
+            'serial_number': apt.serial_number,
+            'patient_name': name,
+            'problem_description': apt.problem_description,
+            'emergency_reason': apt.emergency_reason,
+            'status': apt.status,
+            'is_arrived': apt.is_arrived,
+        }
+
+    def get_held_patient_details(self, obj):
+        if not obj.held_patient:
+            return None
+        apt = obj.held_patient
+        name = apt.family_member.full_name if apt.family_member else (f"{apt.patient.first_name} {apt.patient.last_name}".strip() if apt.patient else 'Held Patient')
+        return {
+            'id': str(apt.id),
+            'serial_number': apt.serial_number,
+            'patient_name': name,
+            'problem_description': apt.problem_description,
+            'status': apt.status,
+            'is_arrived': apt.is_arrived,
+        }
+
+    def get_next_serials(self, obj):
+        from apps.appointments.models import Appointment, AppointmentStatus
+        skipped = obj.skipped_serials or []
+        qs = Appointment.objects.filter(
+            doctor_id=obj.doctor_id,
+            clinic_id=obj.clinic_id,
+            appointment_date=obj.session_date,
+            serial_number__gt=obj.current_serial,
+            is_emergency=False,
+            status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING]
+        ).exclude(serial_number__in=skipped).order_by('serial_number').values_list('serial_number', flat=True)[:3]
+        return list(qs)
 
 class ChamberSessionUpdateSerializer(serializers.Serializer):
     doctor_id = serializers.UUIDField(required=True)
@@ -135,11 +181,15 @@ class ChamberSessionUpdateSerializer(serializers.Serializer):
     announcement_note = serializers.CharField(required=False, allow_blank=True)
     room_number = serializers.CharField(required=False, allow_blank=True)
     estimated_mins_per_patient = serializers.IntegerField(required=False, min_value=1)
+    appointment_id = serializers.UUIDField(required=False, allow_null=True)
+    hold_current = serializers.BooleanField(required=False, default=True)
+    emergency_reason = serializers.CharField(required=False, allow_blank=True, default='')
     action = serializers.ChoiceField(
         choices=[
             'NEXT_SERIAL', 'PREV_SERIAL', 'SET_SERIAL',
             'SKIP_SERIAL', 'RECALL_SERIAL',
-            'UPDATE_STATUS', 'UPDATE_DELAY', 'RESET'
+            'UPDATE_STATUS', 'UPDATE_DELAY', 'RESET',
+            'ADMIT_EMERGENCY', 'COMPLETE_EMERGENCY', 'RESUME_HELD'
         ],
         required=False
     )
