@@ -157,8 +157,9 @@ class AppointmentCancelView(generics.GenericAPIView):
             return Response({'detail': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         user = request.user
-        if user.role == 'PATIENT' and appointment.patient != user:
-            return Response({'detail': 'You can only cancel your own appointments.'}, status=status.HTTP_403_FORBIDDEN)
+        if user.role == 'PATIENT':
+            if appointment.patient != user:
+                return Response({'detail': 'You can only cancel your own appointments.'}, status=status.HTTP_403_FORBIDDEN)
         elif user.role == 'DOCTOR':
             assigned_doctor = appointment.doctor
             is_assigned = (
@@ -167,8 +168,15 @@ class AppointmentCancelView(generics.GenericAPIView):
             )
             if not is_assigned:
                 return Response({'detail': 'You are not assigned to this appointment.'}, status=status.HTTP_403_FORBIDDEN)
-        elif user.role == 'CLINIC_ADMIN' and appointment.clinic.owner != user:
-            return Response({'detail': 'You do not own the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'CLINIC_ADMIN':
+            if appointment.clinic.owner != user:
+                return Response({'detail': 'You do not own the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if not staff or staff.clinic_id != appointment.clinic_id:
+                return Response({'detail': 'You do not belong to the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role != 'ADMIN':
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
         appointment = cancel_appointment(appointment=appointment, cancelled_by_user=request.user)
         return Response(AppointmentSerializer(appointment).data, status=status.HTTP_200_OK)
@@ -318,6 +326,8 @@ class PublicLiveQueueTrackView(APIView):
         has_active_emergency = bool(session and session.active_emergency_id)
         is_active_emergency = bool(session and session.active_emergency_id == appointment.id)
         is_held = bool(session and session.held_patient_id == appointment.id)
+        is_prayer_break = bool(session and session.status == ChamberSessionStatus.PRAYER_BREAK)
+        is_session_ended = bool(session and session.status == ChamberSessionStatus.ENDED)
 
         # Queue position calculation
         if appointment.is_emergency:
@@ -349,13 +359,13 @@ class PublicLiveQueueTrackView(APIView):
                     created_at__lt=appointment.created_at
                 ).count()
                 patients_ahead = prior_emergencies + (1 if has_active_emergency else 0)
-                estimated_wait_mins = patients_ahead * 10
+                estimated_wait_mins = None if is_prayer_break else (patients_ahead * 10)
 
         elif is_held:
             patients_ahead = 0
             is_turn_now = False
             is_passed = False
-            estimated_wait_mins = 5
+            estimated_wait_mins = None if is_prayer_break else 5
 
         elif appointment.status == AppointmentStatus.COMPLETED:
             patients_ahead = 0
@@ -375,6 +385,11 @@ class PublicLiveQueueTrackView(APIView):
                 is_turn_now = False
                 is_passed = False
                 estimated_wait_mins = 10
+            elif is_prayer_break:
+                patients_ahead = 0
+                is_turn_now = False
+                is_passed = False
+                estimated_wait_mins = None
             else:
                 patients_ahead = 0
                 is_turn_now = True
@@ -419,7 +434,14 @@ class PublicLiveQueueTrackView(APIView):
             patients_ahead = normal_ahead_count + active_normal_count + emergencies_ahead
             is_turn_now = False
             is_passed = False
-            estimated_wait_mins = (patients_ahead * est_mins_per_patient) + delay_minutes
+            if is_prayer_break:
+                estimated_wait_mins = None
+            else:
+                estimated_wait_mins = (patients_ahead * est_mins_per_patient) + delay_minutes
+
+        if is_session_ended:
+            is_turn_now = False
+            estimated_wait_mins = None
 
         patient_display_name = (
             appointment.family_member.full_name if appointment.family_member
@@ -461,6 +483,8 @@ class PublicLiveQueueTrackView(APIView):
             'live_queue': {
                 'current_serving_serial': current_serving_serial,
                 'chamber_status': chamber_status,
+                'is_prayer_break': is_prayer_break,
+                'is_session_ended': is_session_ended,
                 'room_number': room_number,
                 'delay_minutes': delay_minutes,
                 'announcement_note': announcement_note,

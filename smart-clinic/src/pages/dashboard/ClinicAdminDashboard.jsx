@@ -17,6 +17,7 @@ import {
   ExternalLink,
   DollarSign,
 } from "lucide-react";
+import { PageHeader, StatusBadge, ActionButton } from "../../components/ui";
 
 import OverviewTab from "./clinic-admin/tabs/OverviewTab";
 import ChamberReceptionTab from "./clinic-admin/tabs/ChamberReceptionTab";
@@ -1302,6 +1303,9 @@ export default function ClinicAdminDashboard() {
     }
     if (clinic && (activeTab === "finance" || activeTab === "appointments")) {
       fetchFinancialAnalytics();
+      if (activeTab === "finance") {
+        fetchStaffData();
+      }
     }
     if (clinic && activeTab === "staff") {
       fetchStaffData();
@@ -1345,7 +1349,7 @@ export default function ClinicAdminDashboard() {
     },
     {
       key: "staff",
-      label: "Staff & Reception",
+      label: "Staff & HR",
       icon: <Users size={16} />,
       count: staffList.length || undefined,
     },
@@ -1380,78 +1384,89 @@ export default function ClinicAdminDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Executive Dark Gradient Hero Header */}
-      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 text-white p-6 md:p-8 rounded-3xl border border-indigo-900/50 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="badge badge-success badge-sm gap-1.5 font-bold shadow-sm py-2 px-3">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />{" "}
-                Active Facility
-              </span>
-              <span className="text-xs text-indigo-200/70 font-mono">
-                Reg:{" "}
-                {clinic?.id
-                  ? clinic.id.slice(0, 13).toUpperCase()
-                  : "BD-MED-9942"}
-              </span>
-            </div>
-
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-              <ShieldCheck className="text-primary-focus text-emerald-400 w-8 h-8" />
-              <span>{clinic?.name || "Clinic Administration Portal"}</span>
-            </h1>
-
-            {(() => {
-              const todayDateStr = new Date().toISOString().split("T")[0];
-              const todayAptsCount =
-                overviewStats?.appointments?.total_today ??
-                appointments.filter((a) => a.appointment_date === todayDateStr)
-                  .length;
-              return (
-                <p className="text-xs md:text-sm text-indigo-200/80 flex items-center gap-2 flex-wrap">
-                  <MapPin size={14} className="text-emerald-400 shrink-0" />
-                  <span>
-                    {clinic
-                      ? `${clinic.address}, ${clinic.city}`
-                      : "Clinic Administrative Workspace"}
-                  </span>
-                  <span className="text-indigo-400/50">•</span>
-                  <span className="text-indigo-200/90 font-medium">
-                    Today&apos;s Load:{" "}
-                    <strong className="text-white">
-                      {todayAptsCount} Patients
-                    </strong>{" "}
-                    in Queue •{" "}
-                    <strong className="text-white">
-                      {assignedDoctors.length} Doctors
-                    </strong>{" "}
-                    Active
-                  </span>
-                </p>
-              );
-            })()}
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full md:w-auto">
-            {clinic?.id && (
-              <a
-                href={`/clinics/${clinic.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-sm bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm gap-1.5 font-bold"
+      {/* ── CLINIC FACILITY STATUS & PAGE HEADER ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <PageHeader
+          title={clinic?.name || "Clinic Administration Portal"}
+          subtitle={
+            clinic
+              ? `${clinic.address}, ${clinic.city} • Registration: ${
+                  clinic.id ? clinic.id.slice(0, 13).toUpperCase() : "BD-MED-9942"
+                }`
+              : "Clinic Operations & Management Console"
+          }
+          badge={
+            <StatusBadge
+              status="ACTIVE"
+              customLabel="Active Facility"
+              size="sm"
+            />
+          }
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              {clinic?.id && (
+                <a
+                  href={`/clinics/${clinic.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
+                >
+                  <span>Live Public Page</span>
+                  <ExternalLink size={13} />
+                </a>
+              )}
+              <ActionButton
+                variant="primary"
+                size="sm"
+                icon={Tv}
+                onClick={() => {
+                  setActiveTab("chamber");
+                  setMsg("");
+                  setError("");
+                }}
               >
-                <span>Live Public Page</span>
-                <ExternalLink size={14} />
-              </a>
-            )}
-            <div className="badge badge-primary badge-lg py-3 px-4 font-black uppercase tracking-wider text-xs border border-primary/30">
-              CLINIC ADMIN
+                Open Live Reception
+              </ActionButton>
             </div>
-          </div>
-        </div>
+          }
+          className="mb-0"
+        />
+
+        {/* Operational Load Strip */}
+        {(() => {
+          const todayDateStr = new Date().toISOString().split("T")[0];
+          const todayAptsCount =
+            overviewStats?.appointments?.total_today ??
+            appointments.filter((a) => a.appointment_date === todayDateStr).length;
+          return (
+            <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                  <MapPin size={13} className="text-[#283891]" />
+                  <span>{clinic ? `${clinic.city}` : "Facility"}</span>
+                </span>
+                <span className="text-slate-300">•</span>
+                <span>
+                  Today&apos;s Queue:{" "}
+                  <strong className="text-slate-900 font-semibold">{todayAptsCount} Patients</strong>
+                </span>
+                <span className="text-slate-300">•</span>
+                <span>
+                  Active Doctors:{" "}
+                  <strong className="text-slate-900 font-semibold">{assignedDoctors.length}</strong>
+                </span>
+              </div>
+              <div className="font-mono text-[11px] text-slate-400">
+                {new Date().toLocaleDateString("en-GB", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Admin Approval Banner for Clinic */}
@@ -1494,7 +1509,7 @@ export default function ClinicAdminDashboard() {
       )}
 
       {/* Navigation Tabs with Badges */}
-      <div className="flex flex-wrap gap-2 pt-1">
+      <div className="flex flex-wrap gap-2 pt-1 border-b border-slate-200 pb-3">
         {tabs.map((tItem) => (
           <button
             key={tItem.key}
@@ -1503,18 +1518,18 @@ export default function ClinicAdminDashboard() {
               setMsg("");
               setError("");
             }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold text-xs sm:text-sm transition-all border cursor-pointer select-none ${
               activeTab === tItem.key
-                ? "bg-primary text-primary-content border-primary shadow-md"
-                : "bg-base-100 border-base-200 text-base-content/70 hover:border-primary/40 hover:text-base-content"
+                ? "bg-[#283891] text-white border-[#283891] shadow-2xs"
+                : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
             }`}
           >
             {tItem.icon}
             <span>{tItem.label}</span>
             {tItem.badge && (
               <span
-                className={`badge badge-xs px-1.5 py-0.5 font-extrabold uppercase ${
-                  tItem.badgeClass || "badge-primary"
+                className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                  tItem.badgeClass || "bg-indigo-100 text-[#283891]"
                 }`}
               >
                 {tItem.badge}
@@ -1522,10 +1537,10 @@ export default function ClinicAdminDashboard() {
             )}
             {typeof tItem.count === "number" && tItem.count > 0 && (
               <span
-                className={`badge badge-sm font-bold ${
+                className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold font-mono ${
                   activeTab === tItem.key
                     ? "bg-white/20 text-white"
-                    : "badge-neutral"
+                    : "bg-slate-100 text-slate-600"
                 }`}
               >
                 {tItem.count}
@@ -1554,6 +1569,7 @@ export default function ClinicAdminDashboard() {
           setWalkInForm={setWalkInForm}
           setWalkInModalOpen={setWalkInModalOpen}
           selectedDoctorId={selectedDoctorId}
+          setSelectedDoctorId={setSelectedDoctorId}
           openDoctorCard={openDoctorCard}
           language={language}
           t={t}
@@ -1673,6 +1689,10 @@ export default function ClinicAdminDashboard() {
           appointments={appointments}
           selectedDoctorCard={selectedDoctorCard}
           openDoctorCard={openDoctorCard}
+          onOpenLiveChamber={(docId) => {
+            setSelectedDoctorId(docId);
+            setActiveTab("chamber");
+          }}
           pendingIncomingRequests={pendingIncomingRequests}
           handleRespondRequest={handleRespondRequest}
           allDoctors={allDoctors}
@@ -1701,6 +1721,7 @@ export default function ClinicAdminDashboard() {
       {activeTab === "finance" && (
         <FinanceTab
           financialAnalytics={financialAnalytics}
+          dailyCashSummary={dailyCashSummary}
           analyticsDate={analyticsDate}
           setAnalyticsDate={setAnalyticsDate}
           analyticsRange={analyticsRange}

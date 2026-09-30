@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 from django.db import transaction
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from .models import Medication, Prescription, PrescribedMedication, MedicationForm
 from apps.appointments.models import Appointment, AppointmentStatus
 
@@ -121,6 +121,8 @@ def create_or_update_prescription(
     vitals: Dict[str, Any] = None,
     diagnostic_tests: str = "",
     advice: str = "",
+    follow_up_date: Any = None,
+    follow_up_notes: str = "",
     medications_data: List[Dict[str, Any]] = None
 ) -> Prescription:
     """
@@ -131,16 +133,36 @@ def create_or_update_prescription(
     if medications_data is None:
         medications_data = []
 
-    # Check authorization: doctor_user must be the assigned doctor or clinic admin
+    # Check authorization:
+    # 1. Assigned Doctor: must have role DOCTOR and be the doctor assigned to the appointment
+    # 2. Clinic Admin: must have role CLINIC_ADMIN and be the owner of the appointment's clinic
+    # 3. Super Admin / Staff: role ADMIN, is_staff, or is_superuser
+    # Patients and Receptionists are strictly forbidden.
     assigned_doctor = appointment.doctor
-    is_assigned = (
-        (hasattr(doctor_user, 'doctor_profile') and doctor_user.doctor_profile == assigned_doctor)
-        or (assigned_doctor.email and assigned_doctor.email == doctor_user.email)
-        or (doctor_user.role in ['CLINIC_ADMIN', 'ADMIN'])
+    user_role = getattr(doctor_user, 'role', None)
+
+    is_assigned_doctor = (
+        user_role == 'DOCTOR'
+        and (
+            (hasattr(doctor_user, 'doctor_profile') and doctor_user.doctor_profile == assigned_doctor)
+            or (assigned_doctor.email and assigned_doctor.email == doctor_user.email)
+        )
     )
 
-    if not is_assigned:
-        raise ValidationError({"detail": "Only the assigned doctor or authorized admin can issue a prescription for this appointment."})
+    is_clinic_owner = (
+        user_role == 'CLINIC_ADMIN'
+        and appointment.clinic is not None
+        and appointment.clinic.owner == doctor_user
+    )
+
+    is_admin = (
+        user_role == 'ADMIN'
+        or getattr(doctor_user, 'is_staff', False)
+        or getattr(doctor_user, 'is_superuser', False)
+    )
+
+    if not (is_assigned_doctor or is_clinic_owner or is_admin):
+        raise PermissionDenied("Only the assigned doctor, the clinic owner, or an authorized admin can issue a prescription for this appointment.")
 
     with transaction.atomic():
         prescription, created = Prescription.objects.update_or_create(
@@ -153,6 +175,8 @@ def create_or_update_prescription(
                 'vitals': vitals,
                 'diagnostic_tests': diagnostic_tests,
                 'advice': advice,
+                'follow_up_date': follow_up_date,
+                'follow_up_notes': follow_up_notes,
             }
         )
 
@@ -193,4 +217,119 @@ def create_or_update_prescription(
         except Exception:
             pass  # Never let notification failure break core prescription flow
 
+        # Synchronize structured vitals log for longitudinal health charts
+        try:
+            sync_prescription_vitals(prescription)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to sync prescription vitals: %s", e)
+
         return prescription
+
+
+def sync_prescription_vitals(prescription):
+    """
+    Parses and synchronizes raw vitals dictionary from Prescription into a structured
+    PatientVitalLog record for longitudinal health tracking and charting.
+    """
+    if not prescription or not prescription.vitals:
+        return None
+
+    vitals_dict = prescription.vitals
+    if not isinstance(vitals_dict, dict):
+        return None
+
+    from .models import PatientVitalLog
+    import re
+    from decimal import Decimal
+    from django.utils import timezone
+    import datetime
+
+    systolic_bp = None
+    diastolic_bp = None
+    pulse_rate = None
+    blood_glucose = None
+    weight_kg = None
+    height_cm = None
+    temperature_f = None
+    spo2 = None
+
+    # Parse Blood Pressure, e.g. "120/80" or "125 / 85 mmHg"
+    bp_raw = str(vitals_dict.get('bp', '')).strip()
+    bp_match = re.search(r'(\d{2,3})\s*[\/\-]\s*(\d{2,3})', bp_raw)
+    if bp_match:
+        try:
+            systolic_bp = int(bp_match.group(1))
+            diastolic_bp = int(bp_match.group(2))
+        except (ValueError, TypeError):
+            pass
+
+    # Parse Pulse, e.g. "72 bpm" or "78"
+    pulse_raw = str(vitals_dict.get('pulse', '')).strip()
+    pulse_match = re.search(r'(\d{2,3})', pulse_raw)
+    if pulse_match:
+        try:
+            pulse_rate = int(pulse_match.group(1))
+        except (ValueError, TypeError):
+            pass
+
+    # Parse Blood Sugar, e.g. "6.2 mmol/L" or "7.4" or "110 mg/dL"
+    sugar_raw = str(vitals_dict.get('blood_sugar', vitals_dict.get('rbs', vitals_dict.get('fbs', '')))).strip()
+    sugar_match = re.search(r'(\d+(?:\.\d+)?)', sugar_raw)
+    if sugar_match:
+        try:
+            val = float(sugar_match.group(1))
+            # If value > 30, it might be in mg/dL -> convert to mmol/L (divide by 18.0)
+            if val > 30:
+                val = round(val / 18.0, 2)
+            blood_glucose = Decimal(str(round(val, 2)))
+        except (ValueError, TypeError):
+            pass
+
+    # Parse Weight, e.g. "68kg" or "70.5"
+    weight_raw = str(vitals_dict.get('weight', '')).strip()
+    weight_match = re.search(r'(\d+(?:\.\d+)?)', weight_raw)
+    if weight_match:
+        try:
+            weight_kg = Decimal(str(round(float(weight_match.group(1)), 2)))
+        except (ValueError, TypeError):
+            pass
+
+    # Parse Temp, e.g. "101.4F" or "98.6"
+    temp_raw = str(vitals_dict.get('temp', vitals_dict.get('temperature', ''))).strip()
+    temp_match = re.search(r'(\d+(?:\.\d+)?)', temp_raw)
+    if temp_match:
+        try:
+            temperature_f = Decimal(str(round(float(temp_match.group(1)), 2)))
+        except (ValueError, TypeError):
+            pass
+
+    # Determine recorded date
+    recorded_at = None
+    if prescription.appointment and prescription.appointment.appointment_date:
+        app_date = prescription.appointment.appointment_date
+        app_time = prescription.appointment.appointment_time or datetime.time(9, 0)
+        naive_dt = datetime.datetime.combine(app_date, app_time)
+        recorded_at = timezone.make_aware(naive_dt) if timezone.is_naive(naive_dt) else naive_dt
+    else:
+        recorded_at = prescription.created_at or timezone.now()
+
+    # Create or update PatientVitalLog
+    vital_log, _ = PatientVitalLog.objects.update_or_create(
+        prescription=prescription,
+        defaults={
+            'patient': prescription.patient,
+            'family_member': prescription.family_member,
+            'appointment': prescription.appointment,
+            'systolic_bp': systolic_bp,
+            'diastolic_bp': diastolic_bp,
+            'pulse_rate': pulse_rate,
+            'blood_glucose': blood_glucose,
+            'weight_kg': weight_kg,
+            'temperature_f': temperature_f,
+            'recorded_at': recorded_at,
+            'notes': f"Recorded via Prescription Rx {prescription.id.hex[:8]}"
+        }
+    )
+    return vital_log
+

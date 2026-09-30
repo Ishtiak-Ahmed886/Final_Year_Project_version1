@@ -1,4 +1,4 @@
-﻿import json
+import json
 import logging
 import urllib.request
 import urllib.parse
@@ -75,6 +75,10 @@ def verify_sslcommerz_payment(val_id):
     """
     Validates transaction using SSLCommerz Validation API.
     """
+    if not val_id:
+        return None
+
+    val_id = str(val_id).strip()
     if not val_id:
         return None
 

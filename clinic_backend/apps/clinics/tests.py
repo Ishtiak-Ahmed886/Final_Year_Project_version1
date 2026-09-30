@@ -693,4 +693,221 @@ class ReceptionDeskIntegrationTestCase(TestCase):
         self.assertEqual(walkin_apt.serial_number, walkin_res.data["serial_number"])
 
 
+class StaffAttendanceRateTestCase(TestCase):
+    def setUp(self):
+        self.clinic_owner = User.objects.create_user(
+            email="att_owner@clinic.com",
+            password="Pass123!Owner",
+            first_name="Clinic",
+            last_name="Owner",
+            role=UserRole.CLINIC_ADMIN,
+        )
+        self.clinic = create_clinic(
+            owner=self.clinic_owner,
+            name="Attendance Test Clinic",
+            address="100 Test Rd",
+            city="Dhaka",
+            phone="+8801700000000",
+            email="att@testclinic.com",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.clinic_owner)
+
+    def test_attendance_rate_scenarios(self):
+        from apps.clinics.models import ClinicStaff, StaffAttendance
+        from datetime import date
+
+        staff = ClinicStaff.objects.create(
+            clinic=self.clinic,
+            name="Karim Ullah",
+            role="RECEPTIONIST",
+            phone="01711223344",
+            monthly_salary=15000,
+        )
+
+        month_str = "2026-09"
+
+        # Scenario 1: 0 attendance records -> attendance_rate must be None (not 100%)
+        res = self.client.get(f"/api/v1/clinics/staff/monthly-summary/?month={month_str}")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        staff_data = next(s for s in res.data["staff_summaries"] if s["staff_id"] == str(staff.id))
+        self.assertEqual(staff_data["total_logged_days"], 0)
+        self.assertIsNone(staff_data["attendance_rate"])
+
+        # Scenario 2: All Present (5 days present) -> 100%
+        for d in range(1, 6):
+            StaffAttendance.objects.create(
+                staff=staff,
+                date=date(2026, 9, d),
+                status="PRESENT",
+            )
+        res = self.client.get(f"/api/v1/clinics/staff/monthly-summary/?month={month_str}")
+        staff_data = next(s for s in res.data["staff_summaries"] if s["staff_id"] == str(staff.id))
+        self.assertEqual(staff_data["total_logged_days"], 5)
+        self.assertEqual(staff_data["attendance_rate"], 100.0)
+
+        # Scenario 3: Add 1 Late day (5 present, 1 late = 6 logged) -> 100.0%
+        StaffAttendance.objects.create(
+            staff=staff,
+            date=date(2026, 9, 6),
+            status="LATE",
+        )
+        res = self.client.get(f"/api/v1/clinics/staff/monthly-summary/?month={month_str}")
+        staff_data = next(s for s in res.data["staff_summaries"] if s["staff_id"] == str(staff.id))
+        self.assertEqual(staff_data["total_logged_days"], 6)
+        self.assertEqual(staff_data["attendance_rate"], 100.0)
+
+        # Scenario 4: Add 4 Absent days (5 present, 1 late, 4 absent = 10 logged) -> (5+1)/10 = 60.0%
+        for d in range(7, 11):
+            StaffAttendance.objects.create(
+                staff=staff,
+                date=date(2026, 9, d),
+                status="ABSENT",
+            )
+        res = self.client.get(f"/api/v1/clinics/staff/monthly-summary/?month={month_str}")
+        staff_data = next(s for s in res.data["staff_summaries"] if s["staff_id"] == str(staff.id))
+        self.assertEqual(staff_data["total_logged_days"], 10)
+        self.assertEqual(staff_data["attendance_rate"], 60.0)
+
+
+class ClinicFinancialAnalyticsScenariosTestCase(TestCase):
+    def setUp(self):
+        from apps.doctors.models import Doctor, DoctorClinic
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from apps.payments.models import Payment, PaymentMethod, PaymentStatus
+
+        self.clinic_owner = User.objects.create_user(
+            email="fin_owner@clinic.com",
+            password="Pass123!Owner",
+            first_name="Clinic",
+            last_name="Owner",
+            role=UserRole.CLINIC_ADMIN,
+        )
+        self.clinic = create_clinic(
+            owner=self.clinic_owner,
+            name="Finance Audit Hospital",
+            address="200 Revenue St",
+            city="Dhaka",
+            phone="+8801711111111",
+            email="finance@audithospital.com",
+        )
+        self.doc_user = User.objects.create_user(
+            email="fin_doc@clinic.com",
+            password="Pass123!Doc",
+            first_name="Rahim",
+            last_name="Chowdhury",
+            role=UserRole.DOCTOR,
+        )
+        self.doctor = Doctor.objects.create(
+            user=self.doc_user,
+            full_name="Dr. Rahim Chowdhury",
+            qualification="MBBS, FCPS",
+        )
+        self.mapping = DoctorClinic.objects.create(
+            doctor=self.doctor,
+            clinic=self.clinic,
+            consultation_fee=1000,
+            is_active=True,
+        )
+        self.patient = User.objects.create_user(
+            email="fin_patient@test.com",
+            password="Pass123!Patient",
+            first_name="Patient",
+            last_name="One",
+            role=UserRole.PATIENT,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.clinic_owner)
+
+    def test_all_six_financial_scenarios(self):
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from apps.payments.models import Payment, PaymentMethod, PaymentStatus
+        from django.utils import timezone
+        from datetime import time
+        today = timezone.now().date()
+
+        # Scenario 1: Confirmed + Paid Cash (1000)
+        apt1 = Appointment.objects.create(
+            patient=self.patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(10, 0), serial_number=1,
+            status=AppointmentStatus.CONFIRMED, amount=1000,
+        )
+        Payment.objects.create(
+            appointment=apt1, amount=1000, payment_method=PaymentMethod.CASH,
+            payment_status=PaymentStatus.COMPLETED,
+        )
+
+        # Scenario 2: Confirmed + Unpaid Cash (1000)
+        apt2 = Appointment.objects.create(
+            patient=self.patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(10, 15), serial_number=2,
+            status=AppointmentStatus.CONFIRMED, amount=1000,
+        )
+        Payment.objects.create(
+            appointment=apt2, amount=1000, payment_method=PaymentMethod.CASH,
+            payment_status=PaymentStatus.PENDING,
+        )
+
+        # Scenario 3: Completed + Paid Digital (SSLCommerz) (1000)
+        apt3 = Appointment.objects.create(
+            patient=self.patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(10, 30), serial_number=3,
+            status=AppointmentStatus.COMPLETED, amount=1000,
+        )
+        Payment.objects.create(
+            appointment=apt3, amount=1000, payment_method=PaymentMethod.SSLCOMMERZ,
+            payment_status=PaymentStatus.COMPLETED,
+        )
+
+        # Scenario 4: Cancelled + with payment record (1000)
+        apt4 = Appointment.objects.create(
+            patient=self.patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(10, 45), serial_number=4,
+            status=AppointmentStatus.CANCELLED, amount=1000,
+        )
+        Payment.objects.create(
+            appointment=apt4, amount=1000, payment_method=PaymentMethod.CASH,
+            payment_status=PaymentStatus.COMPLETED,
+        )
+
+        # Scenario 5: Pending appointment (1000)
+        apt5 = Appointment.objects.create(
+            patient=self.patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(11, 0), serial_number=5,
+            status=AppointmentStatus.PENDING, amount=1000,
+        )
+
+        # Scenario 6: Payment failure (1000)
+        apt6 = Appointment.objects.create(
+            patient=self.patient, clinic=self.clinic, doctor=self.doctor,
+            appointment_date=today, appointment_time=time(11, 15), serial_number=6,
+            status=AppointmentStatus.CONFIRMED, amount=1000,
+        )
+        Payment.objects.create(
+            appointment=apt6, amount=1000, payment_method=PaymentMethod.SSLCOMMERZ,
+            payment_status=PaymentStatus.FAILED,
+        )
+
+        # Query Financial Analytics Endpoint
+        res = self.client.get(f"/api/v1/clinics/{self.clinic.id}/analytics/?range=today")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        summary = res.data["summary"]
+
+        # Expected verifications:
+        self.assertEqual(summary["today_cash_collected"], 1000.0)
+        self.assertEqual(summary["today_digital_collected"], 1000.0)
+        self.assertEqual(summary["today_gross_revenue"], 2000.0)
+        self.assertEqual(summary["today_clinic_net_share"], 400.0)
+        self.assertEqual(summary["today_doctors_total_payout"], 1600.0)
+        self.assertEqual(summary["unpaid_pending_count"], 1)
+        self.assertEqual(summary["unpaid_pending_amount"], 1000.0)
+
+        # Doctor settlements list check
+        doc_settlement = res.data["doctor_settlements"][0]
+        self.assertEqual(doc_settlement["gross_collected"], 2000.0)
+        self.assertEqual(doc_settlement["clinic_facility_cut"], 400.0)
+        self.assertEqual(doc_settlement["doctor_net_payout"], 1600.0)
+        self.assertEqual(doc_settlement["doctor_net_payout"] + doc_settlement["clinic_facility_cut"], doc_settlement["gross_collected"])
+
+
 

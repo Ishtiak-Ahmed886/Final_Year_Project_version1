@@ -11,6 +11,7 @@ import {
 
 export default function FinanceTab({
   financialAnalytics,
+  dailyCashSummary,
   analyticsDate,
   setAnalyticsDate,
   analyticsRange = "today",
@@ -225,7 +226,82 @@ export default function FinanceTab({
         </div>
       </div>
 
-      {/* ── 3. DOCTOR SETTLEMENT LEADERBOARD ── */}
+      {/* ── 3. DAILY COUNTER CASH REGISTER (RELOCATED FROM STAFF) ── */}
+      <div className="bg-base-100 border border-base-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-base-200">
+          <div>
+            <h4 className="font-extrabold text-sm text-base-content flex items-center gap-2">
+              <DollarSign className="text-emerald-500" size={18} />
+              <span>Daily Counter Cash Register</span>
+              {dailyCashSummary?.transactions && (
+                <span className="badge badge-sm badge-neutral font-mono font-bold">
+                  {dailyCashSummary.transactions.length} Received
+                </span>
+              )}
+            </h4>
+            <p className="text-xs text-base-content/60 mt-0.5">
+              Itemized record of cash collections taken at front desk counters
+            </p>
+          </div>
+          <span className="text-xs font-bold text-emerald-600 font-mono">
+            Total Cash Today: ৳{dailyCashSummary?.total_cash_today || 0}
+          </span>
+        </div>
+
+        {!dailyCashSummary?.transactions ||
+        dailyCashSummary.transactions.length === 0 ? (
+          <div className="text-center py-8 text-xs text-base-content/50">
+            No cash payments received at reception desk for this date.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-base-200">
+            <table className="table table-sm w-full">
+              <thead>
+                <tr className="text-xs text-base-content/60 border-b border-base-200 bg-base-200/40 uppercase">
+                  <th>Time</th>
+                  <th>Patient</th>
+                  <th>Serial #</th>
+                  <th>Collected By</th>
+                  <th>Payment Mode</th>
+                  <th className="text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailyCashSummary.transactions.map((tx) => (
+                  <tr key={tx.id} className="hover:bg-base-200/40 border-b border-base-200 text-xs">
+                    <td className="text-xs text-base-content/60 font-mono">{tx.time}</td>
+                    <td className="font-bold text-base-content">
+                      {tx.patient}
+                    </td>
+                    <td>
+                      {tx.serial_number ? (
+                        <span className="badge badge-sm badge-neutral font-mono font-bold">
+                          #{tx.serial_number}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="text-base-content/80 font-medium">
+                      {tx.received_by}
+                    </td>
+                    <td>
+                      <span className="badge badge-xs badge-success badge-outline font-bold">
+                        💵 Counter Cash
+                      </span>
+                    </td>
+                    <td className="text-right font-mono font-bold text-emerald-600 text-sm">
+                      ৳{tx.amount}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── 4. DOCTOR SETTLEMENT LEADERBOARD ── */}
       <div className="bg-base-100 border border-base-200 rounded-2xl p-5 shadow-xs space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-base-200">
           <h4 className="font-extrabold text-sm text-base-content flex items-center gap-2">

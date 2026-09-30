@@ -7,6 +7,8 @@ from .views import (
     CustomTokenObtainPairView,
     CustomTokenRefreshView,
     FamilyMemberViewSet,
+    ForgotPasswordView,
+    ResetPasswordView,
 )
 
 app_name = 'accounts'
@@ -20,5 +22,7 @@ urlpatterns = [
     path('token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('me/', UserProfileView.as_view(), name='me'),
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),
+    path('forgot-password/', ForgotPasswordView.as_view(), name='forgot_password'),
+    path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
     path('', include(router.urls)),
 ]

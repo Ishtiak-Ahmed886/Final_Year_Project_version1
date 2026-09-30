@@ -22,6 +22,8 @@ const WaitingRoomDisplay = lazy(() => import("./pages/queue/WaitingRoomDisplay")
 const PatientQueueTracker = lazy(() => import("./pages/queue/PatientQueueTracker"));
 const PrescriptionVerify = lazy(() => import("./pages/prescriptions/PrescriptionVerify"));
 const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
+const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 
 const RouteLoader = () => (
   <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-center">
@@ -52,6 +54,9 @@ ReactDOM.createRoot(root).render(
               <Route path="login" element={<Login />} />
               <Route path="reception/login" element={<Login />} />
               <Route path="register" element={<Register />} />
+              <Route path="forgot-password" element={<ForgotPassword />} />
+              <Route path="reset-password/:uid/:token" element={<ResetPassword />} />
+              <Route path="reset-password" element={<ResetPassword />} />
               <Route path="clinics" element={<ClinicList />} />
               <Route path="clinics/:id" element={<ClinicDetail />} />
               <Route path="doctors" element={<DoctorList />} />

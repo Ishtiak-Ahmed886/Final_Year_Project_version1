@@ -1,24 +1,57 @@
+import { useState, useEffect } from "react";
+import apiClient from "../../api/axios";
+import { useLanguage } from "../../context/LanguageContext";
+
 export default function Stats() {
+  const { language } = useLanguage();
+  const [counts, setCounts] = useState({
+    clinics: 19,
+    doctors: 24,
+    departments: 12,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      apiClient.get("/clinics/").catch(() => null),
+      apiClient.get("/doctors/").catch(() => null),
+      apiClient.get("/clinics/departments/").catch(() => null),
+    ]).then(([cRes, dRes, deptRes]) => {
+      if (!mounted) return;
+      const cCount = cRes?.count ?? (Array.isArray(cRes?.results) ? cRes.results.length : 19);
+      const dCount = dRes?.count ?? (Array.isArray(dRes?.results) ? dRes.results.length : 24);
+      const deptCount = deptRes?.count ?? (Array.isArray(deptRes?.results) ? deptRes.results.length : 12);
+      setCounts({
+        clinics: cCount,
+        doctors: dCount,
+        departments: deptCount,
+      });
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const stats = [
     {
-      value: "250+",
-      label: "Clinics Managed",
+      value: `${counts.clinics}+`,
+      label: language === "bn" ? "নিবন্ধিত ক্লিনিক ও হাসপাতাল" : "Registered Clinics",
       color: "text-[#2534a5]",
     },
     {
-      value: "1,000+",
-      label: "Active Doctors",
+      value: `${counts.doctors}+`,
+      label: language === "bn" ? "সার্টিফাইড বিশেষজ্ঞ চিকিৎসক" : "Certified Doctors",
       color: "text-[#d91a6e]",
     },
     {
-      value: "15K+",
-      label: "Registered Patients",
+      value: `${counts.departments}+`,
+      label: language === "bn" ? "মেডিকেল বিভাগ ও স্পেশালিটি" : "Medical Departments",
       color: "text-slate-900",
     },
     {
-      value: "50K+",
-      label: "Completed Appointments",
-      color: "text-[#3b49df]",
+      value: "100%",
+      label: language === "bn" ? "ডিজিটাল সিরিয়াল ও কিউ ট্র্যাকিং" : "Live Queue Orchestration",
+      color: "text-emerald-600",
     },
   ];
 

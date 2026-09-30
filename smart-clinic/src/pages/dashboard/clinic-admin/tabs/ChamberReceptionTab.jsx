@@ -15,8 +15,32 @@ import {
   Users,
   Printer,
   CheckCircle2,
+  Clock,
+  Sparkles,
+  RefreshCw,
+  Send,
+  Calendar,
 } from "lucide-react";
+import {
+  PageHeader,
+  StatusBadge,
+  TableShell,
+  ModalShell,
+  ActionButton,
+} from "../../../../components/ui";
 
+/**
+ * ChamberReceptionTab — Live Reception & Chamber Operations Workspace
+ *
+ * Implements UI-3 specifications:
+ * - Zone 1: Operational Header (PageHeader, live sync status, instant walk-in token)
+ * - Zone 2: Horizontally scannable Chamber Selector Deck (StatusBadge, room, live serials, no consultation fees)
+ * - Zone 3: Selected Chamber Workspace (40:60 split controller & queue roster, mobile tab switching)
+ * - State-Machine Strict Preservation: NEXT_SERIAL, SKIP_SERIAL, RECALL_SERIAL, RESET, ADMIT_EMERGENCY, COMPLETE_EMERGENCY, RESUME_HELD, UPDATE_STATUS
+ * - Strict Separation: SKIP_SERIAL != HELD. held_patient exists ONLY via emergency interruption.
+ * - Terminal State: ENDED strictly locks queue dispatch actions.
+ * - Emergency Privacy: General queue roster does NOT leak emergency_reason into DOM.
+ */
 export default function ChamberReceptionTab({
   clinic,
   assignedDoctors = [],
@@ -56,11 +80,11 @@ export default function ChamberReceptionTab({
 }) {
   if (!clinic) {
     return (
-      <div className="p-6 bg-warning/10 border border-warning/30 rounded-3xl flex items-start gap-4">
-        <AlertTriangle className="text-warning shrink-0 mt-1" size={20} />
+      <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-4 text-amber-900">
+        <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
         <div>
-          <h3 className="font-bold text-base-content">No Clinic Registered</h3>
-          <p className="text-sm text-base-content/70 mt-1">
+          <h3 className="font-bold text-sm">No Clinic Registered</h3>
+          <p className="text-xs text-amber-700 mt-1">
             Register your clinic first to manage live queue sessions.
           </p>
         </div>
@@ -70,11 +94,11 @@ export default function ChamberReceptionTab({
 
   if (assignedDoctors.length === 0) {
     return (
-      <div className="p-6 bg-info/10 border border-info/30 rounded-3xl flex items-start gap-4">
-        <AlertTriangle className="text-info shrink-0 mt-1" size={20} />
+      <div className="p-6 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex items-start gap-4 text-slate-800">
+        <AlertTriangle className="text-[#283891] shrink-0 mt-0.5" size={20} />
         <div>
-          <h3 className="font-bold text-base-content">No Active Doctors</h3>
-          <p className="text-sm text-base-content/70 mt-1">
+          <h3 className="font-bold text-sm">No Active Doctors</h3>
+          <p className="text-xs text-slate-600 mt-1">
             Invite and get at least one doctor accepted before managing live queues.
           </p>
         </div>
@@ -87,6 +111,8 @@ export default function ChamberReceptionTab({
   // Smart Patient Lookup State for Walk-in Modal
   const [searchingPatient, setSearchingPatient] = useState(false);
   const [foundPatient, setFoundPatient] = useState(null);
+  const [mobileViewTab, setMobileViewTab] = useState("controller");
+  const [queueFilter, setQueueFilter] = useState("ALL");
 
   useEffect(() => {
     if (!walkInModalOpen) {
@@ -161,7 +187,10 @@ export default function ChamberReceptionTab({
   ).length;
 
   const emergencyWaitingPatients = docTodayAppointments.filter(
-    (a) => a.is_emergency && a.status === "CONFIRMED" && a.id !== chamberSession?.active_emergency
+    (a) =>
+      a.is_emergency &&
+      a.status === "CONFIRMED" &&
+      a.id !== chamberSession?.active_emergency
   );
 
   const handleToggleEmergency = async (apt) => {
@@ -173,122 +202,169 @@ export default function ChamberReceptionTab({
       if (refreshDeskData) refreshDeskData();
       if (fetchReceptionChamberSession) fetchReceptionChamberSession();
     } catch (err) {
-      alert(err?.response?.data?.error || err?.detail || "Failed to update emergency status.");
+      alert(
+        err?.response?.data?.error ||
+          err?.detail ||
+          "Failed to update emergency status."
+      );
     }
   };
 
+  const todayAllApts = appointments.filter(
+    (a) => a.appointment_date === todayDateStr
+  );
+  const todayTotalQueueCount = todayAllApts.length;
+  const todayTotalWaitingCount = todayAllApts.filter(
+    (a) => a.status === "PENDING" || a.status === "CONFIRMED"
+  ).length;
+  const todayTotalCompletedCount = todayAllApts.filter(
+    (a) => a.status === "COMPLETED"
+  ).length;
+
   return (
     <div className="space-y-5">
-      {/* 1. Header & Roster Filter Toolbar */}
-      <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-primary/10 rounded-2xl text-primary">
-              <Tv size={24} />
-            </div>
-            <div>
-              <h2 className="text-lg font-black text-base-content flex items-center gap-2">
-                Live Reception Command Desk
-                <span className="badge badge-primary badge-sm font-bold">
-                  {assignedDoctors.length} Doctors Active
-                </span>
-              </h2>
-              <p className="text-xs text-base-content/60">
-                Manage chamber serials and real-time patient arrivals across all doctors without switching tabs
-              </p>
-            </div>
-          </div>
-
-          {/* Action buttons & Live Sync controls */}
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* Live Sync Status Toggle */}
-            <button
-              type="button"
-              onClick={() => setLiveSyncEnabled && setLiveSyncEnabled(!liveSyncEnabled)}
-              className={`btn btn-xs rounded-xl gap-1.5 font-bold transition-all border cursor-pointer ${
-                liveSyncEnabled
-                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                  : "bg-base-200 text-base-content/60 border-base-300 hover:bg-base-300"
-              }`}
-              title={
-                liveSyncEnabled
-                  ? "Auto-sync (15s) is active. Click to pause."
-                  : "Auto-sync is paused. Click to resume."
-              }
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${
+      {/* ── ZONE 1: OPERATIONAL HEADER ── */}
+      <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-4">
+        <PageHeader
+          className="mb-0"
+          title="Live Reception — Chamber Operations"
+          subtitle="Real-time queue dispatch, patient calling, and chamber coordination console"
+          badge={
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-[#283891] border border-indigo-100">
+              {assignedDoctors.length} Chambers Roster
+            </span>
+          }
+          actions={
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {/* Live Sync Status Toggle */}
+              <button
+                type="button"
+                onClick={() =>
+                  setLiveSyncEnabled && setLiveSyncEnabled(!liveSyncEnabled)
+                }
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer select-none ${
                   liveSyncEnabled
-                    ? "bg-emerald-500 animate-pulse"
-                    : "bg-base-content/40"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/70"
+                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/70"
                 }`}
-              />
-              <span>{liveSyncEnabled ? "Live Sync: ON" : "Live Sync: PAUSED"}</span>
-            </button>
+                title={
+                  liveSyncEnabled
+                    ? "Auto-sync (15s) is active. Click to pause."
+                    : "Auto-sync is paused. Click to resume."
+                }
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    liveSyncEnabled
+                      ? "bg-emerald-500 animate-pulse"
+                      : "bg-slate-400"
+                  }`}
+                />
+                <span>
+                  {liveSyncEnabled ? "Live Sync: ON" : "Live Sync: PAUSED"}
+                </span>
+              </button>
 
-            {lastSyncedTime && (
-              <span className="text-[11px] font-mono text-base-content/50 hidden lg:inline" title="Last synced time">
-                {lastSyncedTime.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </span>
-            )}
+              {lastSyncedTime && (
+                <span
+                  className="text-[11px] font-mono text-slate-400 hidden lg:inline"
+                  title="Last synced time"
+                >
+                  {lastSyncedTime.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+              )}
 
-            <button
-              onClick={() =>
-                refreshDeskData
-                  ? refreshDeskData(false)
-                  : fetchReceptionChamberSession()
-              }
-              disabled={isLiveSyncing}
-              className="btn btn-ghost btn-sm gap-1 text-xs cursor-pointer"
-              title="Refresh queue and appointments instantly"
-            >
-              <RotateCcw
-                size={14}
-                className={isLiveSyncing ? "animate-spin text-primary" : ""}
-              />
-              <span>{isLiveSyncing ? "Syncing..." : "Sync"}</span>
-            </button>
+              <ActionButton
+                variant="outline"
+                size="sm"
+                icon={RotateCcw}
+                loading={isLiveSyncing}
+                onClick={() =>
+                  refreshDeskData
+                    ? refreshDeskData(false)
+                    : fetchReceptionChamberSession()
+                }
+                title="Refresh queue and appointments immediately"
+              >
+                {isLiveSyncing ? "Syncing..." : "Sync"}
+              </ActionButton>
 
-            <button
-              onClick={() => {
-                setWalkInForm((prev) => ({
-                  ...prev,
-                  doctor_id:
-                    selectedDoctorId || (assignedDoctors[0]?.id || ""),
-                }));
-                setWalkInModalOpen(true);
-              }}
-              className="btn btn-primary btn-sm gap-1.5 shadow-md font-bold flex-1 sm:flex-initial cursor-pointer"
-              title="Issue instant walk-in token"
-            >
-              <UserPlus size={15} /> + Walk-in Token
-            </button>
+              <ActionButton
+                variant="primary"
+                size="sm"
+                icon={UserPlus}
+                onClick={() => {
+                  setWalkInForm((prev) => ({
+                    ...prev,
+                    doctor_id:
+                      selectedDoctorId || (assignedDoctors[0]?.id || ""),
+                  }));
+                  setWalkInModalOpen(true);
+                }}
+                title="Issue instant walk-in token"
+              >
+                + Walk-in Token
+              </ActionButton>
+            </div>
+          }
+        />
+
+        {/* Restrained Operational Summary Strip */}
+        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-3 border-t border-slate-100 font-medium">
+          <div className="flex items-center gap-1.5">
+            <Calendar size={13} className="text-slate-400" />
+            <span>Today:</span>
+            <strong className="text-slate-800 font-semibold">{todayDateStr}</strong>
+          </div>
+          <span>•</span>
+          <div className="flex items-center gap-1.5">
+            <Users size={13} className="text-slate-400" />
+            <span>Total Clinic Queue:</span>
+            <strong className="text-slate-800 font-bold font-mono">
+              {todayTotalQueueCount} Patients
+            </strong>
+          </div>
+          <span>•</span>
+          <div className="flex items-center gap-1.5">
+            <Clock size={13} className="text-amber-500" />
+            <span>Waiting in Clinic:</span>
+            <strong className="text-amber-700 font-bold font-mono">
+              {todayTotalWaitingCount}
+            </strong>
+          </div>
+          <span>•</span>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 size={13} className="text-emerald-500" />
+            <span>Completed Today:</span>
+            <strong className="text-emerald-700 font-bold font-mono">
+              {todayTotalCompletedCount}
+            </strong>
           </div>
         </div>
 
-        {/* Search and Department Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 pt-1 border-t border-base-200">
+        {/* Search & Department Filter Toolbar */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
           <div className="relative flex-1 w-full">
             <Search
-              size={15}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base-content/40"
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               type="text"
               value={receptionSearchQuery}
               onChange={(e) => setReceptionSearchQuery(e.target.value)}
               placeholder="Search doctor by name, room # or department..."
-              className="input input-bordered input-sm w-full pl-9 rounded-xl text-xs"
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
             />
           </div>
           <select
             value={receptionDeptFilter}
             onChange={(e) => setReceptionDeptFilter(e.target.value)}
-            className="select select-bordered select-sm rounded-xl text-xs w-full sm:w-56 font-medium"
+            className="w-full sm:w-60 py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300 cursor-pointer"
           >
             <option value="ALL">
               All Departments ({assignedDoctors.length})
@@ -302,15 +378,16 @@ export default function ChamberReceptionTab({
         </div>
       </div>
 
-      {/* 2. Scalable Doctor Carousel Strip */}
+      {/* ── ZONE 2: CHAMBER SELECTOR DECK ── */}
       <div className="relative">
         <button
+          type="button"
           onClick={() => {
             document
               .getElementById("receptionDoctorStrip")
-              ?.scrollBy({ left: -260, behavior: "smooth" });
+              ?.scrollBy({ left: -280, behavior: "smooth" });
           }}
-          className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-base-100 border border-base-300 shadow-lg flex items-center justify-center text-base-content z-10 hover:bg-primary hover:text-white transition-all hidden sm:flex cursor-pointer"
+          className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 z-10 hover:bg-[#283891] hover:text-white transition-all hidden sm:flex cursor-pointer"
           title="Scroll Left"
         >
           <ChevronLeft size={16} />
@@ -322,8 +399,8 @@ export default function ChamberReceptionTab({
           style={{ scrollbarWidth: "thin" }}
         >
           {filteredRosterDoctors.length === 0 ? (
-            <div className="p-4 text-xs text-base-content/50 italic bg-base-100 rounded-2xl border border-base-200 w-full text-center">
-              No doctors match your search or filter.
+            <div className="p-4 text-xs text-slate-500 italic bg-white rounded-2xl border border-slate-200 w-full text-center">
+              No chambers match your search or department filter.
             </div>
           ) : (
             filteredRosterDoctors.map((d) => {
@@ -337,47 +414,131 @@ export default function ChamberReceptionTab({
               const docSeen = docApts.filter(
                 (a) => a.status === "COMPLETED"
               ).length;
-              const docTotal = docApts.length;
+              const docWaiting = docApts.filter(
+                (a) => a.status === "PENDING" || a.status === "CONFIRMED"
+              ).length;
+              const docEmergWaiting = docApts.filter(
+                (a) => a.is_emergency && a.status === "CONFIRMED"
+              ).length;
+
+              const roomLabel = d.room_number
+                ? d.room_number.toLowerCase().includes("room") ||
+                  d.room_number.toLowerCase().includes("chamber")
+                  ? d.room_number.toUpperCase()
+                  : `ROOM ${d.room_number}`
+                : "CHAMBER DESK";
+
+              const isDocActiveChamber = isSelected && chamberSession;
+              const nowServingSerial = isDocActiveChamber
+                ? chamberSession.current_serial
+                : null;
+              const isDocPrayerBreak =
+                isDocActiveChamber &&
+                chamberSession.status === "PRAYER_BREAK";
+              const isDocPaused =
+                isDocActiveChamber && chamberSession.status === "PAUSED";
+              const isDocEnded =
+                isDocActiveChamber && chamberSession.status === "ENDED";
+              const isDocEmergencyDoctor =
+                isDocActiveChamber && chamberSession.status === "EMERGENCY";
+              const hasHeld =
+                isDocActiveChamber && !!chamberSession.held_patient;
+              const hasDelay =
+                isDocActiveChamber && chamberSession.delay_minutes > 0;
 
               return (
                 <button
+                  type="button"
                   key={d.id}
                   onClick={() => {
                     setSelectedDoctorId(d.id);
                     setChamberSession(null);
                   }}
-                  className={`flex-shrink-0 w-64 text-left p-3.5 rounded-2xl border transition-all duration-150 relative cursor-pointer ${
+                  className={`flex-shrink-0 w-72 text-left p-4 rounded-2xl border transition-all duration-150 relative cursor-pointer select-none ${
                     isSelected
-                      ? "bg-primary/10 border-primary shadow-md ring-1 ring-primary"
-                      : "bg-base-100 border-base-200 hover:border-primary/50 hover:bg-base-200/40"
+                      ? "bg-indigo-50/50 border-[#283891] shadow-xs ring-2 ring-[#283891]/20"
+                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 text-white flex items-center justify-center font-bold text-xs">
-                      {(d.full_name || "D")[0].toUpperCase()}
-                    </div>
-                    <span className="badge badge-xs badge-neutral font-bold">
-                      {d.room_number ? `Room ${d.room_number}` : "Chamber"}
+                  {/* Header: Room Number & Status Badge */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200">
+                      {roomLabel}
                     </span>
+                    {isDocEnded ? (
+                      <StatusBadge status="ENDED" size="xs" />
+                    ) : isDocPrayerBreak ? (
+                      <StatusBadge status="PRAYER_BREAK" size="xs" />
+                    ) : isDocEmergencyDoctor ? (
+                      <StatusBadge
+                        status="EMERGENCY"
+                        size="xs"
+                        customLabel="Doctor in OT"
+                      />
+                    ) : isDocPaused ? (
+                      <StatusBadge status="PAUSED" size="xs" />
+                    ) : isDocActiveChamber ? (
+                      <StatusBadge
+                        status="IN_CHAMBER"
+                        size="xs"
+                        customLabel="Live"
+                      />
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
+                        Ready
+                      </span>
+                    )}
                   </div>
-                  <div className="font-extrabold text-xs text-base-content truncate">
+
+                  {/* Doctor Name & Specialty */}
+                  <div className="font-bold text-xs text-slate-900 truncate">
                     {d.full_name?.startsWith("Dr.")
                       ? d.full_name
                       : `Dr. ${d.full_name}`}
                   </div>
-                  <div className="text-[11px] text-base-content/60 truncate mt-0.5">
+                  <div className="text-[11px] text-slate-500 truncate mt-0.5">
                     {d.department_name ||
                       d.qualification ||
                       "General Practice"}
                   </div>
-                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-base-200/80 text-[11px]">
-                    <span className="text-success font-bold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
-                      Active
-                    </span>
-                    <span className="font-mono font-bold text-primary">
-                      {docSeen}/{docTotal} seen
-                    </span>
+
+                  {/* Now Serving & Counts Tally (Operational selection, NO consultation fees) */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 my-2.5 border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">
+                        Now Serving
+                      </div>
+                      <div className="font-mono font-bold text-base text-[#283891]">
+                        {nowServingSerial ? `#${nowServingSerial}` : "—"}
+                      </div>
+                    </div>
+                    <div className="text-right text-[11px] space-y-0.5">
+                      <div className="text-amber-800 font-bold font-mono">
+                        {docWaiting} Waiting
+                      </div>
+                      <div className="text-emerald-700 font-semibold font-mono">
+                        {docSeen} Served
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contextual Warning Indicators */}
+                  <div className="flex items-center gap-1.5 flex-wrap min-h-[20px]">
+                    {docEmergWaiting > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
+                        🚨 {docEmergWaiting} Priority
+                      </span>
+                    )}
+                    {hasHeld && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                        ⏸ Held Patient
+                      </span>
+                    )}
+                    {hasDelay && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                        ⏱ +{chamberSession.delay_minutes}m
+                      </span>
+                    )}
                   </div>
                 </button>
               );
@@ -386,38 +547,74 @@ export default function ChamberReceptionTab({
         </div>
 
         <button
+          type="button"
           onClick={() => {
             document
               .getElementById("receptionDoctorStrip")
-              ?.scrollBy({ left: 260, behavior: "smooth" });
+              ?.scrollBy({ left: 280, behavior: "smooth" });
           }}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-base-100 border border-base-300 shadow-lg flex items-center justify-center text-base-content z-10 hover:bg-primary hover:text-white transition-all hidden sm:flex cursor-pointer"
+          className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 z-10 hover:bg-[#283891] hover:text-white transition-all hidden sm:flex cursor-pointer"
           title="Scroll Right"
         >
           <ChevronRight size={16} />
         </button>
       </div>
 
-      {/* 3. Main Split-Screen Workspace (Left: Chamber Control | Right: Live Patient Queue) */}
+      {/* Mobile/Tablet Operational View Toggle (xl:hidden) */}
+      <div className="flex xl:hidden bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setMobileViewTab("controller")}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            mobileViewTab === "controller"
+              ? "bg-white text-[#283891] shadow-2xs"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          🎛️ Chamber Controller
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileViewTab("queue")}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            mobileViewTab === "queue"
+              ? "bg-white text-[#283891] shadow-2xs"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          👥 Live Dispatch ({docTodayAppointments.length})
+        </button>
+      </div>
+
+      {/* ── ZONE 3: SELECTED CHAMBER WORKSPACE (Split 40:60) ── */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
-        {/* LEFT COLUMN: Chamber & Serial Control */}
-        <div className="xl:col-span-5 space-y-4">
-          <div className="bg-base-100 border border-base-200 p-4 rounded-2xl shadow-sm flex items-center justify-between gap-3">
+        {/* LEFT COLUMN (40% / 5 cols): Chamber & Serial Controller */}
+        <div
+          className={`xl:col-span-5 space-y-4 ${
+            mobileViewTab === "queue" ? "hidden xl:block" : "block"
+          }`}
+        >
+          {/* Active Doctor Chamber Bar */}
+          <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#283891] border border-indigo-100 flex items-center justify-center shrink-0">
                 <Stethoscope size={20} />
               </div>
               <div className="min-w-0">
-                <div className="font-extrabold text-sm text-base-content truncate">
+                <div className="font-mono font-bold text-[11px] text-[#283891] uppercase">
+                  {activeReceptionDoc?.room_number
+                    ? `Chamber ${activeReceptionDoc.room_number}`
+                    : "Chamber Operations Desk"}
+                </div>
+                <div className="font-bold text-sm text-slate-900 truncate">
                   {activeReceptionDoc?.full_name?.startsWith("Dr.")
                     ? activeReceptionDoc.full_name
                     : `Dr. ${activeReceptionDoc?.full_name}`}
                 </div>
-                <div className="text-xs text-base-content/60 truncate">
-                  {activeReceptionDoc?.room_number
-                    ? `Room ${activeReceptionDoc.room_number}`
-                    : "Chamber Desk"}{" "}
-                  · Fee: ৳{activeReceptionDoc?.consultation_fee || "—"}
+                <div className="text-xs text-slate-500 truncate">
+                  {activeReceptionDoc?.department_name ||
+                    activeReceptionDoc?.qualification ||
+                    "General Practice"}
                 </div>
               </div>
             </div>
@@ -426,31 +623,33 @@ export default function ChamberReceptionTab({
                 href={`/queue-display/${clinic.id}/${selectedDoctorId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-outline btn-xs gap-1 shrink-0 font-bold"
-                title="Open TV screen for waiting room"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold shrink-0 transition-colors shadow-2xs"
+                title="Open fullscreen TV screen for waiting room"
               >
-                <Tv size={12} /> TV Screen ↗
+                <Tv size={13} className="text-[#283891]" />
+                <span>TV Display ↗</span>
               </a>
             )}
           </div>
 
           {chamberSession ? (
             <div className="space-y-4">
+              {/* Broadcast Delay Notice (if active) */}
               {(chamberSession.delay_minutes > 0 ||
                 chamberSession.announcement_note) && (
-                <div className="p-3.5 bg-warning/15 border border-warning/40 rounded-2xl flex items-start gap-2.5">
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900">
                   <AlertTriangle
-                    className="text-warning shrink-0 mt-0.5"
+                    className="text-amber-600 shrink-0 mt-0.5"
                     size={16}
                   />
                   <div className="text-xs">
                     {chamberSession.delay_minutes > 0 && (
-                      <span className="font-bold text-warning-content">
-                        ⏱ +{chamberSession.delay_minutes} min delay broadcast.{" "}
+                      <span className="font-bold">
+                        ⏱ +{chamberSession.delay_minutes} min delay broadcast active.{" "}
                       </span>
                     )}
                     {chamberSession.announcement_note && (
-                      <span className="text-base-content/80">
+                      <span className="text-amber-800">
                         {chamberSession.announcement_note}
                       </span>
                     )}
@@ -458,60 +657,67 @@ export default function ChamberReceptionTab({
                 </div>
               )}
 
-              {/* Large "Now Serving" Display Box */}
-              <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-purple-950 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden text-center">
-                <div className="text-xs font-black tracking-widest uppercase text-indigo-300 mb-1">
-                  Currently In Chamber
-                </div>
-                <div className="text-5xl font-black font-mono tracking-tight my-2">
-                  #{chamberSession.current_serial || 0}
-                </div>
-                <div className="text-xs text-indigo-200/80 font-medium">
-                  Status:{" "}
-                  <span className="font-bold text-white uppercase">
-                    {chamberSession.status?.replace("_", " ") || "ACTIVE"}
-                  </span>
+              {/* Now Serving Panel */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs relative overflow-hidden text-center space-y-4">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#283891]" />
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Currently In Chamber
+                  </div>
+                  <div className="text-5xl font-black font-mono tracking-tight text-[#283891] my-2">
+                    #{chamberSession.current_serial || 0}
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-xs text-slate-500 font-medium">
+                      Status:
+                    </span>
+                    <StatusBadge
+                      status={chamberSession.status || "IN_CHAMBER"}
+                      size="sm"
+                    />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-white/10">
-                  <div className="bg-white/10 rounded-xl p-2">
-                    <div className="text-xs text-indigo-200 font-bold">
-                      Total
+                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-slate-100">
+                  <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100">
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">
+                      Total Booked
                     </div>
-                    <div className="text-lg font-black">
+                    <div className="text-base font-bold font-mono text-slate-800">
                       {chamberSession.total_serials ||
                         docTodayAppointments.length}
                     </div>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-2">
-                    <div className="text-xs text-indigo-200 font-bold">
+                  <div className="bg-amber-50/70 rounded-xl p-2.5 border border-amber-100">
+                    <div className="text-[10px] text-amber-800 font-bold uppercase">
                       Waiting
                     </div>
-                    <div className="text-lg font-black text-warning">
+                    <div className="text-base font-bold font-mono text-amber-800">
                       {docWaitingCount}
                     </div>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-2">
-                    <div className="text-xs text-indigo-200 font-bold">
+                  <div className="bg-emerald-50/70 rounded-xl p-2.5 border border-emerald-100">
+                    <div className="text-[10px] text-emerald-800 font-bold uppercase">
                       Completed
                     </div>
-                    <div className="text-lg font-black text-success">
+                    <div className="text-base font-bold font-mono text-emerald-700">
                       {docSeenCount}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Skipped / Held Serials */}
+              {/* Skipped Serials Strip (Click to Recall) */}
               {chamberSession.skipped_serials?.length > 0 && (
-                <div className="bg-base-100 border border-base-200 p-3.5 rounded-2xl shadow-sm">
-                  <div className="text-xs font-bold text-base-content/70 mb-2 flex items-center gap-1.5">
-                    <Pause size={13} className="text-warning" /> Skipped Serials
-                    (Click to Recall):
+                <div className="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-xs space-y-2">
+                  <div className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                    <Pause size={13} className="text-amber-500" />
+                    <span>Skipped Serials (Click to Recall into chamber):</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {chamberSession.skipped_serials.map((sn) => (
                       <button
+                        type="button"
                         key={sn}
                         onClick={() =>
                           handleReceptionChamberAction(
@@ -521,10 +727,10 @@ export default function ChamberReceptionTab({
                           )
                         }
                         disabled={updatingChamber}
-                        className="badge badge-warning badge-sm font-bold cursor-pointer hover:badge-error"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
                         title={`Recall Serial #${sn}`}
                       >
-                        #{sn} Recall
+                        <span>#{sn} Recall</span>
                       </button>
                     ))}
                   </div>
@@ -533,265 +739,461 @@ export default function ChamberReceptionTab({
 
               {/* Active Emergency In Chamber Banner */}
               {chamberSession.active_emergency && (
-                <div className="bg-rose-500/10 border-2 border-rose-500/40 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
-                  <div className="flex items-start gap-2.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping mt-1 shrink-0" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="badge badge-error text-white font-black text-xs">
+                <div className="bg-rose-50 border-2 border-rose-300 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <span className="relative flex shrink-0 mt-1">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black uppercase px-2 py-0.5 rounded-md bg-rose-600 text-white">
                           🚨 ACTIVE EMERGENCY IN CHAMBER
                         </span>
-                        <span className="font-mono font-black text-sm">
+                        <span className="font-mono font-bold text-xs text-rose-900">
                           Serial #{chamberSession.active_emergency_details?.serial_number || "—"}
                         </span>
                       </div>
-                      <div className="text-sm font-extrabold text-base-content mt-1">
-                        {chamberSession.active_emergency_details?.patient_name || "Emergency Patient"}
+                      <div className="text-sm font-bold text-slate-900 mt-1 truncate">
+                        {chamberSession.active_emergency_details?.patient_name ||
+                          "Emergency Patient"}
                       </div>
                       {chamberSession.active_emergency_details?.emergency_reason && (
-                        <div className="text-xs text-rose-600 dark:text-rose-400 font-medium">
-                          Reason: {chamberSession.active_emergency_details.emergency_reason}
+                        <div className="text-xs text-rose-700 font-medium mt-0.5">
+                          Triage Reason:{" "}
+                          {chamberSession.active_emergency_details.emergency_reason}
                         </div>
                       )}
                       {chamberSession.held_patient_details && (
-                        <div className="text-[11px] text-warning font-semibold mt-1">
-                          ⏸️ Serial #{chamberSession.held_patient_details.serial_number} ({chamberSession.held_patient_details.patient_name}) is paused and will resume next.
+                        <div className="text-[11px] text-amber-800 font-semibold mt-1 bg-amber-100/70 px-2 py-0.5 rounded-md inline-block">
+                          ⏸ Serial #{chamberSession.held_patient_details.serial_number} (
+                          {chamberSession.held_patient_details.patient_name}) was paused and will resume next.
                         </div>
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleReceptionChamberAction("COMPLETE_EMERGENCY")}
-                    disabled={updatingChamber}
-                    className="btn btn-error btn-sm text-white font-black shrink-0 cursor-pointer"
+                  <ActionButton
+                    variant="danger"
+                    size="sm"
+                    loading={updatingChamber}
+                    onClick={() =>
+                      handleReceptionChamberAction("COMPLETE_EMERGENCY")
+                    }
                   >
                     ✓ Complete Emergency
-                  </button>
+                  </ActionButton>
                 </div>
               )}
 
-              {/* Held Patient Paused Banner */}
-              {chamberSession.held_patient && !chamberSession.active_emergency && (
-                <div className="bg-amber-500/10 border-2 border-amber-500/40 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="badge badge-warning text-black font-black text-xs">
-                        ⏸️ HELD PATIENT PAUSED
-                      </span>
-                      <span className="font-mono font-black text-sm">
-                        Serial #{chamberSession.held_patient_details?.serial_number || "—"}
-                      </span>
+              {/* Held Patient Paused Banner (Emergency Interruption Lifecycle Only) */}
+              {chamberSession.held_patient &&
+                !chamberSession.active_emergency && (
+                  <div className="bg-amber-50 border-2 border-amber-300 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase px-2 py-0.5 rounded-md bg-amber-500 text-slate-950">
+                          ⏸️ HELD PATIENT PAUSED
+                        </span>
+                        <span className="font-mono font-bold text-xs text-slate-900">
+                          Serial #{chamberSession.held_patient_details?.serial_number || "—"}
+                        </span>
+                      </div>
+                      <div className="text-sm font-bold text-slate-900 mt-1">
+                        {chamberSession.held_patient_details?.patient_name ||
+                          "Held Patient"}
+                      </div>
+                      <p className="text-xs text-amber-800 mt-0.5">
+                        Consultation temporarily paused for emergency interruption. Ready to resume.
+                      </p>
                     </div>
-                    <div className="text-sm font-bold text-base-content mt-1">
-                      {chamberSession.held_patient_details?.patient_name || "Held Patient"}
-                    </div>
+                    <ActionButton
+                      variant="warning"
+                      size="sm"
+                      loading={updatingChamber}
+                      onClick={() =>
+                        handleReceptionChamberAction("RESUME_HELD")
+                      }
+                    >
+                      ▶️ Resume Held Patient
+                    </ActionButton>
                   </div>
-                  <button
-                    onClick={() => handleReceptionChamberAction("RESUME_HELD")}
-                    disabled={updatingChamber}
-                    className="btn btn-warning text-black btn-sm font-black shrink-0 cursor-pointer"
-                  >
-                    ▶️ Resume Held Patient
-                  </button>
-                </div>
-              )}
+                )}
 
               {/* Emergency Priority Queue Tray */}
               {emergencyWaitingPatients.length > 0 && (
-                <div className="bg-rose-500/5 border border-rose-500/30 p-3.5 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between text-xs font-black text-rose-600 dark:text-rose-400">
-                    <span className="flex items-center gap-1.5"><AlertTriangle size={14} /> Emergency Priority Queue ({emergencyWaitingPatients.length})</span>
-                    <span className="text-[10px] text-base-content/50 font-normal">Holds current serial on admit</span>
+                <div className="bg-rose-50/60 border border-rose-200 p-3.5 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-700">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle size={14} /> Emergency Priority Queue (
+                      {emergencyWaitingPatients.length})
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      Holds current serial on admit
+                    </span>
                   </div>
                   <div className="space-y-1.5">
                     {emergencyWaitingPatients.map((a) => (
-                      <div key={a.id} className="bg-base-100 border border-rose-500/20 p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs">
+                      <div
+                        key={a.id}
+                        className="bg-white border border-rose-200/80 p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs"
+                      >
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="badge badge-error badge-xs font-black text-white shrink-0">#{a.serial_number}</span>
-                            <span className="font-bold truncate">{a.patient_name || a.patient?.first_name || "Patient"}</span>
+                            <span className="px-1.5 py-0.2 rounded-md font-mono font-bold text-[11px] bg-rose-600 text-white shrink-0">
+                              #{a.serial_number}
+                            </span>
+                            <span className="font-bold text-slate-900 truncate">
+                              {a.patient_name ||
+                                a.patient?.first_name ||
+                                "Patient"}
+                            </span>
                           </div>
-                          {a.emergency_reason && <div className="text-[10px] text-rose-500 truncate">{a.emergency_reason}</div>}
+                          {a.emergency_reason && (
+                            <div className="text-[10px] text-rose-600 truncate mt-0.5">
+                              {a.emergency_reason}
+                            </div>
+                          )}
                         </div>
-                        <button
-                          onClick={() => handleReceptionChamberAction("ADMIT_EMERGENCY", null, null, { appointment_id: a.id, hold_current: true })}
-                          disabled={updatingChamber || !!chamberSession.active_emergency}
-                          className="btn btn-error btn-xs text-white font-bold shrink-0 cursor-pointer"
-                          title={chamberSession.active_emergency ? "Chamber busy with emergency" : "Admit to chamber"}
+                        <ActionButton
+                          variant="danger"
+                          size="xs"
+                          disabled={
+                            updatingChamber ||
+                            !!chamberSession.active_emergency ||
+                            chamberSession.status === "ENDED"
+                          }
+                          onClick={() =>
+                            handleReceptionChamberAction(
+                              "ADMIT_EMERGENCY",
+                              null,
+                              null,
+                              { appointment_id: a.id, hold_current: true }
+                            )
+                          }
+                          title={
+                            chamberSession.status === "ENDED"
+                              ? "Chamber session has ended. Reopen session before admitting emergency"
+                              : chamberSession.active_emergency
+                              ? "Chamber busy with active emergency"
+                              : "Admit to chamber (holds current patient)"
+                          }
                         >
                           Admit
-                        </button>
+                        </ActionButton>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Fast Queue Actions */}
-              <div className="bg-base-100 border border-base-200 p-5 rounded-3xl shadow-md space-y-4">
-                <div className="text-xs font-black uppercase tracking-wider text-base-content/60">
-                  Queue Actions
+              {/* Fast Queue Actions Panel */}
+              <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Queue Dispatch Controls
                 </div>
+
+                {/* Prayer Break Resume Prompt */}
+                {chamberSession.status === "PRAYER_BREAK" && (
+                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex items-center justify-between gap-2 text-amber-900">
+                    <div className="text-xs font-bold flex items-center gap-1.5">
+                      <span>🕌 Doctor on Prayer Break (Queue Paused)</span>
+                    </div>
+                    <ActionButton
+                      variant="warning"
+                      size="xs"
+                      disabled={updatingChamber}
+                      onClick={() =>
+                        handleReceptionChamberAction(
+                          "UPDATE_STATUS",
+                          "IN_CHAMBER"
+                        )
+                      }
+                    >
+                      ▶ Resume Queue
+                    </ActionButton>
+                  </div>
+                )}
+
+                {/* Session Ended Reopen Prompt */}
+                {chamberSession.status === "ENDED" && (
+                  <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between gap-2 text-white">
+                    <div className="text-xs font-bold flex items-center gap-1.5">
+                      <span>⏹ Chamber Session Ended (Queue Locked)</span>
+                    </div>
+                    <ActionButton
+                      variant="warning"
+                      size="xs"
+                      disabled={updatingChamber}
+                      onClick={() =>
+                        handleReceptionChamberAction(
+                          "UPDATE_STATUS",
+                          "IN_CHAMBER"
+                        )
+                      }
+                    >
+                      ▶ Reopen Session
+                    </ActionButton>
+                  </div>
+                )}
+
+                {/* Primary Action Button (Call Next Serial) */}
+                <ActionButton
+                  variant="primary"
+                  size="lg"
+                  className="w-full shadow-sm"
+                  icon={FastForward}
+                  loading={updatingChamber}
+                  disabled={
+                    updatingChamber ||
+                    !!chamberSession.active_emergency ||
+                    !!chamberSession.held_patient ||
+                    chamberSession.status === "PRAYER_BREAK" ||
+                    chamberSession.status === "ENDED"
+                  }
+                  onClick={() =>
+                    handleReceptionChamberAction("NEXT_SERIAL")
+                  }
+                  title={
+                    chamberSession.status === "ENDED"
+                      ? "Chamber session has ended. Reopen session before calling next serial"
+                      : chamberSession.status === "PRAYER_BREAK"
+                      ? "Chamber is on Prayer Break. Resume 'In Chamber' before calling next serial"
+                      : chamberSession.active_emergency
+                      ? "Cannot call next serial while emergency patient is in chamber"
+                      : chamberSession.held_patient
+                      ? "Resume held patient first"
+                      : "Call Next Serial"
+                  }
+                >
+                  Call Next Serial
+                </ActionButton>
+
+                {/* Secondary Actions (Skip Serial & Reset) */}
                 <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    onClick={() =>
-                      handleReceptionChamberAction("NEXT_SERIAL")
+                  <ActionButton
+                    variant="outline"
+                    size="sm"
+                    icon={Pause}
+                    disabled={
+                      updatingChamber ||
+                      !chamberSession.current_serial ||
+                      !!chamberSession.active_emergency ||
+                      !!chamberSession.held_patient ||
+                      chamberSession.status === "PRAYER_BREAK" ||
+                      chamberSession.status === "ENDED"
                     }
-                    disabled={updatingChamber || !!chamberSession.active_emergency || !!chamberSession.held_patient}
-                    className="btn btn-primary gap-2 col-span-2 shadow-md font-extrabold text-sm cursor-pointer"
-                    title={
-                      chamberSession.active_emergency
-                        ? "Cannot call next serial while emergency patient is in chamber"
-                        : chamberSession.held_patient
-                        ? "Resume held patient first"
-                        : "Call Next Serial"
-                    }
-                  >
-                    <FastForward size={16} /> Call Next Serial
-                  </button>
-                  <button
                     onClick={() =>
                       handleReceptionChamberAction("SKIP_SERIAL")
                     }
-                    disabled={updatingChamber || !chamberSession.current_serial || !!chamberSession.active_emergency || !!chamberSession.held_patient}
-                    className="btn btn-warning btn-sm gap-1.5 font-bold cursor-pointer"
+                    title={
+                      chamberSession.status === "ENDED"
+                        ? "Chamber session has ended. Reopen session before skipping serials"
+                        : chamberSession.status === "PRAYER_BREAK"
+                        ? "Chamber is on Prayer Break. Resume 'In Chamber' before skipping serials"
+                        : "Skip Serial"
+                    }
                   >
-                    <Pause size={14} /> Skip &amp; Hold
-                  </button>
-                  <button
+                    Skip Serial
+                  </ActionButton>
+
+                  <ActionButton
+                    variant="ghost"
+                    size="sm"
+                    icon={RotateCcw}
+                    disabled={
+                      updatingChamber ||
+                      !!chamberSession.active_emergency ||
+                      !!chamberSession.held_patient ||
+                      chamberSession.status === "ENDED"
+                    }
                     onClick={() => handleReceptionChamberAction("RESET")}
-                    disabled={updatingChamber || !!chamberSession.active_emergency || !!chamberSession.held_patient}
-                    className="btn btn-ghost btn-outline btn-sm gap-1.5 text-xs cursor-pointer"
                   >
-                    <RotateCcw size={14} /> Reset
-                  </button>
+                    Reset Queue
+                  </ActionButton>
                 </div>
 
-                {/* Doctor Status Quick Switch */}
-                <div className="pt-2 border-t border-base-200">
-                  <div className="text-[11px] font-bold text-base-content/50 uppercase tracking-wide mb-2">
-                    Chamber State
+                {/* Chamber State Quick Switch */}
+                <div className="pt-3 border-t border-slate-100">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">
+                    Chamber Operational State
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {[
                       {
-                        label: "🏥 In Chamber",
+                        label: "In Chamber",
                         status: "IN_CHAMBER",
-                        cls: "btn-success",
+                        variant: "success",
                       },
                       {
-                        label: "🕌 Break",
+                        label: "Break",
                         status: "PRAYER_BREAK",
-                        cls: "btn-warning",
+                        variant: "warning",
                       },
                       {
-                        label: "⏸ Paused",
+                        label: "Paused",
                         status: "PAUSED",
-                        cls: "btn-ghost btn-outline",
+                        variant: "outline",
                       },
                       {
-                        label: "✅ Done",
-                        status: "COMPLETED",
-                        cls: "btn-neutral",
+                        label: "Session Ended",
+                        status: "ENDED",
+                        variant: "danger",
                       },
                     ].map((b) => (
-                      <button
+                      <ActionButton
                         key={b.status}
+                        variant={b.variant}
+                        size="xs"
+                        className={
+                          chamberSession.status === b.status
+                            ? "ring-2 ring-[#283891]/30 font-bold"
+                            : "opacity-80"
+                        }
+                        disabled={
+                          updatingChamber || chamberSession.status === b.status
+                        }
                         onClick={() =>
                           handleReceptionChamberAction(
                             "UPDATE_STATUS",
                             b.status
                           )
                         }
-                        disabled={
-                          updatingChamber || chamberSession.status === b.status
-                        }
-                        className={`btn btn-xs gap-1 cursor-pointer ${b.cls} ${
-                          chamberSession.status === b.status
-                            ? "ring-2 ring-offset-1 ring-primary"
-                            : ""
-                        }`}
                       >
                         {b.label}
-                      </button>
+                      </ActionButton>
                     ))}
                   </div>
                 </div>
 
                 {/* Delay Notice Button */}
                 <div className="pt-1">
-                  <button
+                  <ActionButton
+                    variant="outline"
+                    size="xs"
+                    className="w-full"
+                    icon={AlertTriangle}
                     onClick={() => setDelayModalOpen(true)}
-                    className="btn btn-outline btn-xs gap-1.5 w-full text-base-content/70 cursor-pointer"
                   >
-                    <AlertTriangle size={13} /> Broadcast Delay / Notice
-                  </button>
+                    Broadcast Delay / Notice
+                  </ActionButton>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-base-100 border border-base-200 rounded-3xl p-8 text-center space-y-3 shadow-md">
-              <Tv size={36} className="mx-auto text-base-content/25" />
-              <div className="text-sm font-bold text-base-content">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3 shadow-xs">
+              <Tv size={36} className="mx-auto text-slate-300" />
+              <div className="text-sm font-bold text-slate-800">
                 No active queue session found for today.
               </div>
-              <p className="text-xs text-base-content/50 max-w-xs mx-auto">
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
                 Start today&apos;s live chamber session for this doctor to enable serial call and TV screen sync.
               </p>
-              <button
+              <ActionButton
+                variant="primary"
+                size="sm"
+                icon={Play}
+                disabled={updatingChamber}
+                loading={updatingChamber}
                 onClick={() =>
                   handleReceptionChamberAction("UPDATE_STATUS", "NOT_STARTED")
                 }
-                disabled={updatingChamber}
-                className="btn btn-primary btn-sm gap-2 font-bold cursor-pointer"
               >
-                <Play size={14} /> Start Chamber Session
-              </button>
+                Start Chamber Session
+              </ActionButton>
             </div>
           )}
         </div>
 
-        {/* RIGHT COLUMN: Today's Live Patient Queue */}
-        <div className="xl:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-5 shadow-md space-y-4">
-          <div className="flex items-center justify-between border-b border-base-200 pb-3">
-            <div>
-              <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                <Users size={18} className="text-primary" />
-                Today&apos;s Live Patient Queue
-                <span className="badge badge-primary badge-sm font-bold">
-                  {docTodayAppointments.length}
+        {/* RIGHT COLUMN (60% / 7 cols): Live Patient Queue Roster */}
+        <div
+          className={`xl:col-span-7 ${
+            mobileViewTab === "controller" ? "hidden xl:block" : "block"
+          }`}
+        >
+          <TableShell
+            title="Today's Live Patient Queue"
+            subtitle={`Patients scheduled for Dr. ${activeReceptionDoc?.full_name || "Doctor"} today`}
+            badge={
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-[#283891] border border-indigo-100">
+                {docTodayAppointments.length}
+              </span>
+            }
+            actions={
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setQueueFilter("ALL")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    queueFilter === "ALL"
+                      ? "bg-[#283891] text-white shadow-2xs font-bold"
+                      : "bg-slate-100 text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  All ({docTodayAppointments.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQueueFilter("WAITING")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    queueFilter === "WAITING"
+                      ? "bg-amber-500 text-slate-950 font-bold shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Waiting ({docWaitingCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQueueFilter("EMERGENCY")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    queueFilter === "EMERGENCY"
+                      ? "bg-rose-600 text-white font-bold shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Priority (
+                  {
+                    docTodayAppointments.filter((a) => a.is_emergency).length
+                  }
+                  )
+                </button>
+              </div>
+            }
+            headers={[
+              "Serial",
+              "Patient Name & Phone",
+              "Time",
+              "Priority",
+              "Queue Status",
+              "Actions",
+            ]}
+            empty={docTodayAppointments.length === 0}
+            emptyMessage="No appointments booked for this doctor today."
+            footer={
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>
+                  Summary: <strong>{docSeenCount} Completed</strong> ·{" "}
+                  <strong>{docWaitingCount} Waiting</strong>
                 </span>
-              </h3>
-              <p className="text-xs text-base-content/55 mt-0.5">
-                Patients scheduled for Dr. {activeReceptionDoc?.full_name || "Doctor"} today
-              </p>
-            </div>
-            <div className="text-xs font-bold text-base-content/60">
-              {docSeenCount} Completed · {docWaitingCount} Waiting
-            </div>
-          </div>
-
-          {docTodayAppointments.length === 0 ? (
-            <div className="text-center py-12 text-xs text-base-content/50 space-y-2">
-              <Users size={32} className="mx-auto text-base-content/20" />
-              <div>No appointments booked for this doctor today.</div>
-              <button
-                onClick={() => {
-                  setWalkInForm((prev) => ({
-                    ...prev,
-                    doctor_id:
-                      selectedDoctorId || (assignedDoctors[0]?.id || ""),
-                  }));
-                  setWalkInModalOpen(true);
-                }}
-                className="btn btn-outline btn-xs gap-1 font-bold text-primary cursor-pointer"
-              >
-                <UserPlus size={13} /> + Issue Walk-in Token
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
-              {docTodayAppointments.map((apt, index) => {
+                <span className="text-[11px] text-slate-400">
+                  Appointments are ordered by authoritative schedule serial
+                </span>
+              </div>
+            }
+          >
+            {docTodayAppointments
+              .filter((apt) => {
+                if (queueFilter === "WAITING") {
+                  return (
+                    apt.status === "PENDING" || apt.status === "CONFIRMED"
+                  );
+                }
+                if (queueFilter === "EMERGENCY") {
+                  return !!apt.is_emergency;
+                }
+                return true;
+              })
+              .map((apt, index) => {
                 const isCompleted = apt.status === "COMPLETED";
                 const isCancelled = apt.status === "CANCELLED";
                 const isInChamber =
@@ -800,399 +1202,370 @@ export default function ChamberReceptionTab({
                     (apt.serial_number || index + 1);
 
                 return (
-                  <div
+                  <tr
                     key={apt.id || index}
-                    className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                    className={`hover:bg-slate-50/70 transition-colors border-b border-slate-100 last:border-0 ${
                       isInChamber
-                        ? "bg-success/10 border-success/40 shadow-sm"
+                        ? "bg-emerald-50/40"
                         : isCompleted
-                        ? "bg-base-200/30 border-base-200 opacity-65"
-                        : "bg-base-100 border-base-200 hover:border-primary/40 hover:bg-base-200/20"
+                        ? "opacity-60 bg-slate-50/30"
+                        : ""
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`w-9 h-9 rounded-xl font-mono font-black text-sm flex items-center justify-center shrink-0 ${
+                    <td className="py-3 px-4 font-mono font-bold text-xs text-slate-900">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-md ${
                           isInChamber
-                            ? "bg-success text-white shadow-sm"
-                            : isCompleted
-                            ? "bg-base-300 text-base-content/60"
-                            : "bg-primary/10 text-primary"
+                            ? "bg-emerald-600 text-white"
+                            : "bg-slate-100 text-slate-800"
                         }`}
                       >
                         #{apt.serial_number || index + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-extrabold text-sm text-base-content truncate flex items-center gap-1.5">
-                          {apt.patient_name || apt.user_name || "Patient"}
-                          {isInChamber && (
-                            <span className="badge badge-success badge-xs font-bold text-white">
-                              In Chamber
-                            </span>
-                          )}
-                          {apt.is_emergency && (
-                            <span className="badge badge-error badge-xs font-black text-white gap-1 animate-pulse">
-                              <AlertTriangle size={10} /> Emergency
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-base-content/60 truncate">
-                          📞 {apt.patient_phone || apt.phone || "—"} · ⏰{" "}
-                          {apt.appointment_time || "Morning"}
-                          {apt.is_emergency && apt.emergency_reason && (
-                            <span className="text-error font-medium ml-1">
-                              · {apt.emergency_reason}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => handleToggleEmergency(apt)}
-                        className={`btn btn-ghost btn-xs btn-circle cursor-pointer ${
-                          apt.is_emergency ? "text-error" : "text-base-content/40 hover:text-error"
-                        }`}
-                        title={apt.is_emergency ? "Remove Emergency Priority" : "Flag as Emergency Priority"}
-                      >
-                        <AlertTriangle size={13} />
-                      </button>
-                      {setPrintTokenData && (
-                        <button
-                          onClick={() => setPrintTokenData(apt)}
-                          className="btn btn-ghost btn-xs btn-circle cursor-pointer text-base-content/60 hover:text-primary hover:bg-primary/10"
-                          title="Print / Reprint Thermal Token Slip"
-                        >
-                          <Printer size={13} />
-                        </button>
-                      )}
-                      <span
-                        className={`badge badge-sm font-bold ${
-                          isCompleted
-                            ? "badge-ghost"
-                            : isCancelled
-                            ? "badge-error"
-                            : isInChamber
-                            ? "badge-success text-white"
-                            : "badge-info"
-                        }`}
-                      >
-                        {isCompleted
-                          ? "Completed"
-                          : isCancelled
-                          ? "Cancelled"
-                          : isInChamber
-                          ? "Serving"
-                          : "Waiting"}
                       </span>
-                    </div>
-                  </div>
+                    </td>
+
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                        <span className="truncate">
+                          {apt.patient_name || apt.user_name || "Patient"}
+                        </span>
+                        {isInChamber && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                            Serving
+                          </span>
+                        )}
+                        {apt.is_emergency && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                            Priority
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                        {apt.patient_phone || apt.phone || "—"}
+                      </div>
+                    </td>
+
+                    <td className="py-3 px-4 font-mono text-xs text-slate-600">
+                      {apt.appointment_time || "Morning"}
+                    </td>
+
+                    <td className="py-3 px-4">
+                      {/* Priority toggle button — STRICT PRIVACY: emergency_reason NOT in title or DOM */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleEmergency(apt)}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border transition-colors cursor-pointer ${
+                          apt.is_emergency
+                            ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                            : "bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700"
+                        }`}
+                        title={
+                          apt.is_emergency
+                            ? "Remove Emergency Priority"
+                            : "Flag as Emergency Priority"
+                        }
+                      >
+                        <AlertTriangle size={12} />
+                        <span>{apt.is_emergency ? "Priority" : "Normal"}</span>
+                      </button>
+                    </td>
+
+                    <td className="py-3 px-4">
+                      <StatusBadge
+                        status={
+                          isInChamber
+                            ? "IN_CHAMBER"
+                            : apt.status || "WAITING"
+                        }
+                        size="xs"
+                      />
+                    </td>
+
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        {setPrintTokenData && (
+                          <button
+                            type="button"
+                            onClick={() => setPrintTokenData(apt)}
+                            className="w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:text-[#283891] hover:border-[#283891]/40 hover:bg-indigo-50/50 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Print / Reprint Thermal Token Slip"
+                          >
+                            <Printer size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-          )}
+          </TableShell>
         </div>
       </div>
 
-      {/* Broadcast Delay Modal */}
-      {delayModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-base-100 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-lg text-base-content flex items-center gap-2">
-                <AlertTriangle className="text-warning" size={20} /> Broadcast Delay &amp; Notice
-              </h3>
-              <button
-                onClick={() => setDelayModalOpen(false)}
-                className="btn btn-ghost btn-sm btn-circle"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-xs text-base-content/60">
-              This will immediately push a delay notice to all patient waiting room displays for this doctor&apos;s queue.
-            </p>
-            <form
-              onSubmit={handleBroadcastReceptionDelay}
-              className="space-y-4"
+      {/* ── BROADCAST DELAY MODAL (ModalShell) ── */}
+      <ModalShell
+        isOpen={delayModalOpen}
+        onClose={() => setDelayModalOpen(false)}
+        title="Broadcast Delay & Notice"
+        subtitle="This will immediately push an operational notice to all patient waiting room displays for this doctor's queue."
+        size="md"
+        footer={
+          <>
+            <ActionButton
+              variant="outline"
+              size="sm"
+              onClick={() => setDelayModalOpen(false)}
             >
-              <div>
-                <label className="label text-xs font-semibold">
-                  Delay (minutes)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="180"
-                  value={receptionDelayMins}
-                  onChange={(e) => setReceptionDelayMins(e.target.value)}
-                  className="input input-bordered w-full"
-                  placeholder="e.g. 30"
-                />
-              </div>
-              <div>
-                <label className="label text-xs font-semibold">
-                  Announcement Message (optional)
-                </label>
-                <textarea
-                  value={receptionNotice}
-                  onChange={(e) => setReceptionNotice(e.target.value)}
-                  className="textarea textarea-bordered w-full"
-                  placeholder="e.g. Doctor is in surgery, please wait..."
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  disabled={broadcastingDelay}
-                  className="btn btn-warning flex-1 gap-2"
-                >
-                  {broadcastingDelay ? (
-                    <span className="loading loading-spinner loading-xs" />
-                  ) : (
-                    <AlertTriangle size={15} />
-                  )}
-                  Broadcast Now
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDelayModalOpen(false)}
-                  className="btn btn-ghost flex-1"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              Cancel
+            </ActionButton>
+            <ActionButton
+              variant="warning"
+              size="sm"
+              icon={AlertTriangle}
+              loading={broadcastingDelay}
+              onClick={handleBroadcastReceptionDelay}
+            >
+              Broadcast Now
+            </ActionButton>
+          </>
+        }
+      >
+        <form onSubmit={handleBroadcastReceptionDelay} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Delay (minutes) *
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="180"
+              value={receptionDelayMins}
+              onChange={(e) => setReceptionDelayMins(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300"
+              placeholder="e.g. 30"
+              required
+            />
           </div>
-        </div>
-      )}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Announcement Message (optional)
+            </label>
+            <textarea
+              value={receptionNotice}
+              onChange={(e) => setReceptionNotice(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-300"
+              placeholder="e.g. Doctor is delayed in surgery, consulting will resume shortly..."
+              rows={3}
+            />
+          </div>
+        </form>
+      </ModalShell>
 
-      {/* Walk-in Patient Entry Modal */}
-      {walkInModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-base-100 rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-base-200 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-primary/10 rounded-xl text-primary font-bold">
-                  <UserPlus size={20} />
+      {/* ── WALK-IN PATIENT ENTRY MODAL (ModalShell) ── */}
+      <ModalShell
+        isOpen={walkInModalOpen}
+        onClose={() => setWalkInModalOpen(false)}
+        title={t("walkInModalTitle") || "Register Walk-in Patient"}
+        subtitle="Issue instant serial token for counter patient with cash payment recording"
+        size="lg"
+        footer={
+          <>
+            <ActionButton
+              variant="outline"
+              size="sm"
+              onClick={() => setWalkInModalOpen(false)}
+            >
+              Cancel
+            </ActionButton>
+            <ActionButton
+              variant="primary"
+              size="sm"
+              icon={Printer}
+              loading={submittingWalkIn}
+              onClick={handleCreateWalkIn}
+            >
+              Confirm &amp; Issue Token Slip
+            </ActionButton>
+          </>
+        }
+      >
+        <form onSubmit={handleCreateWalkIn} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Mobile Number *
+                {searchingPatient && (
+                  <span className="ml-2 text-[10px] text-[#283891] font-semibold animate-pulse">
+                    Searching profile...
+                  </span>
+                )}
+              </label>
+              <input
+                type="tel"
+                required
+                value={walkInForm.walk_in_phone}
+                onChange={(e) =>
+                  setWalkInForm({
+                    ...walkInForm,
+                    walk_in_phone: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+                placeholder="e.g. 01712345678"
+              />
+              {foundPatient ? (
+                <div className="mt-1.5 p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center gap-1.5">
+                  <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>Registered:</strong> {foundPatient.full_name} (
+                    {foundPatient.clinic_visits_count} past visits)
+                  </span>
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-lg text-base-content">
-                    {t("walkInModalTitle") || "Register Walk-in Patient"}
-                  </h3>
-                  <p className="text-xs text-base-content/60">
-                    Issue instant serial token for walk-in patient at clinic counter
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setWalkInModalOpen(false)}
-                className="btn btn-ghost btn-sm btn-circle"
-              >
-                ✕
-              </button>
+              ) : (
+                walkInForm.walk_in_phone?.length >= 11 &&
+                !searchingPatient && (
+                  <div className="mt-1 text-[11px] text-slate-400">
+                    New walk-in patient profile will be created
+                  </div>
+                )
+              )}
             </div>
 
-            <form onSubmit={handleCreateWalkIn} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider flex items-center justify-between">
-                    <span>Mobile Number *</span>
-                    {searchingPatient && (
-                      <span className="text-[10px] text-primary flex items-center gap-1 font-semibold">
-                        <span className="loading loading-spinner loading-xs" /> Searching...
-                      </span>
-                    )}
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={walkInForm.walk_in_phone}
-                    onChange={(e) =>
-                      setWalkInForm({
-                        ...walkInForm,
-                        walk_in_phone: e.target.value,
-                      })
-                    }
-                    className="input input-bordered w-full font-medium"
-                    placeholder="e.g. 01712345678"
-                  />
-                  {foundPatient ? (
-                    <div className="mt-1.5 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-1.5">
-                      <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                      <span>
-                        <strong>Registered:</strong> {foundPatient.full_name} ({foundPatient.clinic_visits_count} past visits)
-                      </span>
-                    </div>
-                  ) : (
-                    walkInForm.walk_in_phone?.length >= 11 && !searchingPatient && (
-                      <div className="mt-1 text-[11px] text-base-content/50">
-                        New walk-in patient profile
-                      </div>
-                    )
-                  )}
-                </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Patient Full Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={walkInForm.walk_in_name}
+                onChange={(e) =>
+                  setWalkInForm({
+                    ...walkInForm,
+                    walk_in_name: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+                placeholder="e.g. Md. Rafiqul Islam"
+              />
+            </div>
+          </div>
 
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">
-                    Patient Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={walkInForm.walk_in_name}
-                    onChange={(e) =>
-                      setWalkInForm({
-                        ...walkInForm,
-                        walk_in_name: e.target.value,
-                      })
-                    }
-                    className="input input-bordered w-full font-medium"
-                    placeholder="e.g. Md. Rafiqul Islam"
-                  />
-                </div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Doctor *
+              </label>
+              <select
+                required
+                value={walkInForm.doctor_id}
+                onChange={(e) =>
+                  setWalkInForm({
+                    ...walkInForm,
+                    doctor_id: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+              >
+                <option value="">-- Select Doctor --</option>
+                {assignedDoctors.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    Dr. {d.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">
-                    Doctor *
-                  </label>
-                  <select
-                    required
-                    value={walkInForm.doctor_id}
-                    onChange={(e) =>
-                      setWalkInForm({
-                        ...walkInForm,
-                        doctor_id: e.target.value,
-                      })
-                    }
-                    className="select select-bordered w-full"
-                  >
-                    <option value="">-- Select Doctor --</option>
-                    {assignedDoctors.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        Dr. {d.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label text-xs font-bold uppercase tracking-wider">
-                    Time Slot (Optional)
-                  </label>
-                  <input
-                    type="time"
-                    value={walkInForm.appointment_time}
-                    onChange={(e) =>
-                      setWalkInForm({
-                        ...walkInForm,
-                        appointment_time: e.target.value,
-                      })
-                    }
-                    className="input input-bordered w-full"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Time Slot (Optional)
+              </label>
+              <input
+                type="time"
+                value={walkInForm.appointment_time}
+                onChange={(e) =>
+                  setWalkInForm({
+                    ...walkInForm,
+                    appointment_time: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+              />
+            </div>
+          </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Chief Complaint / Notes (Optional)
+            </label>
+            <input
+              type="text"
+              value={walkInForm.problem_description}
+              onChange={(e) =>
+                setWalkInForm({
+                  ...walkInForm,
+                  problem_description: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+              placeholder="e.g. High fever for 3 days, headache"
+            />
+          </div>
+
+          {/* Emergency / Urgent Priority Toggle in Walk-in */}
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded text-rose-600 focus:ring-rose-500"
+                checked={walkInForm.is_emergency || false}
+                onChange={(e) =>
+                  setWalkInForm({
+                    ...walkInForm,
+                    is_emergency: e.target.checked,
+                  })
+                }
+              />
               <div>
-                <label className="label text-xs font-bold uppercase tracking-wider">
-                  Chief Complaint / Notes (Optional)
-                </label>
+                <span className="text-xs font-bold text-rose-800 flex items-center gap-1">
+                  <AlertTriangle size={13} /> Urgent / Emergency Patient (জরুরি অগ্রাধিকার)
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  Flags patient for chamber priority without altering authoritative serial numbering.
+                </p>
+              </div>
+            </label>
+            {walkInForm.is_emergency && (
+              <div>
                 <input
                   type="text"
-                  value={walkInForm.problem_description}
+                  className="w-full px-3 py-1.5 bg-white border border-rose-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  placeholder="Emergency Reason (e.g. Chest pain, severe trauma, respiratory distress)"
+                  value={walkInForm.emergency_reason || ""}
                   onChange={(e) =>
                     setWalkInForm({
                       ...walkInForm,
-                      problem_description: e.target.value,
+                      emergency_reason: e.target.value,
                     })
                   }
-                  className="input input-bordered w-full text-xs"
-                  placeholder="e.g. High fever for 3 days, headache"
                 />
               </div>
-
-              {/* Emergency / Urgent Priority */}
-              <div className="p-3 bg-error/10 border border-error/20 rounded-2xl space-y-2">
-                <label className="label cursor-pointer justify-start gap-3 p-0">
-                  <input
-                    type="checkbox"
-                    className="checkbox checkbox-error"
-                    checked={walkInForm.is_emergency || false}
-                    onChange={(e) =>
-                      setWalkInForm({
-                        ...walkInForm,
-                        is_emergency: e.target.checked,
-                      })
-                    }
-                  />
-                  <div>
-                    <span className="label-text font-black text-error flex items-center gap-1">
-                      <AlertTriangle size={15} /> Urgent / Emergency Patient (জরুরি অগ্রাধিকার)
-                    </span>
-                    <div className="text-[11px] text-base-content/60">
-                      Flags patient for chamber priority without changing serial numbering.
-                    </div>
-                  </div>
-                </label>
-                {walkInForm.is_emergency && (
-                  <div>
-                    <input
-                      type="text"
-                      className="input input-sm input-bordered border-error/50 w-full text-xs"
-                      placeholder="Emergency Reason (e.g. Chest pain, severe trauma, respiratory distress)"
-                      value={walkInForm.emergency_reason || ""}
-                      onChange={(e) =>
-                        setWalkInForm({
-                          ...walkInForm,
-                          emergency_reason: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="p-3 bg-base-200/60 rounded-2xl text-xs space-y-1">
-                <div className="flex justify-between font-bold text-base-content">
-                  <span>Payment Mode:</span>
-                  <span className="text-success font-black">
-                    {t("cashAtCounterInstant") || "Cash at Counter (Instant Paid)"}
-                  </span>
-                </div>
-                <div className="text-[11px] text-base-content/60">
-                  Appointment will be immediately confirmed, serial token assigned, and cash transaction recorded.
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={submittingWalkIn}
-                  className="btn btn-primary flex-1 gap-2 font-bold shadow-md"
-                >
-                  {submittingWalkIn ? (
-                    <span className="loading loading-spinner loading-xs" />
-                  ) : (
-                    <Printer size={16} />
-                  )}
-                  Confirm &amp; Issue Token Slip
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWalkInModalOpen(false)}
-                  className="btn btn-ghost flex-1"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+            )}
           </div>
-        </div>
-      )}
+
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1">
+            <div className="flex justify-between font-bold text-slate-800">
+              <span>Payment Mode:</span>
+              <span className="text-emerald-700 font-bold">
+                {t("cashAtCounterInstant") || "Cash at Counter (Instant Paid)"}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Appointment will be immediately confirmed, serial token assigned, and cash transaction recorded in finance audit.
+            </p>
+          </div>
+        </form>
+      </ModalShell>
     </div>
   );
 }

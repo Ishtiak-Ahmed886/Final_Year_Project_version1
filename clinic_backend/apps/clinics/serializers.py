@@ -43,6 +43,9 @@ class ClinicSerializer(serializers.ModelSerializer):
     departments = DepartmentSerializer(many=True, read_only=True)
     services = serializers.SerializerMethodField()
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
+    division_name = serializers.CharField(source='division.name', read_only=True)
+    district_name = serializers.CharField(source='district.name', read_only=True)
+    upazila_name = serializers.CharField(source='upazila.name', read_only=True)
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
 
@@ -50,6 +53,7 @@ class ClinicSerializer(serializers.ModelSerializer):
         model = Clinic
         fields = (
             'id', 'owner', 'owner_email', 'name', 'slug', 'address', 'city',
+            'division', 'division_name', 'district', 'district_name', 'upazila', 'upazila_name',
             'phone', 'email', 'logo_url', 'certificate_url', 'description',
             'opening_hours', 'facilities', 'gallery', 'emergency_contact', 'website',
             'latitude', 'longitude', 'subscription_plan', 'verification_status',
@@ -81,7 +85,7 @@ class ClinicCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Clinic
         fields = (
-            'name', 'slug', 'address', 'city', 'phone', 'email',
+            'name', 'slug', 'address', 'city', 'division', 'district', 'upazila', 'phone', 'email',
             'logo_url', 'certificate_url', 'description', 'opening_hours',
             'facilities', 'gallery', 'emergency_contact', 'website',
             'latitude', 'longitude', 'subscription_plan'

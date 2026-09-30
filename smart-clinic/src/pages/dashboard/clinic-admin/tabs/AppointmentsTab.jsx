@@ -9,6 +9,7 @@ import {
   Printer,
   AlertTriangle,
 } from "lucide-react";
+import { formatTime, formatDoctorName } from "../../../../utils/formatters";
 
 export default function AppointmentsTab({
   appointments = [],
@@ -148,8 +149,8 @@ export default function AppointmentsTab({
                   </div>
                   <div className="text-sm text-base-content/60 flex flex-wrap gap-3 pt-1">
                     <span className="flex items-center gap-1">
-                      <Stethoscope size={13} className="text-primary" /> Dr.{" "}
-                      {apt.doctor?.full_name}
+                      <Stethoscope size={13} className="text-primary" />{" "}
+                      {formatDoctorName(apt.doctor?.full_name)}
                     </span>
                     <span className="flex items-center gap-1">
                       <Calendar size={13} className="text-primary" />{" "}
@@ -157,7 +158,7 @@ export default function AppointmentsTab({
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock size={13} className="text-primary" />{" "}
-                      {apt.appointment_time}
+                      {formatTime(apt.appointment_time)}
                     </span>
                   </div>
                 </div>
@@ -180,22 +181,30 @@ export default function AppointmentsTab({
                           : "Mark Paid (Cash)"}
                       </button>
                     )}
-                    <a
-                      href={`/track-queue/${apt.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-outline btn-primary btn-xs gap-1 font-bold"
-                      title="Open Live Patient Queue Tracker"
-                    >
-                      <Activity size={12} /> Track Live
-                    </a>
-                    <button
-                      onClick={() => setPrintTokenData(apt)}
-                      className="btn btn-outline btn-xs gap-1 font-semibold cursor-pointer"
-                      title="Print thermal token slip with QR code"
-                    >
-                      <Printer size={12} /> Print Token
-                    </button>
+                    {apt.status === "CANCELLED" ? (
+                      <span className="text-xs text-rose-500 font-semibold px-2 py-1 bg-rose-50 rounded-lg border border-rose-200">
+                        Cancelled — No active token or tracking available
+                      </span>
+                    ) : (
+                      <>
+                        <a
+                          href={`/track-queue/${apt.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-outline btn-primary btn-xs gap-1 font-bold"
+                          title="Open Live Patient Queue Tracker"
+                        >
+                          <Activity size={12} /> Track Live
+                        </a>
+                        <button
+                          onClick={() => setPrintTokenData(apt)}
+                          className="btn btn-outline btn-xs gap-1 font-semibold cursor-pointer"
+                          title="Print thermal token slip with QR code"
+                        >
+                          <Printer size={12} /> Print Token
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

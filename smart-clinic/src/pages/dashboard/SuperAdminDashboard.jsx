@@ -5,6 +5,7 @@ import {
   Award, ShieldCheck, Users, Calendar, TrendingUp, Globe,
   Link as LinkIcon, Info, MapPin, Clock, Activity, FileCheck, XCircle, ExternalLink
 } from "lucide-react";
+import { formatDoctorName } from "../../utils/formatters";
 
 export default function SuperAdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -54,9 +55,13 @@ export default function SuperAdminDashboard() {
   const showErr = (e) => { setError(e); setTimeout(() => setError(""), 5000); };
 
   const handleVerifyClinic = async (clinicId, verification_status) => {
+    if (verification_status === "REJECTED") {
+      const confirmed = window.confirm("Are you sure you want to reject/suspend this clinic? They will lose ability to accept new appointments.");
+      if (!confirmed) return;
+    }
     try {
       await apiClient.patch(`/clinics/${clinicId}/verify/`, { verification_status });
-      showMsg(`Clinic ${verification_status === "VERIFIED" ? "approved" : "rejected"} successfully! Notification & email sent.`);
+      showMsg(`Clinic ${verification_status === "VERIFIED" ? "approved" : "status updated"} successfully! Notification sent.`);
       loadData();
     } catch {
       showErr("Failed to update clinic status.");
@@ -64,9 +69,13 @@ export default function SuperAdminDashboard() {
   };
 
   const handleVerifyDoctor = async (doctorId, verification_status) => {
+    if (verification_status === "REJECTED") {
+      const confirmed = window.confirm("Are you sure you want to reject/suspend this doctor profile? They will not appear in the active doctors directory.");
+      if (!confirmed) return;
+    }
     try {
       await apiClient.patch(`/doctors/${doctorId}/verify/`, { verification_status });
-      showMsg(`Doctor ${verification_status === "VERIFIED" ? "approved" : "rejected"} successfully! Notification & email sent.`);
+      showMsg(`Doctor ${verification_status === "VERIFIED" ? "approved" : "status updated"} successfully! Notification sent.`);
       loadData();
     } catch {
       showErr("Failed to update doctor status.");
@@ -288,7 +297,7 @@ export default function SuperAdminDashboard() {
                   <div key={d.id} className="p-5 bg-base-200/50 rounded-2xl border border-base-200 flex flex-col md:flex-row justify-between gap-4">
                     <div className="space-y-2">
                       <div className="font-extrabold text-lg flex items-center gap-2">
-                        Dr. {d.full_name} <span className="badge badge-warning badge-soft text-xs">PENDING</span>
+                        {formatDoctorName(d.full_name)} <span className="badge badge-warning badge-soft text-xs">PENDING</span>
                       </div>
                       <div className="text-xs text-base-content/70 flex flex-wrap gap-4">
                         <span>🎓 {d.qualification}</span>
@@ -358,11 +367,26 @@ export default function SuperAdminDashboard() {
                     </a>
                   )}
                   <div className="flex gap-2 pt-2 border-t border-base-200">
-                    {c.verification_status !== "VERIFIED" && (
-                      <button onClick={() => handleVerifyClinic(c.id, "VERIFIED")} className="btn btn-success btn-xs text-white">Approve</button>
-                    )}
-                    {c.verification_status !== "REJECTED" && (
-                      <button onClick={() => handleVerifyClinic(c.id, "REJECTED")} className="btn btn-error btn-xs text-white">Reject</button>
+                    {c.verification_status === "VERIFIED" ? (
+                      <button
+                        onClick={() => handleVerifyClinic(c.id, "REJECTED")}
+                        className="btn btn-ghost hover:btn-error btn-xs text-slate-500 hover:text-white"
+                        title="Suspend active clinic verification"
+                      >
+                        Suspend / Revoke
+                      </button>
+                    ) : c.verification_status === "REJECTED" ? (
+                      <button
+                        onClick={() => handleVerifyClinic(c.id, "VERIFIED")}
+                        className="btn btn-success btn-xs text-white"
+                      >
+                        Re-activate / Approve
+                      </button>
+                    ) : (
+                      <>
+                        <button onClick={() => handleVerifyClinic(c.id, "VERIFIED")} className="btn btn-success btn-xs text-white">Approve</button>
+                        <button onClick={() => handleVerifyClinic(c.id, "REJECTED")} className="btn btn-error btn-xs text-white">Reject</button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -386,7 +410,7 @@ export default function SuperAdminDashboard() {
                 {doctors.map((d) => (
                   <div key={d.id} className="p-4 bg-base-200/40 rounded-2xl space-y-2">
                     <div className="flex justify-between items-start">
-                      <div className="font-extrabold text-base-content">Dr. {d.full_name}</div>
+                      <div className="font-extrabold text-base-content">{formatDoctorName(d.full_name)}</div>
                       <span className={`badge badge-sm ${
                         d.verification_status === "VERIFIED" ? "badge-success badge-soft" :
                         d.verification_status === "REJECTED" ? "badge-error badge-soft" : "badge-warning badge-soft"
@@ -400,11 +424,26 @@ export default function SuperAdminDashboard() {
                       </a>
                     )}
                     <div className="flex gap-2 pt-2 border-t border-base-200">
-                      {d.verification_status !== "VERIFIED" && (
-                        <button onClick={() => handleVerifyDoctor(d.id, "VERIFIED")} className="btn btn-success btn-xs text-white">Approve</button>
-                      )}
-                      {d.verification_status !== "REJECTED" && (
-                        <button onClick={() => handleVerifyDoctor(d.id, "REJECTED")} className="btn btn-error btn-xs text-white">Reject</button>
+                      {d.verification_status === "VERIFIED" ? (
+                        <button
+                          onClick={() => handleVerifyDoctor(d.id, "REJECTED")}
+                          className="btn btn-ghost hover:btn-error btn-xs text-slate-500 hover:text-white"
+                          title="Suspend doctor account"
+                        >
+                          Suspend / Revoke
+                        </button>
+                      ) : d.verification_status === "REJECTED" ? (
+                        <button
+                          onClick={() => handleVerifyDoctor(d.id, "VERIFIED")}
+                          className="btn btn-success btn-xs text-white"
+                        >
+                          Re-activate / Approve
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={() => handleVerifyDoctor(d.id, "VERIFIED")} className="btn btn-success btn-xs text-white">Approve</button>
+                          <button onClick={() => handleVerifyDoctor(d.id, "REJECTED")} className="btn btn-error btn-xs text-white">Reject</button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -442,7 +481,7 @@ export default function SuperAdminDashboard() {
                         }`}>{apt.status}</span>
                       </div>
                       <div className="text-sm text-base-content/60 flex flex-wrap gap-3">
-                        <span className="flex items-center gap-1"><Stethoscope size={13} className="text-primary" /> Dr. {apt.doctor?.full_name}</span>
+                        <span className="flex items-center gap-1"><Stethoscope size={13} className="text-primary" /> {formatDoctorName(apt.doctor?.full_name)}</span>
                         <span className="flex items-center gap-1"><Building2 size={13} className="text-primary" /> {apt.clinic?.name}</span>
                         <span className="flex items-center gap-1"><Calendar size={13} className="text-primary" /> {apt.appointment_date}</span>
                         <span className="flex items-center gap-1"><Clock size={13} className="text-primary" /> {apt.appointment_time}</span>

@@ -25,6 +25,7 @@ from .staff_views import (
     ReceptionWalkInCreateView,
     ReceptionCashPaymentView,
     ReceptionDailyCashSummaryView,
+    ReceptionShiftClosingView,
     StaffMonthlyAttendanceSummaryView,
     ReceptionPatientLookupView,
 )
@@ -61,6 +62,7 @@ urlpatterns = [
     path('reception/patient-lookup/', ReceptionPatientLookupView.as_view(), name='reception_patient_lookup'),
     path('reception/cash-payment/', ReceptionCashPaymentView.as_view(), name='reception_cash_payment'),
     path('reception/cash-summary/', ReceptionDailyCashSummaryView.as_view(), name='reception_cash_summary'),
+    path('reception/shift-closing/', ReceptionShiftClosingView.as_view(), name='reception_shift_closing'),
 ]
 
 

@@ -9,11 +9,13 @@ import {
   X, Maximize2 
 } from "lucide-react";
 import { useAuth } from "../../Provider/AuthProvider";
+import { useLanguage } from "../../context/LanguageContext";
 
 export default function ClinicDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const [clinic, setClinic] = useState(null);
   const [doctors, setDoctors] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -492,67 +494,74 @@ export default function ClinicDetail() {
       <div className="space-y-6 pt-4">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-base-content flex items-center gap-2">
-            <UserCheck className="text-primary" /> Practicing Doctors ({doctors.length})
+            <UserCheck className="text-primary" /> {t("clinicDetailPracticingDoctors")} ({doctors.length})
           </h2>
         </div>
 
         {doctors.length === 0 ? (
           <div className="p-8 text-center bg-base-100 rounded-2xl border border-base-200 text-base-content/60">
-            No active doctors currently mapped to this clinic.
+            {t("clinicDetailNoDoctors")}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {doctors.map((doctor) => (
-              <div key={doctor.id} className="card bg-base-100 border border-base-200 shadow-md hover:shadow-lg transition-all rounded-2xl">
-                <div className="card-body p-6 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      {doctor.avatar_url ? (
-                        <img
-                          src={doctor.avatar_url}
-                          alt={doctor.full_name}
-                          className="w-12 h-12 rounded-xl object-cover shadow-xs shrink-0 border border-base-200"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary font-bold text-lg flex items-center justify-center shrink-0 border border-primary/20">
-                          {doctor.full_name ? doctor.full_name[0].toUpperCase() : "D"}
+            {doctors.map((doctor) => {
+              const bookUrl = user
+                ? `/book?clinic=${clinic.id}&doctor=${doctor.id}`
+                : `/login?next=/book?clinic=${clinic.id}&doctor=${doctor.id}`;
+
+              return (
+                <div key={doctor.id} className="card bg-base-100 border border-base-200 shadow-md hover:shadow-lg transition-all rounded-2xl">
+                  <div className="card-body p-6 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        {doctor.avatar_url ? (
+                          <img
+                            src={doctor.avatar_url}
+                            alt={doctor.full_name}
+                            className="w-12 h-12 rounded-xl object-cover shadow-xs shrink-0 border border-base-200"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary font-bold text-lg flex items-center justify-center shrink-0 border border-primary/20">
+                            {doctor.full_name ? doctor.full_name[0].toUpperCase() : "D"}
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="card-title text-lg font-bold text-base-content">
+                            Dr. {doctor.full_name}
+                          </h3>
+                          <p className="text-xs text-primary font-semibold">{doctor.qualification || "Medical Specialist"}</p>
                         </div>
-                      )}
-                      <div>
-                        <h3 className="card-title text-lg font-bold text-base-content">
-                          Dr. {doctor.full_name}
-                        </h3>
-                        <p className="text-xs text-primary font-semibold">{doctor.qualification || "Medical Specialist"}</p>
                       </div>
+                      <span className="badge badge-secondary badge-outline text-xs shrink-0">
+                        {doctor.experience_years} {language === "bn" ? "বছরের অভিজ্ঞতা" : "yrs exp"}
+                      </span>
                     </div>
-                    <span className="badge badge-secondary badge-outline text-xs shrink-0">
-                      {doctor.experience_years} yrs exp
-                    </span>
-                  </div>
 
-                  {doctor.specializations && doctor.specializations.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {doctor.specializations.map((spec) => (
-                        <span key={spec.id} className="badge badge-sm badge-ghost">
-                          {spec.name}
-                        </span>
-                      ))}
+                    {doctor.specializations && doctor.specializations.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {doctor.specializations.map((spec) => (
+                          <span key={spec.id} className="badge badge-sm badge-ghost">
+                            {spec.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-xs text-base-content/70 line-clamp-2">{doctor.bio || "Dedicated healthcare professional providing compassionate care."}</p>
+
+                    <div className="card-actions justify-end pt-3 border-t border-base-200">
+                      <Link
+                        to={bookUrl}
+                        className="btn btn-primary btn-sm w-full gap-2"
+                      >
+                        <CalendarCheck size={16} /> {t("clinicDetailBookAppointment")}
+                      </Link>
                     </div>
-                  )}
-
-                  <p className="text-xs text-base-content/70 line-clamp-2">{doctor.bio || "Dedicated healthcare professional providing compassionate care."}</p>
-
-                  <div className="card-actions justify-end pt-3 border-t border-base-200">
-                    <Link
-                      to={`/book?clinic=${clinic.id}&doctor=${doctor.id}`}
-                      className="btn btn-primary btn-sm w-full gap-2"
-                    >
-                      <CalendarCheck size={16} /> Book Appointment
-                    </Link>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

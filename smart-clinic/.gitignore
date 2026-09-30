@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Environment files — never commit real secrets
+.env
+.env.local
+.env.*.local
+# .env.example is intentionally NOT ignored — it is safe to commit
+
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +29,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+test.png
+

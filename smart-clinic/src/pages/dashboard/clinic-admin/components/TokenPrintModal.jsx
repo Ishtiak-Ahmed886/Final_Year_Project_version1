@@ -22,8 +22,8 @@ export default function TokenPrintModal({ printTokenData, clinic, onClose }) {
   const feeAmount = printTokenData.amount != null ? printTokenData.amount : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white text-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 print-modal-overlay">
+      <div className="bg-white text-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 print-modal-content">
         <div className="flex justify-between items-center border-b border-slate-200 pb-3 print:hidden">
           <span className="font-bold text-xs uppercase tracking-wider text-emerald-600 flex items-center gap-1.5">
             <Printer size={15} /> Thermal Token Preview
@@ -34,7 +34,7 @@ export default function TokenPrintModal({ printTokenData, clinic, onClose }) {
         </div>
 
         {/* Printable Slip Container */}
-        <div className="border-2 border-dashed border-slate-300 rounded-2xl p-5 text-center space-y-3 font-mono text-xs bg-slate-50">
+        <div className="border-2 border-dashed border-slate-300 rounded-2xl p-5 text-center space-y-3 font-mono text-xs bg-slate-50 print-document thermal-token-slip">
           <div className="space-y-0.5 border-b border-slate-200 pb-2">
             <div className="font-black text-sm uppercase tracking-wide">
               {clinic?.name || "Smart Clinic BD"}

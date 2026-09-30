@@ -55,7 +55,11 @@ class ClinicListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         city = self.request.query_params.get('city')
+        search = self.request.query_params.get('search')
         department_id = self.request.query_params.get('department_id')
+        division_id = self.request.query_params.get('division_id')
+        district_id = self.request.query_params.get('district_id')
+        upazila_id = self.request.query_params.get('upazila_id')
         verification_status = self.request.query_params.get('verification_status')
         user = self.request.user
 
@@ -71,13 +75,48 @@ class ClinicListCreateView(generics.ListCreateAPIView):
             qs = Clinic.objects.filter(is_active=True).filter(
                 Q(verification_status=VerificationStatus.VERIFIED) | Q(owner=user)
             ).select_related('owner').prefetch_related('departments')
+            if search:
+                import difflib
+                words = [w for w in search.strip().split() if len(w) >= 2]
+                if words:
+                    strict_qs = qs
+                    for w in words:
+                        strict_qs = strict_qs.filter(
+                            Q(name__icontains=w) | Q(city__icontains=w) | Q(address__icontains=w)
+                        )
+                    if strict_qs.exists():
+                        qs = strict_qs
+                    else:
+                        flex_q = Q()
+                        for w in words:
+                            flex_q |= Q(name__icontains=w) | Q(city__icontains=w) | Q(address__icontains=w)
+                        flex_qs = qs.filter(flex_q)
+                        if flex_qs.exists():
+                            qs = flex_qs
             if city:
-                qs = qs.filter(city__iexact=city)
+                if city.strip().lower() == 'mymensingh':
+                    qs = qs.filter(city__in=['Mymensingh', 'Sherpur', 'mymensingh', 'sherpur'])
+                else:
+                    qs = qs.filter(city__iexact=city)
             if department_id:
                 qs = qs.filter(departments__id=department_id)
+            if division_id:
+                qs = qs.filter(division_id=division_id)
+            if district_id:
+                qs = qs.filter(district_id=district_id)
+            if upazila_id:
+                qs = qs.filter(upazila_id=upazila_id)
             return qs
 
-        qs = list_clinics(city=city, department_id=department_id, only_verified=only_verified)
+        qs = list_clinics(
+            city=city,
+            department_id=department_id,
+            division_id=division_id,
+            district_id=district_id,
+            upazila_id=upazila_id,
+            search=search,
+            only_verified=only_verified
+        )
 
         if user and user.is_authenticated and user.role == 'ADMIN' and verification_status:
             qs = qs.filter(verification_status=verification_status)
@@ -441,13 +480,13 @@ class ClinicFinancialAnalyticsView(APIView):
         unpaid_pending_amount = float(pending_apts.aggregate(total=Sum('amount'))['total'] or 0)
 
         cash_revenue = float(Payment.objects.filter(
-            appointment__in=period_apts,
+            appointment__in=confirmed_or_completed,
             payment_method=PaymentMethod.CASH,
             payment_status=PaymentStatus.COMPLETED
         ).aggregate(total=Sum('amount'))['total'] or 0)
 
         digital_revenue = float(Payment.objects.filter(
-            appointment__in=period_apts,
+            appointment__in=confirmed_or_completed,
             payment_status=PaymentStatus.COMPLETED
         ).exclude(payment_method=PaymentMethod.CASH).aggregate(total=Sum('amount'))['total'] or 0)
 
@@ -457,7 +496,7 @@ class ClinicFinancialAnalyticsView(APIView):
 
         # Lifetime metrics
         lifetime_total_revenue = Payment.objects.filter(
-            appointment__in=all_clinic_apts,
+            appointment__in=all_clinic_apts.filter(status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED]),
             payment_status=PaymentStatus.COMPLETED
         ).aggregate(total=Sum('amount'))['total'] or 0
 
@@ -470,7 +509,10 @@ class ClinicFinancialAnalyticsView(APIView):
             doc_paid_apts = confirmed_or_completed.filter(doctor=doc)
             doc_all_apts = period_apts.filter(doctor=doc)
             count = doc_paid_apts.count()
-            gross_fees = float(doc_paid_apts.aggregate(total=Sum('amount'))['total'] or 0)
+            gross_fees = float(Payment.objects.filter(
+                appointment__in=doc_paid_apts,
+                payment_status=PaymentStatus.COMPLETED
+            ).aggregate(total=Sum('amount'))['total'] or 0)
 
             clinic_commission = round(gross_fees * 0.20, 2)
             doctor_payable = round(gross_fees * 0.80, 2)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useAuth } from "../../Provider/AuthProvider";
+import { useLanguage } from "../../context/LanguageContext";
 import {
   LogIn, Mail, Lock, AlertCircle, CheckCircle2, Eye, EyeOff,
   Smartphone, ShieldCheck, HeartPulse, Clock, UserPlus
@@ -8,31 +9,34 @@ import {
 
 export default function Login() {
   const { login } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Form states
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-
-  // Status states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const from = location.state?.from?.pathname || "/dashboard";
+  const getRedirectDestination = (userRole) => {
+    const rawFrom = location.state?.from;
+    const path = rawFrom?.pathname || (typeof rawFrom === "string" ? rawFrom : null);
+    const search = rawFrom?.search || "";
+    const targetUrl = path ? `${path}${search}` : "/dashboard";
+    if (targetUrl.startsWith("/book") && userRole && userRole !== "PATIENT") {
+      return "/dashboard";
+    }
+    return targetUrl;
+  };
 
-  // Pre-fill remembered login ID if available
   useEffect(() => {
     const savedId = localStorage.getItem("smart_clinic_login_id");
-    if (savedId) {
-      setLoginId(savedId);
-    }
+    if (savedId) setLoginId(savedId);
   }, []);
 
-  // Detect whether input looks like a phone number or email
   const isPhoneInput =
     loginId.trim().length > 0 &&
     !loginId.includes("@") &&
@@ -42,33 +46,33 @@ export default function Login() {
     e.preventDefault();
     const cleanId = loginId.trim();
     if (!cleanId || !password) {
-      setError("Please enter your email or phone number and password.");
+      setError(t("loginErrorEmpty"));
       return;
     }
-
     setLoading(true);
     setError("");
     setSuccess("");
-
     try {
       const userInfo = await login(cleanId, password);
-
       if (rememberMe) {
         localStorage.setItem("smart_clinic_login_id", cleanId);
       } else {
         localStorage.removeItem("smart_clinic_login_id");
       }
-
-      setSuccess(`Welcome back, ${userInfo?.first_name || "User"}! Redirecting...`);
-      setTimeout(() => navigate(from, { replace: true }), 700);
+      const destination = getRedirectDestination(userInfo?.role);
+      setSuccess(
+        language === "bn"
+          ? `স্বাগতম, ${userInfo?.first_name || "ব্যবহারকারী"}! পুনঃনির্দেশ করা হচ্ছে...`
+          : `Welcome back, ${userInfo?.first_name || "User"}! Redirecting...`
+      );
+      setTimeout(() => navigate(destination, { replace: true }), 700);
     } catch (err) {
       if (typeof err === "string") {
         setError(err);
       } else if (typeof err === "object" && err !== null) {
-        const msg = Object.values(err).flat().join(" ") || "Invalid credentials. Please check your email or password.";
-        setError(msg);
+        setError(Object.values(err).flat().join(" ") || t("loginErrorInvalid"));
       } else {
-        setError("Invalid email/phone or password. Please try again.");
+        setError(t("loginErrorInvalid"));
       }
     } finally {
       setLoading(false);
@@ -78,93 +82,97 @@ export default function Login() {
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-slate-100/70">
       <div className="max-w-4xl w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-        {/* ================= LEFT / TOP BRANDING PANEL ================= */}
+
+        {/* LEFT BRANDING PANEL */}
         <div className="lg:col-span-5 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white p-7 sm:p-9 flex flex-col justify-between relative overflow-hidden">
           <div className="absolute -right-16 -top-16 w-56 h-56 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -left-16 -bottom-16 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 space-y-6">
+            {/* Brand */}
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg font-black text-xl">
                 <HeartPulse size={22} />
               </div>
               <div>
-                <div className="font-black text-lg tracking-tight text-white flex items-center gap-1.5">
-                  Smart Clinic <span className="text-primary font-bold text-xs bg-primary/20 px-2 py-0.5 rounded-full">v2.4</span>
-                </div>
+                <div className="font-black text-lg tracking-tight text-white">Smart Clinic</div>
                 <div className="text-[11px] text-slate-400">Bangladesh Digital Healthcare Platform</div>
               </div>
             </div>
 
+            {/* Hero Text */}
             <div className="space-y-2 pt-3">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Live System Active
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                {t("loginLiveStatus")}
               </span>
               <h1 className="text-xl sm:text-2xl font-black text-white leading-snug">
-                One Unified Sign-In for Everyone
+                {t("loginHeroTitle")}
               </h1>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Whether you are a Patient checking live queue numbers, a Doctor managing chamber consultations, or Clinic Staff settling daily counter cash.
+                {t("loginHeroSubtitle")}
               </p>
             </div>
 
-            {/* Platform Highlights */}
+            {/* Features */}
             <div className="space-y-3 pt-2 text-xs text-slate-300">
               <div className="flex items-center gap-2.5">
                 <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-emerald-400 shrink-0">
                   <Smartphone size={14} />
                 </div>
-                <span>Sign in with <strong>Email or Phone Number</strong></span>
+                <span>{t("loginFeature1")}</span>
               </div>
-
               <div className="flex items-center gap-2.5">
                 <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-blue-400 shrink-0">
                   <Clock size={14} />
                 </div>
-                <span>Real-time Live Queue Tracker with Audio Chime</span>
+                <span>{t("loginFeature2")}</span>
               </div>
-
               <div className="flex items-center gap-2.5">
                 <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-amber-400 shrink-0">
                   <ShieldCheck size={14} />
                 </div>
-                <span>HIPAA Compliant & 256-Bit Encrypted EMR</span>
+                <span>{t("loginFeature3")}</span>
               </div>
             </div>
           </div>
 
           <div className="relative z-10 pt-8 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
             <Link to="/privacy" className="hover:text-primary transition-colors underline">
-              Privacy & Data Policy
+              {t("loginPrivacyLink")}
             </Link>
             <span>© {new Date().getFullYear()} Smart Clinic BD</span>
           </div>
         </div>
 
-        {/* ================= RIGHT FORM PANEL (Simple Facebook-style) ================= */}
+        {/* RIGHT FORM PANEL */}
         <div className="lg:col-span-7 p-7 sm:p-10 space-y-6 bg-white flex flex-col justify-center">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              Log In to Smart Clinic
+              {t("loginTitle")}
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Enter your email address or phone number and password to continue.
+              {t("loginSubtitle")}
             </p>
           </div>
 
-          {/* Alerts */}
+          {/* Error Alert */}
           {error && (
             <div className="alert alert-error text-white text-xs font-bold rounded-2xl shadow-sm animate-in fade-in flex items-start gap-2.5">
               <AlertCircle size={18} className="shrink-0 mt-0.5" />
               <div>
                 <div>{error}</div>
                 <div className="text-[11px] font-normal opacity-90 mt-1">
-                  Did your browser autofill an old password? Try typing <span className="font-mono font-bold bg-white/25 px-1.5 py-0.5 rounded text-white select-all">Password123!</span> or click the eye icon (👁️) to check.
+                  {t("loginForgotHint")}{" "}
+                  <Link to="/forgot-password" className="underline font-bold hover:text-white">
+                    {t("loginForgotReset")}
+                  </Link>
                 </div>
               </div>
             </div>
           )}
 
+          {/* Success Alert */}
           {success && (
             <div className="alert alert-success text-white text-xs font-bold rounded-2xl shadow-sm animate-in fade-in flex items-center gap-2">
               <CheckCircle2 size={16} className="shrink-0" />
@@ -174,30 +182,23 @@ export default function Login() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email or Phone */}
+            {/* Email / Phone */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 block">
-                Email Address or Mobile Number
+                {t("loginEmailLabel")}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  {isPhoneInput ? (
-                    <Smartphone size={17} className="text-primary" />
-                  ) : (
-                    <Mail size={17} />
-                  )}
+                  {isPhoneInput ? <Smartphone size={17} className="text-primary" /> : <Mail size={17} />}
                 </div>
                 <input
                   name="loginId"
                   type="text"
                   required
                   value={loginId}
-                  onChange={(e) => {
-                    setLoginId(e.target.value);
-                    setError("");
-                  }}
+                  onChange={(e) => { setLoginId(e.target.value); setError(""); }}
                   className="input input-bordered w-full pl-10 bg-slate-50 focus:bg-white text-sm font-medium rounded-xl border-slate-300"
-                  placeholder="Email or phone number"
+                  placeholder={t("loginEmailPlaceholder")}
                   autoComplete="username"
                 />
               </div>
@@ -206,7 +207,7 @@ export default function Login() {
             {/* Password */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700 block">
-                Password
+                {t("loginPasswordLabel")}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -217,12 +218,9 @@ export default function Login() {
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError("");
-                  }}
+                  onChange={(e) => { setPassword(e.target.value); setError(""); }}
                   className="input input-bordered w-full pl-10 pr-10 bg-slate-50 focus:bg-white text-sm rounded-xl border-slate-300"
-                  placeholder="Password"
+                  placeholder={t("loginPasswordPlaceholder")}
                   autoComplete="current-password"
                 />
                 <button
@@ -236,7 +234,7 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Remember Me & Help */}
+            {/* Remember Me & Forgot */}
             <div className="flex items-center justify-between text-xs pt-1">
               <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium select-none">
                 <input
@@ -245,18 +243,14 @@ export default function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="checkbox checkbox-primary checkbox-xs rounded-sm"
                 />
-                <span>Remember me</span>
+                <span>{t("loginRememberMe")}</span>
               </label>
-
-              <Link
-                to="/privacy"
-                className="text-slate-500 hover:text-primary transition-colors text-xs"
-              >
-                Need help?
+              <Link to="/forgot-password" className="text-primary hover:underline font-semibold text-xs transition-colors">
+                {t("loginForgotPassword")}
               </Link>
             </div>
 
-            {/* Log In Button */}
+            {/* Login Button */}
             <div className="pt-2">
               <button
                 type="submit"
@@ -264,35 +258,31 @@ export default function Login() {
                 className="btn btn-primary w-full shadow-md text-white font-extrabold text-sm sm:text-base rounded-xl gap-2 h-11"
               >
                 {loading ? (
-                  <span className="loading loading-spinner loading-sm" />
+                  <><span className="loading loading-spinner loading-sm" /> {t("loginLoading")}</>
                 ) : (
-                  <>
-                    <LogIn size={18} /> Log In
-                  </>
+                  <><LogIn size={18} /> {t("loginBtn")}</>
                 )}
               </button>
             </div>
           </form>
 
-          {/* Facebook-style Divider */}
+          {/* Divider */}
           <div className="relative my-2">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-3 text-slate-400 font-semibold">
-                or
-              </span>
+              <span className="bg-white px-3 text-slate-400 font-semibold">{t("loginOr")}</span>
             </div>
           </div>
 
-          {/* Create New Account Button (Facebook style CTA) */}
+          {/* Create Account */}
           <div className="text-center">
             <Link
               to="/register"
               className="btn btn-success text-white font-extrabold text-xs sm:text-sm rounded-xl gap-1.5 px-6 h-10 shadow-xs"
             >
-              <UserPlus size={16} /> Create New Account
+              <UserPlus size={16} /> {t("loginCreateAccount")}
             </Link>
           </div>
         </div>

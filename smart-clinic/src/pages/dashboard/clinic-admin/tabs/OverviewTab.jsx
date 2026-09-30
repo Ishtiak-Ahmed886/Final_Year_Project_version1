@@ -15,8 +15,32 @@ import {
   BarChart2,
   ArrowUpRight,
   ArrowDownRight,
+  Clock,
+  ArrowRight,
+  Users,
+  Building,
+  Check,
 } from "lucide-react";
+import {
+  MetricCard,
+  TableShell,
+  StatusBadge,
+  ActionButton,
+} from "../../../../components/ui";
 
+/**
+ * OverviewTab — Clinic Admin Operational Command Center
+ *
+ * Implements UI-2 specifications:
+ * - 4 core KPI cards (MetricCard) mapped to authentic overviewStats
+ * - Quick reception actions strip
+ * - Today's Live Chambers section with deep-link into chamber reception desk
+ * - 5:7 split: Today's queue breakdown & action required alerts (left),
+ *             SVG 7d/30d trend chart with line/bar modes (right)
+ * - Today's appointment preview table (TableShell) with real data
+ *
+ * ZERO mock data. Authentic backend contract strictly preserved.
+ */
 export default function OverviewTab({
   clinic,
   overviewStats,
@@ -34,204 +58,322 @@ export default function OverviewTab({
   setWalkInForm,
   setWalkInModalOpen,
   selectedDoctorId,
+  setSelectedDoctorId,
+  openDoctorCard,
   language = "en",
   t = (k) => k,
 }) {
+  // Today's date calculations
+  const todayDateStr = new Date().toISOString().split("T")[0];
+  const todayApts = appointments.filter(
+    (a) => a.appointment_date === todayDateStr
+  );
+
+  // Authentic stats fallback
+  const totalBookedToday =
+    overviewStats?.appointments?.total_today ?? todayApts.length;
+  const completedToday =
+    overviewStats?.appointments?.completed ??
+    todayApts.filter((a) => a.status === "COMPLETED").length;
+  const confirmedToday =
+    overviewStats?.appointments?.confirmed_upcoming ??
+    todayApts.filter((a) => a.status === "CONFIRMED").length;
+  const pendingToday =
+    overviewStats?.appointments?.pending ??
+    todayApts.filter((a) => a.status === "PENDING").length;
+  const cancelledToday =
+    overviewStats?.appointments?.cancelled ??
+    todayApts.filter((a) => a.status === "CANCELLED").length;
+
+  const activeDoctorsCount =
+    overviewStats?.doctors?.active ?? assignedDoctors.length;
+  const workingTodayCount = overviewStats?.doctors?.working_today ?? 0;
+  const pendingDocRequests =
+    overviewStats?.doctors?.pending_requests ?? pendingIncomingRequests.length;
+
+  const revenueTotal = overviewStats?.financial_snapshot?.today_total ?? 0;
+  const revenueCash = overviewStats?.financial_snapshot?.today_cash ?? 0;
+  const revenueDigital = overviewStats?.financial_snapshot?.today_digital ?? 0;
+
+  const liveChambers = overviewStats?.live_chambers || [];
+
   return (
-    <div className="space-y-5">
-      {/* Loading State */}
+    <div className="space-y-6">
+      {/* Loading Indicator */}
       {loadingOverviewStats && (
-        <div className="flex items-center gap-3 p-4 bg-base-100 border border-base-200 rounded-2xl text-sm text-base-content/60">
-          <span className="loading loading-spinner loading-sm text-primary" />
-          Loading clinic overview...
+        <div className="flex items-center gap-3 px-4 py-3 bg-indigo-50/60 border border-indigo-100 rounded-xl text-xs text-[#283891] font-medium animate-pulse">
+          <div className="w-4 h-4 border-2 border-[#283891] border-t-transparent rounded-full animate-spin shrink-0" />
+          <span>Refreshing clinic operational telemetry...</span>
         </div>
       )}
 
-      {/* ── B. CLINIC AT A GLANCE ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Active Doctors",
-            value: overviewStats?.doctors?.active ?? assignedDoctors.length,
-            sub:
-              overviewStats?.doctors?.inactive != null
-                ? `${overviewStats.doctors.inactive} inactive`
-                : null,
-            icon: <Stethoscope size={22} />,
-            color: "primary",
-            onClick: () => setActiveTab("doctors"),
-          },
-          {
-            label: "Working Today",
-            value: overviewStats?.doctors?.working_today ?? "—",
-            sub: "Doctors with active sessions",
-            icon: <Activity size={22} />,
-            color: "success",
-            onClick: () => setActiveTab("chamber"),
-          },
-          {
-            label: "Today's Revenue",
-            value:
-              overviewStats?.financial_snapshot?.today_total != null
-                ? `৳${overviewStats.financial_snapshot.today_total.toLocaleString("en-BD")}`
-                : "৳0",
-            sub:
-              overviewStats?.appointments?.completed != null
-                ? `${overviewStats.appointments.completed} paid appointment${
-                    overviewStats.appointments.completed !== 1 ? "s" : ""
-                  }`
-                : "No payments yet",
-            icon: <DollarSign size={22} />,
-            color:
-              overviewStats?.financial_snapshot?.today_total > 0
-                ? "success"
-                : "secondary",
-            onClick: () => setActiveTab("finance"),
-          },
-          {
-            label: "Today's Appointments",
-            value:
-              overviewStats?.appointments?.total_today ??
-              appointments.filter(
-                (a) =>
-                  a.appointment_date ===
-                  new Date().toISOString().split("T")[0]
-              ).length,
-            sub:
-              overviewStats?.appointments?.completed != null
-                ? `${overviewStats.appointments.completed} completed`
-                : null,
-            icon: <Calendar size={22} />,
-            color: "accent",
-            onClick: () => setActiveTab("appointments"),
-          },
-        ].map((s) => (
-          <button
-            key={s.label}
-            onClick={s.onClick}
-            className="p-5 bg-base-100 border border-base-200 rounded-2xl shadow-sm flex items-start gap-3 hover:border-primary/40 hover:shadow-md transition-all text-left group cursor-pointer"
-          >
-            <div
-              className={`p-2.5 bg-${s.color}/10 rounded-xl text-${s.color} shrink-0 group-hover:bg-${s.color}/20 transition-colors`}
-            >
-              {s.icon}
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-base-content/60 font-medium">
-                {s.label}
-              </div>
-              <div className="text-2xl font-extrabold text-base-content leading-tight">
-                {s.value}
-              </div>
-              {s.sub && (
-                <div className="text-xs text-base-content/50 mt-0.5 truncate">
-                  {s.sub}
-                </div>
-              )}
-            </div>
-          </button>
-        ))}
+      {/* ── 1. CORE OPERATIONAL KPIS ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          label="Today's Appointments"
+          value={totalBookedToday}
+          subtext={`${completedToday} completed • ${pendingToday} pending`}
+          icon={Calendar}
+          accent="primary"
+          onClick={() => setActiveTab("appointments")}
+        />
+
+        <MetricCard
+          label="Chambers on Duty"
+          value={workingTodayCount}
+          subtext={`${activeDoctorsCount} active registered doctors`}
+          icon={Stethoscope}
+          accent="success"
+          onClick={() => setActiveTab("chamber")}
+        />
+
+        <MetricCard
+          label="Counter Collections"
+          value={`৳${revenueTotal.toLocaleString("en-BD")}`}
+          subtext={`৳${revenueCash.toLocaleString("en-BD")} cash • ৳${revenueDigital.toLocaleString("en-BD")} digital`}
+          icon={DollarSign}
+          accent="primary"
+          onClick={() => setActiveTab("finance")}
+        />
+
+        <MetricCard
+          label="Pending Payments"
+          value={pendingToday}
+          subtext="Awaiting counter check-in or cash"
+          icon={Activity}
+          accent={pendingToday > 0 ? "warning" : "neutral"}
+          onClick={() => setActiveTab("appointments")}
+        />
       </div>
 
-      {/* ── C. QUICK RECEPTION SHORTCUTS ── */}
-      <div className="bg-base-100 border border-base-200 rounded-3xl p-5 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-extrabold text-sm text-base-content flex items-center gap-2">
-            <span>⚡ {t("quickShortcuts") || "Quick Shortcuts"}</span>
-            <span className="text-xs text-base-content/50 font-normal">
-              ({t("quickShortcutsHint") || "Reception Fast Actions"})
-            </span>
-          </h3>
+      {/* ── 2. QUICK RECEPTION ACTIONS STRIP ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            {t("quickShortcuts") || "Reception Fast Actions"}
+          </span>
+          <span className="text-[11px] text-slate-400 font-medium">
+            Front Desk Operations
+          </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button
+            type="button"
             onClick={() => {
-              setWalkInForm((prev) => ({
-                ...prev,
-                doctor_id:
-                  selectedDoctorId || (assignedDoctors[0]?.id || ""),
-              }));
-              setWalkInModalOpen(true);
+              if (setWalkInForm) {
+                setWalkInForm((prev) => ({
+                  ...prev,
+                  doctor_id:
+                    selectedDoctorId || (assignedDoctors[0]?.id || ""),
+                }));
+              }
+              if (setWalkInModalOpen) {
+                setWalkInModalOpen(true);
+              }
             }}
-            className="flex items-center gap-3 p-3 rounded-2xl bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary transition text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/70 hover:bg-indigo-100/70 border border-indigo-200/80 text-[#283891] transition text-left group cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-primary text-primary-content flex items-center justify-center text-base font-bold shadow-xs shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#283891] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <UserPlus size={18} />
             </div>
             <div className="min-w-0">
-              <div className="font-bold text-xs text-base-content">
+              <div className="font-bold text-xs text-slate-900">
                 {t("newWalkIn") || "New Walk-in"}
               </div>
-              <div className="text-[11px] text-base-content/60 truncate">
-                {t("newWalkInSub") || "Register Counter Patient"}
+              <div className="text-[11px] text-slate-500 truncate">
+                Counter Registration
               </div>
             </div>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("chamber")}
-            className="flex items-center gap-3 p-3 rounded-2xl bg-rose-50 hover:bg-rose-100/80 border border-rose-200/60 text-rose-900 transition text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 transition text-left group cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center text-base font-bold shadow-xs shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Tv size={18} />
             </div>
             <div className="min-w-0">
-              <div className="font-bold text-xs text-base-content">
-                {t("waitingRoomTv") || "Live Waiting TV"}
+              <div className="font-bold text-xs text-slate-900">
+                {t("waitingRoomTv") || "Waiting Room TV"}
               </div>
-              <div className="text-[11px] text-base-content/60 truncate">
-                {t("waitingRoomTvSub") || "Fullscreen Token Board"}
+              <div className="text-[11px] text-slate-500 truncate">
+                Live Token Display
               </div>
             </div>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("finance")}
-            className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/60 text-emerald-900 transition text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50/60 hover:bg-emerald-100/60 border border-emerald-200/80 text-emerald-900 transition text-left group cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-base font-bold shadow-xs shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Printer size={18} />
             </div>
             <div className="min-w-0">
-              <div className="font-bold text-xs text-base-content">
+              <div className="font-bold text-xs text-slate-900">
                 {t("dailyCashAudit") || "Daily Cash Audit"}
               </div>
-              <div className="text-[11px] text-base-content/60 truncate">
-                {t("dailyCashAuditSub") || "Counters Settlement"}
+              <div className="text-[11px] text-slate-500 truncate">
+                Counter Tally & Audit
               </div>
             </div>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("doctors")}
-            className="flex items-center gap-3 p-3 rounded-2xl bg-base-200/60 hover:bg-base-200 border border-base-300 text-base-content transition text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 transition text-left group cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-base-content text-base-100 flex items-center justify-center text-base font-bold shadow-xs shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#283891] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Stethoscope size={18} />
             </div>
             <div className="min-w-0">
-              <div className="font-bold text-xs text-base-content">
-                {t("inviteDoctor") || "Invite Doctor"}
+              <div className="font-bold text-xs text-slate-900">
+                {t("inviteDoctor") || "Manage Doctors"}
               </div>
-              <div className="text-[11px] text-base-content/60 truncate">
-                {t("inviteDoctorSub") || "Add to Clinic Chamber"}
+              <div className="text-[11px] text-slate-500 truncate">
+                Roster & Chambers
               </div>
             </div>
           </button>
         </div>
       </div>
 
-      {/* ── D. MAIN 2-COLUMN OPERATIONAL SECTION ── */}
+      {/* ── 3. TODAY'S LIVE CHAMBER OPERATIONS ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+              <Activity size={16} className="text-[#283891]" />
+              Today&apos;s Live Chamber Operations
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Real-time chamber session telemetry and doctor queue states
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-[#283891] border border-indigo-100">
+              {liveChambers.length} Active Chamber{liveChambers.length === 1 ? "" : "s"}
+            </span>
+            <ActionButton
+              variant="outline"
+              size="xs"
+              onClick={() => setActiveTab("chamber")}
+            >
+              Open Desk →
+            </ActionButton>
+          </div>
+        </div>
+
+        {liveChambers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {liveChambers.map((chamber) => (
+              <div
+                key={chamber.doctor_id}
+                className="p-4 rounded-xl border border-slate-200 bg-slate-50/40 hover:bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-xs text-slate-900 truncate">
+                      {chamber.doctor_name || "Doctor Chamber"}
+                    </h4>
+                    <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {chamber.specialization || "General Medicine"}
+                      {chamber.room_number ? ` • Room ${chamber.room_number}` : ""}
+                    </div>
+                  </div>
+                  <StatusBadge
+                    status={chamber.session_status || "ACTIVE"}
+                    size="xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 bg-white p-2.5 rounded-lg border border-slate-200/80 text-center">
+                  <div>
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                      Current
+                    </div>
+                    <div className="text-sm font-bold font-mono text-[#283891]">
+                      #{chamber.current_serial || 0}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                      Waiting
+                    </div>
+                    <div className="text-sm font-bold font-mono text-slate-700">
+                      {chamber.waiting || 0}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                      Booked
+                    </div>
+                    <div className="text-sm font-bold font-mono text-slate-700">
+                      {chamber.total_serials || 0}
+                    </div>
+                  </div>
+                </div>
+
+                {chamber.delay_minutes > 0 && (
+                  <div className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 flex items-center gap-1.5">
+                    <Clock size={12} className="shrink-0" />
+                    <span>+{chamber.delay_minutes} min running delay</span>
+                  </div>
+                )}
+
+                <ActionButton
+                  variant="secondary"
+                  size="xs"
+                  className="w-full"
+                  onClick={() => {
+                    if (setSelectedDoctorId) {
+                      setSelectedDoctorId(chamber.doctor_id);
+                    }
+                    setActiveTab("chamber");
+                  }}
+                >
+                  Manage Live Chamber →
+                </ActionButton>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-8 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+            <Stethoscope size={28} className="mx-auto text-slate-300 mb-2" />
+            <h4 className="text-xs font-bold text-slate-700">
+              No Doctor Chamber Sessions Running Right Now
+            </h4>
+            <p className="text-[11px] text-slate-500 mt-0.5 max-w-md mx-auto">
+              Chamber sessions will show here in real-time once a doctor or receptionist starts consulting.
+            </p>
+            <ActionButton
+              variant="outline"
+              size="xs"
+              className="mt-3"
+              onClick={() => setActiveTab("chamber")}
+            >
+              Go to Chamber Reception Desk →
+            </ActionButton>
+          </div>
+        )}
+      </div>
+
+      {/* ── 4. 5:7 OPERATIONAL SPLIT: QUEUE BREAKDOWN & TREND CHART ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* LEFT: Today's Appointments & Real Actions (5 cols) */}
-        <div className="lg:col-span-5 space-y-5">
-          {/* Today's Appointment Breakdown */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-6 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
-                <Calendar size={16} className="text-primary" /> Today&apos;s Queue Status
+        {/* Left (5 cols): Today's Queue Breakdown & Operational Alerts */}
+        <div className="lg:col-span-5 space-y-4">
+          {/* Today's Queue Breakdown */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Calendar size={14} className="text-[#283891]" />
+                Today&apos;s Queue Breakdown
               </h3>
-              <span className="text-xs text-base-content/50 font-mono">
+              <span className="text-[11px] text-slate-400 font-mono">
                 {new Date().toLocaleDateString("en-GB", {
                   day: "numeric",
                   month: "short",
@@ -239,166 +381,152 @@ export default function OverviewTab({
               </span>
             </div>
 
-            {(() => {
-              const todayDateStr = new Date().toISOString().split("T")[0];
-              const todayApts = appointments.filter(
-                (a) => a.appointment_date === todayDateStr
-              );
-              const totalBooked =
-                overviewStats?.appointments?.total_today ?? todayApts.length;
-              const completed =
-                overviewStats?.appointments?.completed ??
-                todayApts.filter((a) => a.status === "COMPLETED").length;
-              const confirmed =
-                overviewStats?.appointments?.confirmed_upcoming ??
-                todayApts.filter((a) => a.status === "CONFIRMED").length;
-              const pending =
-                overviewStats?.appointments?.pending ??
-                todayApts.filter((a) => a.status === "PENDING").length;
-              const cancelled =
-                overviewStats?.appointments?.cancelled ??
-                todayApts.filter((a) => a.status === "CANCELLED").length;
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                <span className="text-xs font-semibold text-slate-600">
+                  Total Booked (Today)
+                </span>
+                <span className="text-sm font-bold font-mono text-slate-900">
+                  {totalBookedToday} Patients
+                </span>
+              </div>
 
-              return (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm pb-2 border-b border-base-200 font-bold">
-                    <span className="text-base-content/70">
-                      Total Booked (Today)
-                    </span>
-                    <span className="text-base font-black text-base-content">
-                      {totalBooked} Patients
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" /> Completed
-                      Visits
-                    </span>
-                    <span className="font-black text-emerald-700 font-mono">
-                      {completed}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-sky-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-sky-500" /> Confirmed in
-                      Lobby
-                    </span>
-                    <span className="font-black text-sky-700 font-mono">
-                      {confirmed}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-amber-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Pending Cash
-                      at Counter
-                    </span>
-                    <span className="font-black text-amber-700 font-mono">
-                      {pending}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs py-1">
-                    <span className="text-rose-700 font-semibold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-rose-500" /> Cancelled
-                    </span>
-                    <span className="font-black text-rose-700 font-mono">
-                      {cancelled}
-                    </span>
-                  </div>
+              <div className="flex items-center justify-between py-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-medium text-slate-600">
+                    Completed Visits
+                  </span>
                 </div>
-              );
-            })()}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold font-mono text-emerald-700">
+                    {completedToday}
+                  </span>
+                  <StatusBadge status="COMPLETED" size="xs" showIcon={false} />
+                </div>
+              </div>
 
-            <button
-              onClick={() => setActiveTab("appointments")}
-              className="w-full text-center py-2.5 text-xs font-bold text-primary hover:text-primary-focus bg-primary/5 hover:bg-primary/10 rounded-xl transition mt-2 cursor-pointer"
-            >
-              View All in Appointments Tab →
-            </button>
-          </div>
+              <div className="flex items-center justify-between py-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-sky-500" />
+                  <span className="text-xs font-medium text-slate-600">
+                    Confirmed in Lobby
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold font-mono text-sky-700">
+                    {confirmedToday}
+                  </span>
+                  <StatusBadge status="CONFIRMED" size="xs" showIcon={false} />
+                </div>
+              </div>
 
-          {/* Real Action Alerts */}
-          <div className="bg-base-100 border border-base-200 rounded-3xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={16} className="text-warning" />
-              <h4 className="font-bold text-xs uppercase tracking-wider text-base-content/70">
-                Action Required
-              </h4>
+              <div className="flex items-center justify-between py-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="text-xs font-medium text-slate-600">
+                    Pending at Counter
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold font-mono text-amber-800">
+                    {pendingToday}
+                  </span>
+                  <StatusBadge status="PENDING" size="xs" showIcon={false} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between py-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-400" />
+                  <span className="text-xs font-medium text-slate-600">
+                    Cancelled
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold font-mono text-rose-700">
+                    {cancelledToday}
+                  </span>
+                  <StatusBadge status="CANCELLED" size="xs" showIcon={false} />
+                </div>
+              </div>
             </div>
 
-            {(() => {
-              const pending =
-                overviewStats?.doctors?.pending_requests ??
-                pendingIncomingRequests.length;
-              const activeDocsCount =
-                overviewStats?.doctors?.active ?? assignedDoctors.length;
+            <ActionButton
+              variant="outline"
+              size="xs"
+              className="w-full mt-2"
+              onClick={() => setActiveTab("appointments")}
+            >
+              View All in Appointments Tab →
+            </ActionButton>
+          </div>
 
-              if (pending > 0) {
-                return (
-                  <div className="flex items-start gap-3 p-3 rounded-xl border border-warning/30 bg-warning/5">
-                    <Send size={15} className="text-warning shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-base-content">
-                        {pending} doctor request{pending > 1 ? "s" : ""} waiting for review
-                      </div>
-                      <div className="text-xs text-base-content/60 mt-0.5">
-                        Doctor cannot start seeing patients until approved
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setActiveTab("doctors")}
-                      className="btn btn-xs btn-warning shrink-0 cursor-pointer"
-                    >
-                      Review
-                    </button>
+          {/* Operational Alerts / Action Required */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <AlertTriangle size={14} className="text-amber-500" />
+                Action Required
+              </span>
+            </div>
+
+            {pendingDocRequests > 0 ? (
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50/70">
+                <Send size={15} className="text-amber-700 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-amber-900">
+                    {pendingDocRequests} doctor request{pendingDocRequests > 1 ? "s" : ""} waiting for review
                   </div>
-                );
-              }
-
-              if (activeDocsCount === 0) {
-                return (
-                  <div className="flex items-start gap-3 p-3 rounded-xl border border-info/30 bg-info/5">
-                    <Stethoscope size={15} className="text-info shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-base-content">
-                        No active doctors in clinic
-                      </div>
-                      <div className="text-xs text-base-content/60 mt-0.5">
-                        Invite doctors to begin scheduling appointments
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setActiveTab("doctors")}
-                      className="btn btn-xs btn-info shrink-0 cursor-pointer"
-                    >
-                      Invite
-                    </button>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="p-3 bg-success/10 border border-success/20 rounded-2xl flex items-center gap-2.5 text-success-content text-xs">
-                  <CheckCircle2 size={20} className="text-success shrink-0" />
-                  <div>
-                    <div className="font-bold text-base-content">
-                      Everything is running smoothly
-                    </div>
-                    <div className="text-[11px] text-base-content/60">
-                      0 pending doctor requests • All doctors verified
-                    </div>
+                  <div className="text-[11px] text-amber-700 mt-0.5">
+                    Doctors cannot practice until their clinic affiliation is approved.
                   </div>
                 </div>
-              );
-            })()}
+                <ActionButton
+                  variant="warning"
+                  size="xs"
+                  onClick={() => setActiveTab("doctors")}
+                >
+                  Review
+                </ActionButton>
+              </div>
+            ) : activeDoctorsCount === 0 ? (
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-indigo-200 bg-indigo-50/60">
+                <Stethoscope size={15} className="text-[#283891] shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-slate-900">
+                    No active doctors in clinic
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Invite doctors to begin scheduling appointments.
+                  </div>
+                </div>
+                <ActionButton
+                  variant="primary"
+                  size="xs"
+                  onClick={() => setActiveTab("doctors")}
+                >
+                  Invite
+                </ActionButton>
+              </div>
+            ) : (
+              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl flex items-center gap-3">
+                <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900">
+                    Clinic Operations Normal
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    0 pending doctor requests • All doctors verified
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* RIGHT: Appointment Trend Graph (7 cols) */}
-        <div className="lg:col-span-7 bg-base-100 border border-base-200 rounded-3xl p-6 shadow-xs space-y-4 flex flex-col justify-between">
+        {/* Right (7 cols): Appointment Trend Graph */}
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
           {(() => {
             const trendData = overviewStats?.appointment_trend || [];
             const data =
@@ -421,7 +549,7 @@ export default function OverviewTab({
                 : 100;
 
             const parseDateInfo = (dStr) => {
-              if (!dStr)
+              if (!dStr) {
                 return {
                   day: "",
                   month: "",
@@ -429,6 +557,7 @@ export default function OverviewTab({
                   formatted: "",
                   weekday: "",
                 };
+              }
               const parts = dStr.split("-");
               if (parts.length === 3) {
                 const y = parseInt(parts[0], 10);
@@ -588,62 +717,55 @@ export default function OverviewTab({
 
             return (
               <div className="space-y-4">
-                {/* Header */}
+                {/* Header & Controls */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-extrabold text-base text-base-content flex items-center gap-2">
-                        <TrendingUp size={18} className="text-primary" /> Appointment Flow &amp; Trends
+                      <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                        <TrendingUp size={16} className="text-[#283891]" />
+                        Appointment Flow &amp; Trends
                       </h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-                        📅 {monthDisplayTitle}
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-[#283891] border border-indigo-100">
+                        {monthDisplayTitle}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-base-content/60 flex-wrap">
+                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
                       <span>
                         {overviewTrendRange === "7d"
-                          ? t("weeklyTrendSubtitle") || "Daily trajectory for this week"
-                          : t("monthlyTrendSubtitle") || "30-day comprehensive volume"}
+                          ? "Daily trajectory for current week"
+                          : "30-day comprehensive volume"}
                       </span>
                       {totalBookings > 0 && (
                         <span
-                          className={`inline-flex items-center gap-1 font-extrabold text-[11px] px-2 py-0.5 rounded-md ${
+                          className={`inline-flex items-center gap-1 font-bold text-[11px] px-1.5 py-0.5 rounded-md ${
                             isUpTrend
                               ? "text-emerald-700 bg-emerald-50 border border-emerald-200"
                               : "text-rose-700 bg-rose-50 border border-rose-200"
                           }`}
                         >
                           {isUpTrend ? (
-                            <ArrowUpRight size={13} className="stroke-[3]" />
+                            <ArrowUpRight size={12} className="stroke-[3]" />
                           ) : (
-                            <ArrowDownRight size={13} className="stroke-[3]" />
+                            <ArrowDownRight size={12} className="stroke-[3]" />
                           )}
                           {isUpTrend
-                            ? `+${trendPct}% ${t("rise") || "Rise"}`
-                            : `-${trendPct}% ${t("fall") || "Fall"}`}
-                        </span>
-                      )}
-                      {peakMax > 0 && (
-                        <span className="text-[11px] font-mono text-base-content/50">
-                          • {language === "bn" ? "সর্বোচ্চ" : "Peak"}: {peakMax}{" "}
-                          {language === "bn" ? "অ্যাপয়েন্টমেন্ট" : "appts"} (
-                          {parseDateInfo(peakDateStr).formatted})
+                            ? `+${trendPct}% Rise`
+                            : `-${trendPct}% Fall`}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Controls: Range + Chart Type */}
+                  {/* Range and Chart Type Selectors */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex bg-base-200/80 p-0.5 rounded-xl border border-base-200">
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                       <button
                         type="button"
                         onClick={() => setTrendChartType("line")}
-                        title="Up & Down Wave Line Chart"
-                        className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                        className={`px-2 py-1 text-xs font-semibold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
                           trendChartType === "line"
-                            ? "bg-primary text-primary-content shadow-xs"
-                            : "text-base-content/70 hover:text-base-content"
+                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
                         <LineChart size={13} /> Line
@@ -651,31 +773,30 @@ export default function OverviewTab({
                       <button
                         type="button"
                         onClick={() => setTrendChartType("bar")}
-                        title="Column Bar Chart"
-                        className={`px-2.5 py-1 text-xs font-bold rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                        className={`px-2 py-1 text-xs font-semibold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
                           trendChartType === "bar"
-                            ? "bg-primary text-primary-content shadow-xs"
-                            : "text-base-content/70 hover:text-base-content"
+                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
                         <BarChart2 size={13} /> Bar
                       </button>
                     </div>
 
-                    <div className="flex bg-base-200/80 p-0.5 rounded-xl border border-base-200">
+                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                       <button
                         type="button"
                         onClick={() => {
                           setOverviewTrendRange("7d");
                           setHoveredTrendIdx(null);
                         }}
-                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                           overviewTrendRange === "7d"
-                            ? "bg-primary text-primary-content shadow-xs"
-                            : "text-base-content/70 hover:text-base-content"
+                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
-                        Weekly (7d)
+                        7d
                       </button>
                       <button
                         type="button"
@@ -683,91 +804,87 @@ export default function OverviewTab({
                           setOverviewTrendRange("30d");
                           setHoveredTrendIdx(null);
                         }}
-                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                           overviewTrendRange === "30d"
-                            ? "bg-primary text-primary-content shadow-xs"
-                            : "text-base-content/70 hover:text-base-content"
+                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
-                        Monthly (30d)
+                        30d
                       </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Period Summary KPI Strip */}
-                <div className="grid grid-cols-3 gap-3 bg-base-200/30 p-3 rounded-2xl border border-base-200 text-center">
+                {/* Period KPI Summary Strip */}
+                <div className="grid grid-cols-3 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 text-center">
                   <div>
-                    <div className="text-[11px] text-base-content/50 font-medium">
-                      {overviewTrendRange === "7d"
-                        ? "Weekly Volume (7d)"
-                        : "Monthly Volume (30d)"}
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                      {overviewTrendRange === "7d" ? "7d Volume" : "30d Volume"}
                     </div>
-                    <div className="text-base font-black text-base-content">
+                    <div className="text-sm font-bold font-mono text-slate-800">
                       {totalBookings} Bookings
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-emerald-600 font-medium">
-                      {overviewTrendRange === "7d"
-                        ? "Weekly Completed (7d)"
-                        : "Monthly Completed (30d)"}
+                    <div className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wider">
+                      Completed
                     </div>
-                    <div className="text-base font-black text-emerald-600">
+                    <div className="text-sm font-bold font-mono text-emerald-700">
                       {totalCompleted} Visits
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-indigo-600 font-medium">
-                      Period Success Rate
+                    <div className="text-[10px] text-[#283891] font-semibold uppercase tracking-wider">
+                      Success Rate
                     </div>
-                    <div className="text-base font-black text-indigo-600">
+                    <div className="text-sm font-bold font-mono text-[#283891]">
                       {completionRate}%
                     </div>
                   </div>
                 </div>
 
-                {/* CHART AREA */}
+                {/* SVG Line / Bar Rendering */}
                 {trendChartType === "line" ? (
-                  <div className="relative pt-2 pb-1 select-none">
+                  <div className="relative pt-1 pb-1 select-none">
                     <div className="h-6 flex items-center justify-between px-1 mb-1 text-xs">
                       {activeHoverPoint ? (
-                        <div className="flex items-center gap-2 bg-slate-900 text-white px-3 py-1 rounded-xl shadow-lg">
-                          <span className="font-bold text-indigo-200">
+                        <div className="flex items-center gap-2 bg-slate-900 text-white px-2.5 py-1 rounded-lg shadow-sm text-[11px]">
+                          <span className="font-semibold text-indigo-200">
                             {parseDateInfo(activeHoverPoint.data.date).weekday},{" "}
                             {parseDateInfo(activeHoverPoint.data.date).fullDate}:
                           </span>
-                          <span className="font-extrabold text-white">
+                          <span className="font-bold text-white">
                             {activeHoverPoint.data.total || 0} Booked
                           </span>
-                          <span className="text-emerald-400 font-semibold">
+                          <span className="text-emerald-400 font-medium">
                             • {activeHoverPoint.data.completed || 0} Done
                           </span>
                           {activeHoverPoint.data.cancelled > 0 && (
-                            <span className="text-rose-400 font-semibold">
+                            <span className="text-rose-400 font-medium">
                               • {activeHoverPoint.data.cancelled} Cancelled
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-[11px] text-base-content/50 italic flex items-center gap-1">
-                          {t("trendHoverHint") || "Hover over any point to view details"}
+                        <span className="text-[11px] text-slate-400 italic">
+                          Hover over any point to inspect volume
                         </span>
                       )}
-                      <span className="text-[10px] font-mono text-base-content/40 hidden sm:inline">
+                      <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
                         Range: {firstInfo?.formatted} – {lastInfo?.formatted}
                       </span>
                     </div>
 
-                    <div className="w-full relative overflow-x-auto overflow-y-visible bg-base-200/20 rounded-2xl border border-base-200/60 p-2">
+                    <div className="w-full relative overflow-x-auto overflow-y-visible bg-slate-50/40 rounded-xl border border-slate-200/60 p-2">
                       <svg
                         viewBox={`0 0 ${svgW} ${svgH}`}
-                        className="w-full h-48 block overflow-visible"
+                        className="w-full h-44 block overflow-visible"
                         onMouseLeave={() => setHoveredTrendIdx(null)}
                       >
                         <defs>
                           <linearGradient
-                            id="upDownAreaGrad"
+                            id="scTrendAreaGrad"
                             x1="0"
                             y1="0"
                             x2="0"
@@ -775,17 +892,12 @@ export default function OverviewTab({
                           >
                             <stop
                               offset="0%"
-                              stopColor="#6366f1"
-                              stopOpacity="0.38"
-                            />
-                            <stop
-                              offset="60%"
-                              stopColor="#6366f1"
-                              stopOpacity="0.09"
+                              stopColor="#283891"
+                              stopOpacity="0.22"
                             />
                             <stop
                               offset="100%"
-                              stopColor="#6366f1"
+                              stopColor="#283891"
                               stopOpacity="0.0"
                             />
                           </linearGradient>
@@ -800,7 +912,7 @@ export default function OverviewTab({
                                 x={padL - 8}
                                 y={yPos + 3.5}
                                 textAnchor="end"
-                                className="text-[10px] font-mono fill-base-content/40 select-none"
+                                className="text-[10px] font-mono fill-slate-400 select-none"
                               >
                                 {val}
                               </text>
@@ -810,8 +922,8 @@ export default function OverviewTab({
                                 x2={padL + plotW}
                                 y2={yPos}
                                 stroke="currentColor"
-                                className="text-base-200/70"
-                                strokeDasharray="4 4"
+                                className="text-slate-200"
+                                strokeDasharray="3 3"
                                 strokeWidth="1"
                               />
                             </g>
@@ -819,7 +931,7 @@ export default function OverviewTab({
                         })}
 
                         {areaPath && (
-                          <path d={areaPath} fill="url(#upDownAreaGrad)" />
+                          <path d={areaPath} fill="url(#scTrendAreaGrad)" />
                         )}
 
                         {compLinePath && (
@@ -828,7 +940,7 @@ export default function OverviewTab({
                             fill="none"
                             stroke="#10b981"
                             strokeWidth="2"
-                            strokeDasharray="5 4"
+                            strokeDasharray="4 3"
                             className="opacity-75"
                           />
                         )}
@@ -837,8 +949,8 @@ export default function OverviewTab({
                           <path
                             d={linePath}
                             fill="none"
-                            stroke="#4f46e5"
-                            strokeWidth="3"
+                            stroke="#283891"
+                            strokeWidth="2.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           />
@@ -854,25 +966,25 @@ export default function OverviewTab({
                                 x1={pt.x}
                                 y1={baseLineY}
                                 x2={pt.x}
-                                y2={baseLineY + 5}
+                                y2={baseLineY + 4}
                                 stroke="currentColor"
-                                className="text-base-300"
-                                strokeWidth="1.5"
+                                className="text-slate-300"
+                                strokeWidth="1"
                               />
                               <text
                                 x={pt.x}
-                                y={baseLineY + 18}
+                                y={baseLineY + 16}
                                 textAnchor="middle"
-                                className="text-[10px] font-extrabold fill-base-content/70 font-mono select-none"
+                                className="text-[9px] font-semibold fill-slate-500 font-mono select-none"
                               >
                                 {info.formatted}
                               </text>
                               {overviewTrendRange === "7d" && (
                                 <text
                                   x={pt.x}
-                                  y={baseLineY + 28}
+                                  y={baseLineY + 26}
                                   textAnchor="middle"
-                                  className="text-[9px] font-bold fill-base-content/40 select-none"
+                                  className="text-[9px] font-medium fill-slate-400 select-none"
                                 >
                                   {info.weekday}
                                 </text>
@@ -882,35 +994,18 @@ export default function OverviewTab({
                         })}
 
                         {points.map((pt, i) => {
-                          const isPeak =
-                            pt.data.total === peakMax && peakMax > 0;
-                          const isToday = i === points.length - 1;
                           const isHovered = hoveredTrendIdx === i;
                           return (
-                            <g key={i}>
-                              {isPeak && (
-                                <g transform={`translate(${pt.x}, ${pt.y - 10})`}>
-                                  <circle r="3" fill="#f59e0b" />
-                                </g>
-                              )}
-                              <circle
-                                cx={pt.x}
-                                cy={pt.y}
-                                r={isHovered ? 6 : isPeak || isToday ? 4.5 : 3}
-                                fill={
-                                  isHovered
-                                    ? "#4f46e5"
-                                    : isPeak
-                                    ? "#f59e0b"
-                                    : isToday
-                                    ? "#06b6d4"
-                                    : "#4f46e5"
-                                }
-                                stroke="#ffffff"
-                                strokeWidth={isHovered ? "2.5" : "1.5"}
-                                className="cursor-pointer"
-                              />
-                            </g>
+                            <circle
+                              key={i}
+                              cx={pt.x}
+                              cy={pt.y}
+                              r={isHovered ? 5.5 : 3}
+                              fill={isHovered ? "#283891" : "#ffffff"}
+                              stroke="#283891"
+                              strokeWidth={isHovered ? "2.5" : "1.5"}
+                              className="cursor-pointer transition-all"
+                            />
                           );
                         })}
 
@@ -921,17 +1016,17 @@ export default function OverviewTab({
                               y1={padT}
                               x2={activeHoverPoint.x}
                               y2={baseLineY}
-                              stroke="#4f46e5"
+                              stroke="#283891"
                               strokeWidth="1.5"
-                              strokeDasharray="3 3"
+                              strokeDasharray="2 2"
                             />
                             <circle
                               cx={activeHoverPoint.x}
                               cy={activeHoverPoint.y}
-                              r="7"
-                              fill="#4f46e5"
+                              r="6"
+                              fill="#283891"
                               stroke="#ffffff"
-                              strokeWidth="3"
+                              strokeWidth="2.5"
                             />
                           </g>
                         )}
@@ -955,208 +1050,222 @@ export default function OverviewTab({
                     </div>
                   </div>
                 ) : (
-                  <div className="relative pt-4 pb-2">
-                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-9 pl-7">
+                  <div className="relative pt-3 pb-1">
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-8 pl-6">
                       {yTicks.map((val, idx) => (
                         <div key={idx} className="flex items-center w-full">
-                          <span className="text-[10px] font-mono text-base-content/40 w-6 text-right pr-2 select-none -translate-y-1/2">
+                          <span className="text-[10px] font-mono text-slate-400 w-6 text-right pr-2 select-none -translate-y-1/2">
                             {val}
                           </span>
-                          <div className="flex-1 border-b border-dashed border-base-200/70" />
+                          <div className="flex-1 border-b border-dashed border-slate-200" />
                         </div>
                       ))}
                     </div>
 
-                    {overviewTrendRange === "7d" ? (
-                      <div className="relative z-10 pl-7 h-44 flex items-end justify-around gap-2">
-                        {data.map((d, i) => {
-                          const info = parseDateInfo(d.date);
-                          const isToday = i === data.length - 1;
-                          const heightPct = Math.round(
-                            ((d.total || 0) / yMax) * 100
-                          );
-                          const completedPct =
-                            d.total > 0
-                              ? Math.round(
-                                  ((d.completed || 0) / d.total) * 100
-                                )
-                              : 0;
+                    <div className="relative z-10 pl-6 h-40 flex items-end justify-around gap-1.5">
+                      {data.map((d, i) => {
+                        const info = parseDateInfo(d.date);
+                        const isToday = i === data.length - 1;
+                        const heightPct = Math.round(
+                          ((d.total || 0) / yMax) * 100
+                        );
+                        const completedPct =
+                          d.total > 0
+                            ? Math.round(
+                                ((d.completed || 0) / d.total) * 100
+                              )
+                            : 0;
 
-                          return (
-                            <div
-                              key={d.date}
-                              className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
-                            >
-                              <div className="absolute -top-10 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[11px] px-2.5 py-1 rounded-xl shadow-xl z-30 whitespace-nowrap pointer-events-none">
-                                <span className="font-bold">
-                                  {info.weekday}, {info.formatted}
-                                </span>
-                                <span className="text-indigo-300 font-medium">
-                                  {d.total} Booked • {d.completed} Done{" "}
-                                  {d.cancelled > 0
-                                    ? `• ${d.cancelled} Cancelled`
-                                    : ""}
-                                </span>
-                                <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 mt-0.5" />
-                              </div>
-
-                              <div
-                                className={`text-xs font-black mb-1.5 transition-all ${
-                                  isToday
-                                    ? "text-primary scale-110"
-                                    : d.total > 0
-                                    ? "text-base-content"
-                                    : "text-base-content/30"
-                                }`}
-                              >
-                                {d.total > 0 ? d.total : "0"}
-                              </div>
-
-                              <div className="w-full max-w-[36px] flex flex-col justify-end">
-                                {d.total > 0 ? (
-                                  <div
-                                    className={`w-full rounded-t-xl transition-all shadow-xs overflow-hidden flex flex-col justify-end ${
-                                      isToday
-                                        ? "ring-2 ring-primary ring-offset-1"
-                                        : ""
-                                    }`}
-                                    style={{
-                                      height: `${Math.max(heightPct, 12)}%`,
-                                    }}
-                                  >
-                                    {d.cancelled > 0 && (
-                                      <div
-                                        className="w-full bg-rose-400"
-                                        style={{
-                                          height: `${Math.round(
-                                            (d.cancelled / d.total) * 100
-                                          )}%`,
-                                        }}
-                                      />
-                                    )}
-                                    <div className="w-full flex-1 bg-gradient-to-t from-indigo-700 to-indigo-500 relative">
-                                      {d.completed > 0 && (
-                                        <div
-                                          className="w-full bg-emerald-500 transition-all"
-                                          style={{ height: `${completedPct}%` }}
-                                        />
-                                      )}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="w-full h-1.5 bg-base-300 rounded-full mx-auto" />
-                                )}
-                              </div>
-
-                              <div className="text-center mt-2.5 pt-1 border-t border-base-200 w-full">
-                                <div
-                                  className={`text-xs font-black ${
-                                    isToday
-                                      ? "text-primary"
-                                      : "text-base-content/80"
-                                  }`}
-                                >
-                                  {info.weekday}
-                                </div>
-                                <div className="text-[10px] text-base-content/50 font-mono font-bold">
-                                  {info.formatted}
-                                </div>
-                              </div>
+                        return (
+                          <div
+                            key={d.date}
+                            className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
+                          >
+                            <div className="absolute -top-10 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[10px] px-2 py-1 rounded-md shadow-lg z-30 whitespace-nowrap pointer-events-none">
+                              <span className="font-bold">
+                                {info.weekday}, {info.formatted}
+                              </span>
+                              <span className="text-indigo-200 font-medium">
+                                {d.total} Booked • {d.completed} Done
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="relative z-10 pl-7 h-40 flex items-end gap-1">
-                          {data.map((d, i) => {
-                            const heightPct = Math.round(
-                              ((d.total || 0) / yMax) * 100
-                            );
-                            const isToday = i === data.length - 1;
-                            const info = parseDateInfo(d.date);
-                            return (
-                              <div
-                                key={d.date}
-                                className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
-                              >
-                                <div className="absolute -top-9 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[10px] px-2.5 py-1 rounded-lg shadow-lg z-30 whitespace-nowrap pointer-events-none">
-                                  <span className="font-bold">
-                                    {info.fullDate}
-                                  </span>
-                                  <span>
-                                    {d.total} appts ({d.completed} done)
-                                  </span>
-                                </div>
 
+                            <div className="text-[10px] font-bold font-mono text-slate-500 mb-1">
+                              {d.total > 0 ? d.total : "0"}
+                            </div>
+
+                            <div className="w-full max-w-[28px] flex flex-col justify-end">
+                              {d.total > 0 ? (
                                 <div
-                                  className={`w-full rounded-t-sm transition-all ${
-                                    isToday
-                                      ? "bg-primary shadow-xs ring-1 ring-primary"
-                                      : d.total > 0
-                                      ? "bg-indigo-500/80 group-hover:bg-indigo-600"
-                                      : "bg-base-200"
+                                  className={`w-full rounded-t-md overflow-hidden flex flex-col justify-end ${
+                                    isToday ? "ring-2 ring-[#283891]" : ""
                                   }`}
                                   style={{
-                                    height:
-                                      d.total > 0
-                                        ? `${Math.max(heightPct, 8)}%`
-                                        : "3px",
-                                    minHeight: "3px",
+                                    height: `${Math.max(heightPct, 12)}%`,
                                   }}
-                                />
+                                >
+                                  <div className="w-full flex-1 bg-[#283891] relative">
+                                    {d.completed > 0 && (
+                                      <div
+                                        className="w-full bg-emerald-500"
+                                        style={{ height: `${completedPct}%` }}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="w-full h-1 bg-slate-200 rounded-full mx-auto" />
+                              )}
+                            </div>
+
+                            <div className="text-center mt-2 pt-1 border-t border-slate-100 w-full">
+                              <div className="text-[9px] font-semibold text-slate-600">
+                                {info.formatted}
                               </div>
-                            );
-                          })}
-                        </div>
-                        <div className="flex justify-between pl-7 pr-2 pt-2 border-t border-base-200 text-[10px] font-bold font-mono text-base-content/60">
-                          {xTickIndices.map((idx) => {
-                            const d = data[idx];
-                            if (!d) return null;
-                            return (
-                              <span key={idx}>
-                                {parseDateInfo(d.date).formatted}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                {/* Legend & Month Details */}
-                <div className="flex flex-wrap items-center justify-between text-xs text-base-content/60 pt-2 border-t border-base-200 gap-2">
+                {/* Legend */}
+                <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 gap-2">
                   <div className="flex items-center gap-4 flex-wrap">
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block" />{" "}
-                      Total Volume
+                    <span className="flex items-center gap-1.5 font-medium text-[11px]">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#283891] inline-block" />{" "}
+                      Total Bookings
                     </span>
-                    <span className="flex items-center gap-1.5 font-medium">
+                    <span className="flex items-center gap-1.5 font-medium text-[11px]">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />{" "}
-                      Completed
-                    </span>
-                    {totalCancelled > 0 && (
-                      <span className="flex items-center gap-1.5 font-medium">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />{" "}
-                        Cancelled
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] font-medium text-base-content/50">
-                    <span>
-                      🗓️ Timeline:{" "}
-                      <strong className="text-base-content/80">
-                        {monthDisplayTitle}
-                      </strong>
+                      Completed Visits
                     </span>
                   </div>
+                  <span className="text-[11px] font-medium text-slate-400">
+                    Live aggregate from clinic appointments database
+                  </span>
                 </div>
               </div>
             );
           })()}
         </div>
       </div>
+
+      {/* ── 5. TODAY'S APPOINTMENTS ROSTER PREVIEW (TableShell) ── */}
+      <TableShell
+        title="Today's Appointments Roster"
+        subtitle={`${todayApts.length} total scheduled today`}
+        badge={
+          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+            {todayApts.length}
+          </span>
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="outline"
+              size="xs"
+              onClick={() => setActiveTab("appointments")}
+            >
+              All Appointments →
+            </ActionButton>
+          </div>
+        }
+        headers={[
+          "Serial",
+          "Patient Name & Contact",
+          "Doctor & Chamber",
+          "Time",
+          "Queue Status",
+          "Payment",
+          "Action",
+        ]}
+        empty={todayApts.length === 0}
+        emptyMessage="No appointments scheduled for today yet."
+        footer={
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>
+              Showing {Math.min(todayApts.length, 6)} of {todayApts.length} appointments for today.
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveTab("appointments")}
+              className="text-[#283891] hover:underline font-semibold cursor-pointer"
+            >
+              Open Full Appointments Management →
+            </button>
+          </div>
+        }
+      >
+        {todayApts.slice(0, 6).map((apt) => (
+          <tr
+            key={apt.id}
+            className="hover:bg-slate-50/70 transition-colors border-b border-slate-100 last:border-0"
+          >
+            <td className="py-3 px-4 font-mono font-bold text-slate-900">
+              <span className="bg-slate-100 px-2 py-0.5 rounded-md text-xs">
+                #{apt.serial_number || "—"}
+              </span>
+            </td>
+
+            <td className="py-3 px-4">
+              <div className="font-semibold text-slate-900 text-xs">
+                {apt.patient_name || apt.patient?.full_name || "Patient"}
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono">
+                {apt.patient_phone || apt.patient?.phone_number || "—"}
+              </div>
+            </td>
+
+            <td className="py-3 px-4">
+              <div className="font-semibold text-slate-900 text-xs">
+                Dr. {apt.doctor_name || apt.doctor?.full_name || "Doctor"}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {apt.doctor_specialization || "Consultant"}
+              </div>
+            </td>
+
+            <td className="py-3 px-4 font-mono text-xs text-slate-600">
+              {apt.appointment_time ? apt.appointment_time.slice(0, 5) : "—"}
+            </td>
+
+            <td className="py-3 px-4">
+              <StatusBadge status={apt.status} size="xs" />
+            </td>
+
+            <td className="py-3 px-4">
+              {apt.is_paid ? (
+                <span className="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  Paid (৳{apt.fee || apt.consultation_fee || 0})
+                </span>
+              ) : (
+                <span className="inline-flex items-center text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  Unpaid
+                </span>
+              )}
+            </td>
+
+            <td className="py-3 px-4">
+              <ActionButton
+                variant="ghost"
+                size="xs"
+                onClick={() => {
+                  if (setSelectedDoctorId && (apt.doctor_id || apt.doctor?.id)) {
+                    setSelectedDoctorId(apt.doctor_id || apt.doctor?.id);
+                    setActiveTab("chamber");
+                  } else {
+                    setActiveTab("appointments");
+                  }
+                }}
+              >
+                Chamber Desk →
+              </ActionButton>
+            </td>
+          </tr>
+        ))}
+      </TableShell>
     </div>
   );
 }

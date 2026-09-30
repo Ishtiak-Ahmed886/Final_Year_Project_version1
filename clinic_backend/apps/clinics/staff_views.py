@@ -12,7 +12,7 @@ from apps.accounts.models import User, UserRole
 from apps.appointments.models import Appointment, AppointmentStatus
 from apps.payments.models import Payment, PaymentMethod, PaymentStatus
 from apps.doctors.models import Doctor, DoctorClinic
-from .models import Clinic, ClinicStaff, StaffAttendance
+from .models import Clinic, ClinicStaff, StaffAttendance, ShiftClosingLog
 from .serializers import (
     ClinicStaffSerializer,
     StaffAttendanceSerializer,
@@ -232,7 +232,7 @@ class StaffMonthlyAttendanceSummaryView(APIView):
             absents = records.filter(status='ABSENT').count()
             total_logged = presents + lates + leaves + absents
             
-            att_rate = round(((presents + lates) / max(total_logged, 1)) * 100, 1) if total_logged > 0 else 100.0
+            att_rate = round(((presents + lates) / total_logged) * 100, 1) if total_logged > 0 else None
             salary = float(staff.monthly_salary or 0.0)
             total_monthly_payroll += salary
 
@@ -532,26 +532,42 @@ class ReceptionCashPaymentView(APIView):
 @extend_schema(tags=['Reception'])
 class ReceptionDailyCashSummaryView(APIView):
     """
-    Get today's total cash collected breakdown by staff member.
+    Get today's total cash collected breakdown by staff member + digital breakdown.
     GET /api/v1/clinics/reception/cash-summary/
     """
     permission_classes = [IsClinicAdminOrReceptionist]
 
     def get(self, request):
         clinic = get_clinic_for_user(request.user)
+        if not clinic:
+            return Response({'error': 'No clinic associated with user'}, status=status.HTTP_400_BAD_REQUEST)
         today = timezone.now().date()
 
-        payments = Payment.objects.filter(
+        cash_payments = Payment.objects.filter(
             appointment__clinic=clinic,
             payment_method=PaymentMethod.CASH,
             payment_status=PaymentStatus.COMPLETED,
             created_at__date=today
         ).select_related('received_by', 'appointment__patient')
 
-        total_cash = payments.aggregate(total=Sum('amount'))['total'] or 0.0
+        digital_payments = Payment.objects.filter(
+            appointment__clinic=clinic,
+            payment_status=PaymentStatus.COMPLETED,
+            created_at__date=today
+        ).exclude(payment_method=PaymentMethod.CASH)
+
+        total_cash = cash_payments.aggregate(total=Sum('amount'))['total'] or 0.0
+        total_digital = digital_payments.aggregate(total=Sum('amount'))['total'] or 0.0
+
+        today_appointments = Appointment.objects.filter(
+            clinic=clinic,
+            appointment_date=today
+        )
+        total_tokens = today_appointments.count()
+        completed_tokens = today_appointments.filter(status=AppointmentStatus.COMPLETED).count()
 
         breakdown = []
-        for p in payments:
+        for p in cash_payments:
             breakdown.append({
                 'id': str(p.id),
                 'amount': float(p.amount),
@@ -564,6 +580,106 @@ class ReceptionDailyCashSummaryView(APIView):
         return Response({
             'date': str(today),
             'total_cash_today': float(total_cash),
-            'total_transactions': len(payments),
+            'total_digital_today': float(total_digital),
+            'total_collected_today': float(total_cash + total_digital),
+            'total_transactions': len(cash_payments) + digital_payments.count(),
+            'cash_transactions_count': len(cash_payments),
+            'digital_transactions_count': digital_payments.count(),
+            'total_tokens_today': total_tokens,
+            'completed_tokens_today': completed_tokens,
             'transactions': breakdown,
         })
+
+
+@extend_schema(tags=['Reception'])
+class ReceptionShiftClosingView(APIView):
+    """
+    Counter Shift Closing and Cash Drawer Reconciliation.
+    GET: Get latest shift closing logs for the clinic.
+    POST: Submit cash drawer closing verification with denomination audit.
+    """
+    permission_classes = [IsClinicAdminOrReceptionist]
+
+    def get(self, request):
+        clinic = get_clinic_for_user(request.user)
+        if not clinic:
+            return Response({'error': 'No clinic associated with user'}, status=status.HTTP_400_BAD_REQUEST)
+
+        closings = ShiftClosingLog.objects.filter(clinic=clinic).select_related('closed_by')[:10]
+        results = []
+        for c in closings:
+            results.append({
+                'id': str(c.id),
+                'shift_date': str(c.shift_date),
+                'shift_end_time': c.shift_end_time.strftime('%I:%M %p') if c.shift_end_time else '',
+                'closed_by_name': c.closed_by.full_name if c.closed_by else 'Staff',
+                'system_cash_total': float(c.system_cash_total),
+                'physical_cash_counted': float(c.physical_cash_counted),
+                'discrepancy': float(c.discrepancy),
+                'digital_total': float(c.digital_total),
+                'total_tokens_handled': c.total_tokens_handled,
+                'total_transactions_count': c.total_transactions_count,
+                'denominations': c.denominations,
+                'handed_over_to': c.handed_over_to,
+                'notes': c.notes,
+                'created_at': c.created_at.isoformat(),
+            })
+        return Response({'results': results})
+
+    def post(self, request):
+        clinic = get_clinic_for_user(request.user)
+        if not clinic:
+            return Response({'error': 'No clinic associated with user'}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = request.data
+        today = timezone.now().date()
+        current_time = timezone.now().time()
+
+        system_cash = float(data.get('system_cash_total', 0.0))
+        physical_cash = float(data.get('physical_cash_counted', 0.0))
+        digital_total = float(data.get('digital_total', 0.0))
+        discrepancy = round(physical_cash - system_cash, 2)
+        total_tokens = int(data.get('total_tokens_handled', 0))
+        total_tx = int(data.get('total_transactions_count', 0))
+        denominations = data.get('denominations', {})
+        handed_over_to = data.get('handed_over_to', '').strip()
+        notes = data.get('notes', '').strip()
+
+        closing = ShiftClosingLog.objects.create(
+            clinic=clinic,
+            closed_by=request.user,
+            shift_date=today,
+            shift_end_time=current_time,
+            system_cash_total=system_cash,
+            physical_cash_counted=physical_cash,
+            discrepancy=discrepancy,
+            digital_total=digital_total,
+            total_tokens_handled=total_tokens,
+            total_transactions_count=total_tx,
+            denominations=denominations,
+            handed_over_to=handed_over_to,
+            notes=notes,
+            is_verified=True,
+        )
+
+        return Response({
+            'success': True,
+            'id': str(closing.id),
+            'message': 'Shift closing logged successfully.',
+            'closing': {
+                'id': str(closing.id),
+                'shift_date': str(closing.shift_date),
+                'shift_end_time': closing.shift_end_time.strftime('%I:%M %p'),
+                'closed_by_name': request.user.full_name,
+                'system_cash_total': float(closing.system_cash_total),
+                'physical_cash_counted': float(closing.physical_cash_counted),
+                'discrepancy': float(closing.discrepancy),
+                'digital_total': float(closing.digital_total),
+                'total_tokens_handled': closing.total_tokens_handled,
+                'total_transactions_count': closing.total_transactions_count,
+                'denominations': closing.denominations,
+                'handed_over_to': closing.handed_over_to,
+                'notes': closing.notes,
+                'created_at': closing.created_at.isoformat(),
+            }
+        }, status=status.HTTP_201_CREATED)

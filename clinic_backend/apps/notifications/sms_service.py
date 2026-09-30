@@ -62,9 +62,9 @@ def send_sms_notification(
             gateway_status = f"GATEWAY_ERR: {str(e)[:50]}"
             logger.warning(f"Live SMS dispatch error: {e}")
 
-    # Log clean formatted output to console/logs for testing
+    # Log clean formatted output to logger
     try:
-        print(f"\n[BD SMS DISPATCH -> +{normalized_phone}] ({gateway_status})\n   Title: {title}\n   Body: {message}\n")
+        logger.info(f"[BD SMS DISPATCH -> +{normalized_phone}] ({gateway_status}) Title: {title} | Body: {message}")
     except Exception:
         pass
 

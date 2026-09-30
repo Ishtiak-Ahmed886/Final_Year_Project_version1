@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl py-14 lg:py-16">
         
         {/* 4 Column Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-8">
           
           {/* Brand Column (takes 2 cols on lg) */}
           <div className="lg:col-span-2 space-y-4">
@@ -26,15 +26,15 @@ export default function Footer() {
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <CheckCircle2 className="w-3 h-3" />
-                HIPAA
+                Encrypted Health Records
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                 <ShieldCheck className="w-3 h-3" />
-                PAT-256
+                Role-Based Access
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 <Lock className="w-3 h-3" />
-                ISO 27001
+                Audit Logging
               </span>
             </div>
           </div>
@@ -73,34 +73,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Company */}
-          <div>
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4">
-              Company
-            </h4>
-            <ul className="space-y-2.5 text-xs sm:text-sm text-slate-500">
-              <li>
-                <a href="#about" className="hover:text-indigo-600 transition-colors">
-                  About Us
-                </a>
-              </li>
-              <li>
-                <a href="#pricing" className="hover:text-indigo-600 transition-colors">
-                  Pricing Models
-                </a>
-              </li>
-              <li>
-                <a href="#careers" className="hover:text-indigo-600 transition-colors">
-                  Careers
-                </a>
-              </li>
-              <li>
-                <a href="#press" className="hover:text-indigo-600 transition-colors">
-                  Press & News
-                </a>
-              </li>
-            </ul>
-          </div>
 
           {/* Legal & Compliance */}
           <div>
@@ -141,7 +113,7 @@ export default function Footer() {
           </div>
           <div className="flex items-center gap-2 font-medium text-slate-500">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>All Systems Operational</span>
+            <span>Cloud Connected Platform</span>
           </div>
         </div>
 

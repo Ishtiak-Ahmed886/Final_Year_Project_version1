@@ -13,7 +13,6 @@ export default function StaffTab({
   staffList = [],
   loadingStaff,
   fetchStaffData,
-  dailyCashSummary,
   staffAttendanceList = [],
   staffModalOpen,
   setStaffModalOpen,
@@ -43,7 +42,7 @@ export default function StaffTab({
           <div className="flex items-center gap-2">
             <Users className="text-primary w-6 h-6" />
             <h2 className="text-xl font-black text-base-content">
-              Staff &amp; Front Desk Roster
+              Staff &amp; HR Management
             </h2>
           </div>
           <p className="text-xs text-base-content/60 mt-1">
@@ -99,14 +98,14 @@ export default function StaffTab({
 
         <div className="bg-base-100 p-5 rounded-2xl border border-base-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-lg">
-            <DollarSign size={22} />
+            <Users size={22} />
           </div>
           <div>
             <span className="text-xs text-base-content/60 font-semibold uppercase">
-              Today&apos;s Front Desk Cash
+              Present Today
             </span>
             <div className="text-2xl font-black text-emerald-600 font-mono">
-              ৳{dailyCashSummary?.total_cash_today || 0}
+              {staffAttendanceList.filter((a) => a.status === "PRESENT").length}
             </div>
           </div>
         </div>
@@ -211,16 +210,20 @@ export default function StaffTab({
                       <div className="bg-base-200/50 p-2 rounded-xl text-[11px] space-y-1 border border-base-200">
                         <div className="flex justify-between items-center">
                           <span className="font-semibold text-base-content/70">Month Attendance:</span>
-                          <span className={`font-bold ${mSummary.attendance_rate >= 80 ? "text-emerald-600" : "text-amber-600"}`}>
-                            {mSummary.attendance_rate}%
-                          </span>
+                          {mSummary.total_logged_days > 0 && mSummary.attendance_rate !== null && mSummary.attendance_rate !== undefined ? (
+                            <span className={`font-bold ${mSummary.attendance_rate >= 80 ? "text-emerald-600" : "text-amber-600"}`}>
+                              {mSummary.attendance_rate}%
+                            </span>
+                          ) : (
+                            <span className="font-medium text-base-content/40">No records yet</span>
+                          )}
                         </div>
                         <div className="text-base-content/50 text-[10px] flex gap-2">
-                          <span>{mSummary.presents} Present</span>
+                          <span>{mSummary.presents || 0} Present</span>
                           <span>•</span>
-                          <span>{mSummary.lates} Late</span>
+                          <span>{mSummary.lates || 0} Late</span>
                           <span>•</span>
-                          <span>{mSummary.absents} Absent</span>
+                          <span>{mSummary.absents || 0} Absent</span>
                         </div>
                       </div>
                     )}
@@ -260,64 +263,7 @@ export default function StaffTab({
         )}
       </div>
 
-      {/* Today's Counter Cash Collections Table */}
-      <div className="bg-base-100 p-6 rounded-3xl border border-base-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-base-200">
-          <h3 className="font-extrabold text-base flex items-center gap-2 text-base-content">
-            <DollarSign className="text-emerald-500" />
-            Today&apos;s Front Desk Cash Collection Log
-          </h3>
-          <span className="text-xs font-bold text-emerald-600">
-            Total: ৳{dailyCashSummary?.total_cash_today || 0}
-          </span>
-        </div>
 
-        {!dailyCashSummary?.transactions ||
-        dailyCashSummary.transactions.length === 0 ? (
-          <div className="text-center py-8 text-xs text-base-content/50">
-            No cash payments received at reception desk today.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="table table-sm w-full">
-              <thead>
-                <tr className="text-xs text-base-content/60 border-b border-base-200">
-                  <th>Time</th>
-                  <th>Patient</th>
-                  <th>Serial #</th>
-                  <th>Collected By</th>
-                  <th className="text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailyCashSummary.transactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-base-200/40">
-                    <td className="text-xs text-base-content/60">{tx.time}</td>
-                    <td className="font-semibold text-xs text-base-content">
-                      {tx.patient}
-                    </td>
-                    <td>
-                      {tx.serial_number ? (
-                        <span className="badge badge-sm badge-neutral font-mono font-bold">
-                          #{tx.serial_number}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="text-xs text-base-content/80 font-medium">
-                      {tx.received_by}
-                    </td>
-                    <td className="text-right font-mono font-bold text-emerald-600 text-sm">
-                      ৳{tx.amount}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
 
       {/* ADD STAFF MODAL */}
       {staffModalOpen && (

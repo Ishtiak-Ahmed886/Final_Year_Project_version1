@@ -50,6 +50,9 @@ class DoctorListView(generics.ListAPIView):
         clinic_id = self.request.query_params.get('clinic_id')
         specialization_id = self.request.query_params.get('specialization_id')
         department_id = self.request.query_params.get('department_id')
+        division_id = self.request.query_params.get('division_id')
+        district_id = self.request.query_params.get('district_id')
+        search = self.request.query_params.get('search')
         verification_status = self.request.query_params.get('verification_status')
         user = self.request.user
 
@@ -64,6 +67,16 @@ class DoctorListView(generics.ListAPIView):
             department_id=department_id,
             only_verified=only_verified
         )
+
+        from django.db.models import Q
+        if division_id:
+            qs = qs.filter(clinics__division_id=division_id).distinct()
+        if district_id:
+            qs = qs.filter(clinics__district_id=district_id).distinct()
+        if search:
+            qs = qs.filter(
+                Q(full_name__icontains=search) | Q(qualification__icontains=search)
+            ).distinct()
 
         if user and user.is_authenticated and user.role == 'ADMIN' and verification_status:
             qs = qs.filter(verification_status=verification_status)
@@ -367,7 +380,7 @@ class ChamberSessionView(APIView):
     def get(self, request, *args, **kwargs):
         doctor_id = request.query_params.get('doctor_id')
         clinic_id = request.query_params.get('clinic_id')
-        session_date_str = request.query_params.get('date') or str(date.today())
+        session_date_str = request.query_params.get('date') or str(timezone.now().date())
 
         if not doctor_id or not clinic_id:
             return Response({'detail': 'doctor_id and clinic_id query parameters are required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -418,7 +431,7 @@ class ChamberSessionView(APIView):
         from django.utils import timezone
         from apps.appointments.models import Appointment, AppointmentStatus
 
-        session_date = data.get('session_date') or date.today()
+        session_date = data.get('session_date') or timezone.now().date()
 
         with transaction.atomic():
             session, created = ChamberSession.objects.select_for_update().get_or_create(
@@ -429,6 +442,8 @@ class ChamberSessionView(APIView):
             )
 
             if action == 'ADMIT_EMERGENCY':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session or redirect to Emergency Room / OT.'}, status=status.HTTP_400_BAD_REQUEST)
                 apt_id = data.get('appointment_id')
                 if not apt_id:
                     return Response({'detail': 'appointment_id is required for ADMIT_EMERGENCY.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -496,6 +511,8 @@ class ChamberSessionView(APIView):
                 # Preserve held_patient until explicitly resumed
 
             elif action == 'RESUME_HELD':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before resuming held patients.'}, status=status.HTTP_400_BAD_REQUEST)
                 if session.active_emergency_id:
                     return Response({'detail': 'Cannot resume held patient while emergency is actively in chamber.'}, status=status.HTTP_400_BAD_REQUEST)
                 if not session.held_patient_id:
@@ -505,6 +522,10 @@ class ChamberSessionView(APIView):
                     session.status = ChamberSessionStatus.IN_CHAMBER
 
             elif action == 'NEXT_SERIAL':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before performing queue actions.'}, status=status.HTTP_400_BAD_REQUEST)
+                if session.status == ChamberSessionStatus.PRAYER_BREAK:
+                    return Response({'detail': 'Chamber is on Prayer Break. Please resume session to In Chamber before advancing queue.'}, status=status.HTTP_400_BAD_REQUEST)
                 if session.active_emergency_id:
                     return Response({'detail': 'Cannot advance queue while emergency consultation is active.'}, status=status.HTTP_400_BAD_REQUEST)
                 if session.held_patient_id:
@@ -524,7 +545,7 @@ class ChamberSessionView(APIView):
 
                 if next_apt:
                     session.current_serial = next_apt.serial_number
-                    if session.status in [ChamberSessionStatus.NOT_STARTED, ChamberSessionStatus.PAUSED, ChamberSessionStatus.PRAYER_BREAK]:
+                    if session.status in [ChamberSessionStatus.NOT_STARTED, ChamberSessionStatus.PAUSED]:
                         session.status = ChamberSessionStatus.IN_CHAMBER
                     if not session.started_at:
                         session.started_at = timezone.now()
@@ -534,6 +555,8 @@ class ChamberSessionView(APIView):
                     pass
 
             elif action == 'PREV_SERIAL':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before performing queue actions.'}, status=status.HTTP_400_BAD_REQUEST)
                 prev_apt = Appointment.objects.filter(
                     doctor_id=session.doctor_id,
                     clinic_id=session.clinic_id,
@@ -547,10 +570,16 @@ class ChamberSessionView(APIView):
                     session.current_serial = 0
 
             elif action == 'SET_SERIAL':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before setting serial.'}, status=status.HTTP_400_BAD_REQUEST)
                 if 'current_serial' in data:
                     session.current_serial = data['current_serial']
 
             elif action == 'SKIP_SERIAL':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before skipping serials.'}, status=status.HTTP_400_BAD_REQUEST)
+                if session.status == ChamberSessionStatus.PRAYER_BREAK:
+                    return Response({'detail': 'Chamber is on Prayer Break. Please resume session to In Chamber before skipping serials.'}, status=status.HTTP_400_BAD_REQUEST)
                 if session.active_emergency_id:
                     return Response({'detail': 'Cannot skip serial while emergency consultation is active.'}, status=status.HTTP_400_BAD_REQUEST)
                 if session.held_patient_id:
@@ -576,6 +605,8 @@ class ChamberSessionView(APIView):
                     session.current_serial = next_apt.serial_number
 
             elif action == 'RECALL_SERIAL':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before recalling serials.'}, status=status.HTTP_400_BAD_REQUEST)
                 target = data.get('current_serial')
                 if target is not None:
                     session.current_serial = target
@@ -583,6 +614,8 @@ class ChamberSessionView(APIView):
                     session.skipped_serials = skipped
 
             elif action == 'RESET':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before resetting queue.'}, status=status.HTTP_400_BAD_REQUEST)
                 if session.active_emergency_id or session.held_patient_id:
                     return Response({'detail': 'Cannot reset chamber session while an emergency or held patient is active.'}, status=status.HTTP_400_BAD_REQUEST)
                 session.current_serial = 0
@@ -594,10 +627,17 @@ class ChamberSessionView(APIView):
             # Apply specific fields
             if 'status' in data and data['status']:
                 new_status = data['status']
+                if session.status == ChamberSessionStatus.ENDED and new_status != ChamberSessionStatus.ENDED:
+                    if new_status != ChamberSessionStatus.IN_CHAMBER:
+                        return Response({
+                            'detail': f'Cannot transition from ENDED to {new_status}. Reopen the session to IN_CHAMBER first.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
                 if new_status in [ChamberSessionStatus.PAUSED, ChamberSessionStatus.PRAYER_BREAK] and session.active_emergency_id:
                     return Response({'detail': 'Cannot pause chamber or take prayer break while an emergency patient is actively inside the chamber.'}, status=status.HTTP_400_BAD_REQUEST)
                 if new_status == ChamberSessionStatus.ENDED and (session.active_emergency_id or session.held_patient_id):
                     return Response({'detail': 'Cannot end chamber session while an emergency or held patient is active.'}, status=status.HTTP_400_BAD_REQUEST)
+                if new_status == ChamberSessionStatus.IN_CHAMBER and session.status == ChamberSessionStatus.ENDED:
+                    session.ended_at = None
                 session.status = new_status
                 if session.status == ChamberSessionStatus.IN_CHAMBER and not session.started_at:
                     session.started_at = timezone.now()

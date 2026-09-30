@@ -22,6 +22,7 @@ export const PrivateRoute = ({ children }) => {
 
 export const RoleRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -31,8 +32,12 @@ export const RoleRoute = ({ children, allowedRoles }) => {
     );
   }
 
-  if (!user || !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

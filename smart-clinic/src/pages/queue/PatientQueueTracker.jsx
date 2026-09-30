@@ -58,8 +58,10 @@ export default function PatientQueueTracker() {
       setError(null);
       setLastSyncTime(new Date());
 
-      // If patient's turn just became active, ring audio chime
-      const isTurnNow = payload?.live_queue?.is_turn_now;
+      // If patient's turn just became active, ring audio chime (unless on prayer break or session ended)
+      const isPrayerBreak = payload?.live_queue?.is_prayer_break || payload?.live_queue?.chamber_status === "PRAYER_BREAK";
+      const isSessionEnded = payload?.live_queue?.is_session_ended || payload?.live_queue?.chamber_status === "ENDED";
+      const isTurnNow = !isPrayerBreak && !isSessionEnded && payload?.live_queue?.is_turn_now;
       if (isTurnNow && !prevTurnNowRef.current) {
         if (soundEnabled) {
           playAttentionChime();
@@ -144,7 +146,9 @@ export default function PatientQueueTracker() {
   }
 
   const { appointment, live_queue } = trackData;
-  const isTurn = live_queue.is_turn_now;
+  const isSessionEnded = live_queue.is_session_ended || live_queue.chamber_status === "ENDED";
+  const isPrayerBreak = live_queue.is_prayer_break || live_queue.chamber_status === "PRAYER_BREAK";
+  const isTurn = !isPrayerBreak && !isSessionEnded && live_queue.is_turn_now;
   const isPassed = live_queue.is_passed;
   const patientsAhead = live_queue.patients_ahead;
   const isActiveEmergency = live_queue.is_active_emergency;
@@ -189,7 +193,17 @@ export default function PatientQueueTracker() {
       {/* Main Content Area */}
       <main className="max-w-xl mx-auto w-full p-4 sm:p-6 space-y-5 flex-1 flex flex-col justify-center">
         {/* Dynamic Status Alert Banner */}
-        {isActiveEmergency ? (
+        {isSessionEnded && !isPassed ? (
+          <div className="p-4 rounded-2xl bg-slate-800 border border-slate-700 text-slate-200 text-xs flex items-center gap-3">
+            <AlertTriangle size={22} className="shrink-0 text-amber-400" />
+            <div>
+              <div className="font-bold text-white text-sm">Chamber Closed for Today</div>
+              <div className="text-slate-300 mt-0.5">
+                Your appointment could not be completed during today&apos;s chamber session. Please contact reception for assistance with rescheduling or payment/refund resolution.
+              </div>
+            </div>
+          </div>
+        ) : isActiveEmergency ? (
           <div className="p-4 rounded-3xl bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-xl shadow-rose-500/30 border border-rose-400 animate-bounce flex items-center gap-3.5">
             <BellRing size={28} className="shrink-0 animate-spin" />
             <div>
@@ -206,6 +220,16 @@ export default function PatientQueueTracker() {
               <div className="font-bold text-white text-sm">Consultation Temporarily Paused</div>
               <div className="text-amber-200 mt-0.5">
                 An urgent medical emergency is currently being attended. Your consultation is on hold and will resume immediately next.
+              </div>
+            </div>
+          </div>
+        ) : isPrayerBreak ? (
+          <div className="p-4 rounded-2xl bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 text-xs flex items-center gap-3">
+            <Clock size={22} className="shrink-0 text-indigo-400" />
+            <div>
+              <div className="font-bold text-white text-sm">🕌 Prayer Break — Queue temporarily paused.</div>
+              <div className="text-indigo-200 mt-0.5">
+                Please wait for the doctor to resume.
               </div>
             </div>
           </div>
@@ -296,13 +320,29 @@ export default function PatientQueueTracker() {
 
             {/* Now In Chamber */}
             <div className={`border rounded-2xl p-4 text-center space-y-1 transition-all ${
-              isActiveEmergency
+              isSessionEnded
+                ? "bg-slate-900 border-slate-700 shadow-lg"
+                : isActiveEmergency
                 ? "bg-rose-950/50 border-rose-500 shadow-lg"
+                : isPrayerBreak
+                ? "bg-indigo-950/50 border-indigo-500/50 shadow-lg"
                 : isTurn
                 ? "bg-emerald-950/50 border-emerald-500 shadow-lg"
                 : "bg-slate-950/80 border-slate-800"
             }`}>
-              {hasActiveEmergency ? (
+              {isSessionEnded ? (
+                <>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-center gap-1">
+                    Chamber Status
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-300 font-mono tracking-tight py-2">
+                    Closed
+                  </div>
+                  <span className="text-[10px] text-slate-400 block truncate font-medium">
+                    Session Ended
+                  </span>
+                </>
+              ) : hasActiveEmergency ? (
                 <>
                   <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider flex items-center justify-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" /> Emergency In Chamber
@@ -312,6 +352,18 @@ export default function PatientQueueTracker() {
                   </div>
                   <span className="text-[10px] text-slate-400 block truncate font-medium">
                     {live_queue.room_number || "Chamber"}
+                  </span>
+                </>
+              ) : isPrayerBreak ? (
+                <>
+                  <span className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider flex items-center justify-center gap-1">
+                    <Clock size={12} /> Chamber Status
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-indigo-300 font-mono tracking-tight py-2">
+                    🕌 Prayer Break
+                  </div>
+                  <span className="text-[10px] text-slate-400 block truncate font-medium">
+                    Queue Temporarily Paused
                   </span>
                 </>
               ) : (
@@ -337,7 +389,7 @@ export default function PatientQueueTracker() {
               <div>
                 <span className="text-[10px] text-slate-400 block font-semibold">Patients Ahead:</span>
                 <span className="font-extrabold text-sm text-white">
-                  {isTurn ? "0 (You're Up!)" : isPassed ? "Called" : `${patientsAhead} Patients`}
+                  {isSessionEnded ? "—" : isTurn ? "0 (You're Up!)" : isPassed ? "Called" : `${patientsAhead} Patients`}
                 </span>
               </div>
             </div>
@@ -347,7 +399,7 @@ export default function PatientQueueTracker() {
               <div>
                 <span className="text-[10px] text-slate-400 block font-semibold">Estimated Wait:</span>
                 <span className="font-extrabold text-sm text-white">
-                  {isTurn ? "None" : isPassed ? "—" : `~${live_queue.estimated_wait_mins} mins`}
+                  {isSessionEnded ? "Session Ended" : isPrayerBreak ? "Paused for Prayer" : isTurn ? "None" : isPassed ? "—" : `~${live_queue.estimated_wait_mins} mins`}
                 </span>
               </div>
             </div>

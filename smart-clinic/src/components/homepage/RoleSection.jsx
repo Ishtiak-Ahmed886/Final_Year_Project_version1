@@ -14,19 +14,19 @@ export default function RoleSection() {
   const { user } = useAuth();
 
   const clinicFeatures = [
-    "Register Clinic",
-    "Manage Doctors",
-    "View Patients",
-    "Appointment Dashboard",
-    "Revenue & Schedule Analytics",
+    t("clinicFeature1"),
+    t("clinicFeature2"),
+    t("clinicFeature3"),
+    t("clinicFeature4"),
+    t("clinicFeature5"),
   ];
 
   const patientFeatures = [
-    "Find Clinics",
-    "Book Appointment",
-    "Appointment History",
-    "Digital Records",
-    "Instant SMS Confirmations",
+    t("patientFeature1"),
+    t("patientFeature2"),
+    t("patientFeature3"),
+    t("patientFeature4"),
+    t("patientFeature5"),
   ];
 
   return (
@@ -36,7 +36,7 @@ export default function RoleSection() {
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-14">
           <span className="inline-block px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-50 text-rose-600 border border-rose-100 mb-3">
-            DUAL PORTALS
+            {t("dualPortalsBadge")}
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight">
             {t("chooseYourJourney")}

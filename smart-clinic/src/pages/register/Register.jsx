@@ -1,21 +1,24 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuth } from "../../Provider/AuthProvider";
+import { useLanguage } from "../../context/LanguageContext";
 import apiClient from "../../api/axios";
 import {
   UserPlus, Mail, Lock, User, Phone, AlertCircle, CheckCircle2,
   Stethoscope, Award, BookOpen, ChevronRight, ArrowLeft, Loader
 } from "lucide-react";
 
-const ROLES = [
-  { value: "PATIENT", label: "Patient", desc: "Book appointments & consult doctors" },
-  { value: "DOCTOR", label: "Doctor", desc: "Register & manage your consultations" },
-  { value: "CLINIC_ADMIN", label: "Clinic Admin", desc: "Create & manage your clinic" },
-];
-
 export default function Register() {
   const { register } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
+
+  // Roles with multilingual descriptions
+  const ROLES = [
+    { value: "PATIENT", label: t("registerRolePatient"), desc: t("registerRolePatientDesc") },
+    { value: "DOCTOR", label: t("registerRoleDoctor"), desc: t("registerRoleDoctorDesc") },
+    { value: "CLINIC_ADMIN", label: t("registerRoleClinicAdmin"), desc: t("registerRoleClinicAdminDesc") },
+  ];
 
   // Step 1 = account info, Step 2 = doctor profile (only for DOCTOR role)
   const [step, setStep] = useState(1);
@@ -84,13 +87,17 @@ export default function Register() {
   const handleRegisterAccount = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.password_confirm) {
-      return setError("Passwords do not match.");
+      return setError(language === "bn" ? "পাসওয়ার্ড দুটি মেলেনি।" : "Passwords do not match.");
     }
 
     if (formData.phone) {
       const bdPhoneRegex = /^01[3-9]\d{8}$/;
       if (!bdPhoneRegex.test(formData.phone)) {
-        return setError("Please enter a valid 11-digit Bangladeshi mobile number (e.g. 01712345678).");
+        return setError(
+          language === "bn"
+            ? "অনুগ্রহ করে একটি সঠিক ১১ ডিজিটের বাংলাদেশি মোবাইল নম্বর দিন (যেমন: 01712345678)।"
+            : "Please enter a valid 11-digit Bangladeshi mobile number (e.g. 01712345678)."
+        );
       }
     }
 
@@ -107,7 +114,6 @@ export default function Register() {
       setRegisteredUser(user);
 
       if (formData.role === "DOCTOR") {
-        // Pre-fill full_name from account
         setDoctorProfile((prev) => ({
           ...prev,
           full_name: `${formData.first_name} ${formData.last_name}`.trim(),
@@ -115,10 +121,10 @@ export default function Register() {
         setStep(2);
         setSuccess("");
       } else if (formData.role === "CLINIC_ADMIN") {
-        setSuccess("Account created! Redirecting to Clinic Setup...");
+        setSuccess(t("registerSuccessClinic"));
         setTimeout(() => navigate("/dashboard", { replace: true }), 1000);
       } else {
-        setSuccess("Account created successfully! Redirecting...");
+        setSuccess(t("registerSuccessPatient"));
         setTimeout(() => navigate("/dashboard", { replace: true }), 1200);
       }
     } catch (err) {
@@ -126,9 +132,9 @@ export default function Register() {
         const msg = Object.entries(err)
           .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(" ") : v}`)
           .join(" ");
-        setError(msg || "Registration failed.");
+        setError(msg || (language === "bn" ? "নিবন্ধন ব্যর্থ হয়েছে।" : "Registration failed."));
       } else {
-        setError(err || "Registration failed.");
+        setError(err || (language === "bn" ? "নিবন্ধন ব্যর্থ হয়েছে।" : "Registration failed."));
       }
     } finally {
       setLoading(false);
@@ -139,7 +145,7 @@ export default function Register() {
   const handleDoctorProfileSetup = async (e) => {
     e.preventDefault();
     if (formData.role !== "DOCTOR" && registeredUser?.role !== "DOCTOR") {
-      setError("Only Doctor accounts can set up a doctor profile.");
+      setError(language === "bn" ? "শুধুমাত্র ডাক্তার অ্যাকাউন্ট প্রোফাইল সেট আপ করতে পারে।" : "Only Doctor accounts can set up a doctor profile.");
       return;
     }
     setLoading(true);
@@ -155,16 +161,20 @@ export default function Register() {
         specialization_ids: doctorProfile.specialization_ids,
       });
 
-      setSuccess("Profile complete! Welcome, Doctor. Redirecting to your dashboard...");
+      setSuccess(
+        language === "bn"
+          ? "প্রোফাইল সম্পন্ন হয়েছে! স্বাগতম ডাক্তার। ড্যাশবোর্ডে নিয়ে যাওয়া হচ্ছে..."
+          : "Profile complete! Welcome, Doctor. Redirecting to your dashboard..."
+      );
       setTimeout(() => navigate("/dashboard", { replace: true }), 1500);
     } catch (err) {
       if (typeof err === "object") {
         const msg = Object.entries(err)
           .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(" ") : v}`)
           .join(" ");
-        setError(msg || "Failed to save profile.");
+        setError(msg || (language === "bn" ? "প্রোফাইল সংরক্ষণ ব্যর্থ হয়েছে।" : "Failed to save profile."));
       } else {
-        setError(err || "Failed to save profile.");
+        setError(err || (language === "bn" ? "প্রোফাইল সংরক্ষণ ব্যর্থ হয়েছে।" : "Failed to save profile."));
       }
     } finally {
       setLoading(false);
@@ -181,12 +191,12 @@ export default function Register() {
             {step === 2 ? <Stethoscope className="h-6 w-6" /> : <UserPlus className="h-6 w-6" />}
           </div>
           <h2 className="mt-4 text-3xl font-extrabold text-base-content">
-            {step === 2 ? "Complete Your Doctor Profile" : "Create Your Account"}
+            {step === 2 ? t("registerDoctorProfileTitle") : t("registerTitle")}
           </h2>
           <p className="mt-2 text-sm text-base-content/60">
             {step === 2
-              ? "Set up your professional profile so patients can find and book with you"
-              : "Join Smart Clinic as a Patient, Doctor, or Clinic Admin"}
+              ? t("registerDoctorProfileSubtitle")
+              : t("registerSubtitle")}
           </p>
         </div>
 
@@ -194,11 +204,11 @@ export default function Register() {
         {formData.role === "DOCTOR" && (
           <div className="flex items-center justify-center gap-2">
             <div className={`flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full ${step >= 1 ? "bg-primary text-primary-content" : "bg-base-200 text-base-content/50"}`}>
-              <span>1</span> <span>Account</span>
+              <span>1</span> <span>{t("registerStep1")}</span>
             </div>
             <ChevronRight size={16} className="text-base-content/30" />
             <div className={`flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full ${step >= 2 ? "bg-primary text-primary-content" : "bg-base-200 text-base-content/50"}`}>
-              <span>2</span> <span>Doctor Profile</span>
+              <span>2</span> <span>{t("registerStep2")}</span>
             </div>
           </div>
         )}
@@ -222,7 +232,7 @@ export default function Register() {
           <form className="mt-4 space-y-4" onSubmit={handleRegisterAccount}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label text-sm font-semibold">First Name</label>
+                <label className="label text-sm font-semibold">{t("registerFirstName")}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/40">
                     <User size={18} />
@@ -236,7 +246,7 @@ export default function Register() {
                 </div>
               </div>
               <div>
-                <label className="label text-sm font-semibold">Last Name</label>
+                <label className="label text-sm font-semibold">{t("registerLastName")}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/40">
                     <User size={18} />
@@ -253,7 +263,7 @@ export default function Register() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label text-sm font-semibold">Email Address</label>
+                <label className="label text-sm font-semibold">{t("registerEmail")}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/40">
                     <Mail size={18} />
@@ -267,7 +277,7 @@ export default function Register() {
                 </div>
               </div>
               <div>
-                <label className="label text-sm font-semibold">Phone Number</label>
+                <label className="label text-sm font-semibold">{t("registerPhone")}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/40">
                     <Phone size={18} />
@@ -281,14 +291,14 @@ export default function Register() {
                   />
                 </div>
                 <span className="text-[11px] text-base-content/50 mt-1 block">
-                  Bangladeshi 11-digit mobile number (e.g. 01712345678)
+                  {t("registerPhoneHint")}
                 </span>
               </div>
             </div>
 
             {/* Role selector */}
             <div>
-              <label className="label text-sm font-semibold">Register As</label>
+              <label className="label text-sm font-semibold">{t("registerRoleLabel")}</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {ROLES.map((r) => (
                   <button
@@ -310,7 +320,7 @@ export default function Register() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label text-sm font-semibold">Password</label>
+                <label className="label text-sm font-semibold">{t("registerPassword")}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/40">
                     <Lock size={18} />
@@ -319,12 +329,12 @@ export default function Register() {
                     name="password" type="password" required minLength={8}
                     value={formData.password} onChange={handleChange}
                     className="input input-bordered w-full pl-10"
-                    placeholder="Min 8 chars"
+                    placeholder={t("registerPasswordPlaceholder")}
                   />
                 </div>
               </div>
               <div>
-                <label className="label text-sm font-semibold">Confirm Password</label>
+                <label className="label text-sm font-semibold">{t("registerConfirmPassword")}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/40">
                     <Lock size={18} />
@@ -333,7 +343,7 @@ export default function Register() {
                     name="password_confirm" type="password" required
                     value={formData.password_confirm} onChange={handleChange}
                     className="input input-bordered w-full pl-10"
-                    placeholder="Repeat password"
+                    placeholder={t("registerConfirmPasswordPlaceholder")}
                   />
                 </div>
               </div>
@@ -346,7 +356,7 @@ export default function Register() {
                 ) : (
                   <>
                     <UserPlus size={18} />
-                    {formData.role === "DOCTOR" ? "Continue to Profile Setup" : "Create Account"}
+                    {formData.role === "DOCTOR" ? t("registerContinueDoctorBtn") : t("registerSubmitBtn")}
                     {formData.role === "DOCTOR" && <ChevronRight size={16} />}
                   </>
                 )}
@@ -354,9 +364,9 @@ export default function Register() {
             </div>
 
             <div className="text-center text-sm text-base-content/70 pt-2">
-              Already have an account?{" "}
+              {t("registerAlreadyHaveAccount")}{" "}
               <Link to="/login" className="font-semibold text-primary hover:underline">
-                Sign in here
+                {t("registerSignInHere")}
               </Link>
             </div>
           </form>
@@ -367,12 +377,12 @@ export default function Register() {
           <form className="mt-4 space-y-5" onSubmit={handleDoctorProfileSetup}>
             <div className="p-4 bg-success/10 border border-success/30 rounded-xl text-sm text-success font-semibold flex items-center gap-2">
               <CheckCircle2 size={18} />
-              Account created! Now complete your professional profile.
+              {language === "bn" ? "অ্যাকাউন্ট তৈরি হয়েছে! এবার আপনার পেশাদার প্রোফাইল সম্পূর্ণ করুন।" : "Account created! Now complete your professional profile."}
             </div>
 
             <div>
               <label className="label text-sm font-semibold flex items-center gap-1">
-                <User size={14} className="text-primary" /> Full Name (as it appears to patients)
+                <User size={14} className="text-primary" /> {t("registerDoctorFullName")}
               </label>
               <input
                 name="full_name" type="text" required
@@ -385,7 +395,7 @@ export default function Register() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="label text-sm font-semibold flex items-center gap-1">
-                  <Award size={14} className="text-primary" /> Qualification
+                  <Award size={14} className="text-primary" /> {t("registerDoctorQualification")}
                 </label>
                 <input
                   name="qualification" type="text" required
@@ -396,7 +406,7 @@ export default function Register() {
               </div>
               <div>
                 <label className="label text-sm font-semibold flex items-center gap-1">
-                  <BookOpen size={14} className="text-primary" /> Years of Experience
+                  <BookOpen size={14} className="text-primary" /> {t("registerDoctorExperience")}
                 </label>
                 <input
                   name="experience_years" type="number" min={0} max={60}
@@ -409,19 +419,19 @@ export default function Register() {
 
             <div>
               <label className="label text-sm font-semibold flex items-center gap-1">
-                <Stethoscope size={14} className="text-primary" /> Bio / Professional Summary
+                <Stethoscope size={14} className="text-primary" /> {t("registerDoctorBio")}
               </label>
               <textarea
                 name="bio" rows={3}
                 value={doctorProfile.bio} onChange={handleDoctorChange}
                 className="textarea textarea-bordered w-full"
-                placeholder="Brief description of your expertise and approach to patient care..."
+                placeholder={t("registerDoctorBioPlaceholder")}
               />
             </div>
 
             <div>
               <label className="label text-sm font-semibold flex items-center gap-1">
-                <Award size={14} className="text-primary" /> Medical License / Certificate URL *
+                <Award size={14} className="text-primary" /> {t("registerDoctorCertificate")}
               </label>
               <input
                 name="certificate_url" type="url" required
@@ -429,13 +439,13 @@ export default function Register() {
                 className="input input-bordered w-full"
                 placeholder="https://res.cloudinary.com/... or link to certificate document"
               />
-              <div className="text-xs text-base-content/60 mt-1">Admin will verify your certificate before approving your profile.</div>
+              <div className="text-xs text-base-content/60 mt-1">{t("registerDoctorCertificateHint")}</div>
             </div>
 
             {/* Specializations */}
             {specializations.length > 0 && (
               <div>
-                <label className="label text-sm font-semibold">Specializations (select all that apply)</label>
+                <label className="label text-sm font-semibold">{t("registerDoctorSpecializations")}</label>
                 <div className="flex flex-wrap gap-2 mt-1 max-h-36 overflow-y-auto p-2 border border-base-200 rounded-xl">
                   {specializations.map((spec) => {
                     const selected = doctorProfile.specialization_ids.includes(spec.id);
@@ -463,14 +473,14 @@ export default function Register() {
                 onClick={() => { setStep(1); setError(""); }}
                 className="btn btn-outline gap-2"
               >
-                <ArrowLeft size={16} /> Back
+                <ArrowLeft size={16} /> {t("registerBackBtn")}
               </button>
               <button type="submit" disabled={loading} className="btn btn-primary flex-1 gap-2 shadow-lg">
                 {loading ? (
                   <Loader size={18} className="animate-spin" />
                 ) : (
                   <>
-                    <Stethoscope size={18} /> Complete Registration
+                    <Stethoscope size={18} /> {t("registerDoctorCompleteBtn")}
                   </>
                 )}
               </button>

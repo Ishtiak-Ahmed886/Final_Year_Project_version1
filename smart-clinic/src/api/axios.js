@@ -1,10 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (typeof window !== "undefined" && window.location.port === "5173"
-    ? "/api/v1"
-    : "http://127.0.0.1:8000/api/v1");
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -19,6 +15,9 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem("accessToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
     }
     return config;
   },
@@ -41,7 +40,9 @@ apiClient.interceptors.response.use(
     const isAuthEndpoint =
       originalRequest?.url?.includes("/accounts/login/") ||
       originalRequest?.url?.includes("/accounts/token/refresh/") ||
-      originalRequest?.url?.includes("/accounts/register/");
+      originalRequest?.url?.includes("/accounts/register/") ||
+      originalRequest?.url?.includes("/accounts/forgot-password/") ||
+      originalRequest?.url?.includes("/accounts/reset-password/");
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;

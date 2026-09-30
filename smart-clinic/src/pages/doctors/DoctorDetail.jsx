@@ -1,17 +1,20 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import apiClient from "../../api/axios";
 import {
   Stethoscope, Award, CalendarCheck, MapPin, Phone, Mail,
   Building2, ArrowLeft, Star, MessageSquare, ExternalLink,
-  Clock, ShieldCheck, LayoutDashboard
+  ShieldCheck, LayoutDashboard
 } from "lucide-react";
 import { useAuth } from "../../Provider/AuthProvider";
+import { useLanguage } from "../../context/LanguageContext";
+import { formatCurrency } from "../../utils/formatters";
 
 export default function DoctorDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
 
   const [doctor, setDoctor] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -36,15 +39,15 @@ export default function DoctorDetail() {
 
         const revData = await apiClient.get(`/reviews/?doctor_id=${id}`);
         setReviews(revData.results || revData || []);
-      } catch (err) {
-        setError("Failed to load doctor profile.");
+      } catch {
+        setError(language === "bn" ? "ডাক্তার প্রোফাইল লোড করা যায়নি।" : "Failed to load doctor profile.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchDoctorData();
-  }, [id]);
+  }, [id, language]);
 
   if (loading) {
     return (
@@ -61,9 +64,9 @@ export default function DoctorDetail() {
   if (error || !doctor) {
     return (
       <div className="max-w-md mx-auto py-16 text-center space-y-4">
-        <div className="alert alert-error">{error || "Doctor not found."}</div>
+        <div className="alert alert-error">{error || (language === "bn" ? "ডাক্তার পাওয়া যায়নি।" : "Doctor not found.")}</div>
         <button onClick={handleGoBack} className="btn btn-outline btn-sm gap-2">
-          <ArrowLeft size={16} /> Go Back
+          <ArrowLeft size={16} /> {t("docDetailBack")}
         </button>
       </div>
     );
@@ -78,7 +81,7 @@ export default function DoctorDetail() {
           onClick={handleGoBack}
           className="btn btn-ghost btn-sm gap-2 font-bold text-base-content/80 hover:text-primary"
         >
-          <ArrowLeft size={18} /> Back
+          <ArrowLeft size={18} /> {t("docDetailBack")}
         </button>
 
         <div className="flex items-center gap-2">
@@ -87,14 +90,14 @@ export default function DoctorDetail() {
               to="/dashboard"
               className="btn btn-outline btn-primary btn-sm gap-2 font-bold shadow-xs"
             >
-              <LayoutDashboard size={16} /> Return to Dashboard
+              <LayoutDashboard size={16} /> {t("docDetailReturnDashboard")}
             </Link>
           )}
           <Link
             to="/doctors"
             className="btn btn-ghost btn-sm gap-1.5 font-semibold text-base-content/70 hover:text-primary"
           >
-            <Stethoscope size={16} /> All Doctors
+            <Stethoscope size={16} /> {t("docDetailAllDoctors")}
           </Link>
         </div>
       </div>
@@ -107,6 +110,7 @@ export default function DoctorDetail() {
               src={doctor.avatar_url}
               alt={doctor.full_name}
               className="w-24 h-24 rounded-3xl object-cover shadow-md shrink-0 border-2 border-primary/20"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
             />
           ) : (
             <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary to-secondary text-primary-content font-black text-4xl flex items-center justify-center shadow-lg shrink-0">
@@ -120,7 +124,7 @@ export default function DoctorDetail() {
                 Dr. {doctor.full_name}
               </h1>
               <span className="badge badge-success badge-soft text-xs gap-1 font-bold">
-                <ShieldCheck size={12} /> Verified Specialist
+                <ShieldCheck size={12} /> {t("docDetailVerified")}
               </span>
             </div>
 
@@ -128,13 +132,13 @@ export default function DoctorDetail() {
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-base-content/70">
               <span className="badge badge-outline gap-1 font-semibold">
-                <Award size={13} className="text-warning" /> {doctor.experience_years} Years Experience
+                <Award size={13} className="text-warning" /> {doctor.experience_years} {t("docDetailYearsExp")}
               </span>
 
               {doctor.average_rating ? (
                 <span className="badge badge-warning gap-1 font-bold text-xs text-amber-900 bg-amber-100 border-amber-300">
                   <Star size={12} className="fill-amber-400 text-amber-500" />
-                  {doctor.average_rating} / 5 ({doctor.review_count || reviews.length} reviews)
+                  {doctor.average_rating} / 5 ({doctor.review_count || reviews.length} {t("docDetailReviews")})
                 </span>
               ) : null}
             </div>
@@ -172,7 +176,7 @@ export default function DoctorDetail() {
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-success hover:underline font-semibold pt-1"
             >
-              <Award size={14} /> Medical Registration Certificate <ExternalLink size={12} />
+              <Award size={14} /> {t("docDetailCert")} <ExternalLink size={12} />
             </a>
           )}
         </div>
@@ -182,7 +186,7 @@ export default function DoctorDetail() {
       {doctor.bio && (
         <div className="bg-base-100 border border-base-200 rounded-3xl p-6 shadow-sm space-y-2">
           <h2 className="text-lg font-bold text-base-content flex items-center gap-2">
-            <Stethoscope className="text-primary" size={20} /> About Dr. {doctor.full_name}
+            <Stethoscope className="text-primary" size={20} /> {t("docDetailAbout")} Dr. {doctor.full_name}
           </h2>
           <p className="text-sm text-base-content/80 leading-relaxed whitespace-pre-line">
             {doctor.bio}
@@ -193,58 +197,64 @@ export default function DoctorDetail() {
       {/* Practicing Clinics & Chamber Details */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-base-content flex items-center gap-2">
-          <Building2 className="text-primary" size={22} /> Practicing Clinics & Chambers ({doctor.doctor_clinics?.length || 0})
+          <Building2 className="text-primary" size={22} /> {t("docDetailClinicsTitle")} ({doctor.doctor_clinics?.length || 0})
         </h2>
 
         {(!doctor.doctor_clinics || doctor.doctor_clinics.length === 0) ? (
           <div className="p-8 text-center bg-base-100 rounded-2xl border border-base-200 text-base-content/60">
-            No clinics currently mapped to this doctor.
+            {t("docDetailNoClinics")}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {doctor.doctor_clinics.map((dc) => (
-              <div
-                key={dc.id}
-                className="bg-base-100 border border-base-200 rounded-2xl p-6 shadow-md hover:shadow-lg transition-all space-y-4 flex flex-col justify-between"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-extrabold text-base-content hover:text-primary transition-colors">
-                        <Link to={`/clinics/${dc.clinic?.id}`}>{dc.clinic?.name}</Link>
-                      </h3>
-                      <div className="flex items-center gap-1 text-xs text-base-content/60 mt-1">
-                        <MapPin size={13} className="text-primary shrink-0" />
-                        <span>{dc.clinic?.address}, {dc.clinic?.city}</span>
+            {doctor.doctor_clinics.map((dc) => {
+              const bookUrl = user
+                ? `/book?clinic=${dc.clinic?.id}&doctor=${doctor.id}`
+                : `/login?next=/book?clinic=${dc.clinic?.id}&doctor=${doctor.id}`;
+
+              return (
+                <div
+                  key={dc.id}
+                  className="bg-base-100 border border-base-200 rounded-2xl p-6 shadow-md hover:shadow-lg transition-all space-y-4 flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-extrabold text-base-content hover:text-primary transition-colors">
+                          <Link to={`/clinics/${dc.clinic?.id}`}>{dc.clinic?.name}</Link>
+                        </h3>
+                        <div className="flex items-center gap-1 text-xs text-base-content/60 mt-1">
+                          <MapPin size={13} className="text-primary shrink-0" />
+                          <span>{dc.clinic?.address}, {dc.clinic?.city}</span>
+                        </div>
+                      </div>
+                      <div className="badge badge-accent badge-soft text-xs font-bold shrink-0">
+                        {dc.department?.name || "Consultant"}
                       </div>
                     </div>
-                    <div className="badge badge-accent badge-soft text-xs font-bold shrink-0">
-                      {dc.department?.name || "Consultant"}
+
+                    <div className="flex items-center justify-between p-3 bg-base-200/40 rounded-xl border border-base-200 text-xs">
+                      <span className="font-semibold text-base-content/70">{t("docDetailFee")}</span>
+                      <span className="font-black text-base text-primary">{formatCurrency(dc.consultation_fee)} BDT</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-base-200/40 rounded-xl border border-base-200 text-xs">
-                    <span className="font-semibold text-base-content/70">Consultation Fee</span>
-                    <span className="font-black text-base text-primary">৳{dc.consultation_fee} BDT</span>
+                  <div className="pt-2 border-t border-base-200 flex gap-2">
+                    <Link
+                      to={`/clinics/${dc.clinic?.id}`}
+                      className="btn btn-outline btn-sm flex-1 text-xs"
+                    >
+                      {t("docDetailViewClinic")}
+                    </Link>
+                    <Link
+                      to={bookUrl}
+                      className="btn btn-primary btn-sm flex-1 text-xs gap-1.5 shadow-sm"
+                    >
+                      <CalendarCheck size={15} /> {t("docDetailBookHere")}
+                    </Link>
                   </div>
                 </div>
-
-                <div className="pt-2 border-t border-base-200 flex gap-2">
-                  <Link
-                    to={`/clinics/${dc.clinic?.id}`}
-                    className="btn btn-outline btn-sm flex-1 text-xs"
-                  >
-                    View Clinic
-                  </Link>
-                  <Link
-                    to={`/book?clinic=${dc.clinic?.id}&doctor=${doctor.id}`}
-                    className="btn btn-primary btn-sm flex-1 text-xs gap-1.5 shadow-sm"
-                  >
-                    <CalendarCheck size={15} /> Book Here
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -254,15 +264,15 @@ export default function DoctorDetail() {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-xl font-bold text-base-content flex items-center gap-2">
-              <Star className="text-warning fill-warning" size={20} /> Verified Patient Reviews
+              <Star className="text-warning fill-warning" size={20} /> {t("docDetailVerifiedReviews")}
             </h2>
             <p className="text-xs text-base-content/60">
-              Ratings and genuine feedback from patients treated by Dr. {doctor.full_name}.
+              {t("docDetailReviewsSub")} Dr. {doctor.full_name}
             </p>
           </div>
           {reviews.length > 0 && (
             <span className="badge badge-warning badge-soft font-bold text-xs">
-              {reviews.length} Review{reviews.length === 1 ? "" : "s"}
+              {reviews.length} {t("docDetailReviews")}
             </span>
           )}
         </div>
@@ -270,8 +280,8 @@ export default function DoctorDetail() {
         {reviews.length === 0 ? (
           <div className="text-center py-10 bg-base-100 rounded-3xl border border-base-200 text-xs text-base-content/50 space-y-1">
             <MessageSquare size={28} className="mx-auto text-base-content/30 mb-2" />
-            <div className="font-semibold text-base-content/70">No reviews yet for Dr. {doctor.full_name}</div>
-            <div>Reviews appear after patients complete their chamber consultation.</div>
+            <div className="font-semibold text-base-content/70">{t("docDetailNoReviewsYet")}</div>
+            <div>{t("docDetailNoReviewsSub")}</div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -300,7 +310,9 @@ export default function DoctorDetail() {
                     "{rev.comment}"
                   </p>
                 ) : (
-                  <div className="text-[11px] text-base-content/40 italic">Rated {rev.rating} stars with no written feedback.</div>
+                  <div className="text-[11px] text-base-content/40 italic">
+                    {language === "bn" ? `রেটিং ${rev.rating} স্টার (কোনো লিখিত মতামত নেই)` : `Rated ${rev.rating} stars with no written feedback.`}
+                  </div>
                 )}
               </div>
             ))}

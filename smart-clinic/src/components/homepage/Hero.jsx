@@ -33,11 +33,6 @@ export default function Hero() {
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50/90 text-indigo-700 border border-indigo-100 shadow-sm mb-6 hover:bg-indigo-100/80 transition-colors">
               <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
               <span>{t("heroBadge")}</span>
-              <span className="text-indigo-300">|</span>
-              <span className="font-bold text-indigo-800 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-indigo-600" />
-                {t("heroPlatformBadge")}
-              </span>
             </div>
 
             {/* Main Headline */}
@@ -103,26 +98,20 @@ export default function Hero() {
             {/* Social Proof Practitioners & Rating */}
             <div className="mt-8 flex flex-wrap items-center gap-4 bg-white/80 backdrop-blur-sm p-3.5 rounded-2xl border border-slate-200/60 shadow-sm">
               <div className="flex -space-x-2.5 overflow-hidden">
-                <img
-                  className="inline-block h-9 w-9 rounded-full ring-2 ring-white object-cover shadow-sm"
-                  src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=120"
-                  alt="Doctor avatar"
-                />
-                <img
-                  className="inline-block h-9 w-9 rounded-full ring-2 ring-white object-cover shadow-sm"
-                  src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=120"
-                  alt="Doctor avatar"
-                />
-                <img
-                  className="inline-block h-9 w-9 rounded-full ring-2 ring-white object-cover shadow-sm"
-                  src="https://images.unsplash.com/photo-1594824813589-918d9a263152?auto=format&fit=crop&q=80&w=120"
-                  alt="Doctor avatar"
-                />
-                <img
-                  className="inline-block h-9 w-9 rounded-full ring-2 ring-white object-cover shadow-sm"
-                  src="https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&q=80&w=120"
-                  alt="Doctor avatar"
-                />
+                {[
+                  "https://randomuser.me/api/portraits/women/44.jpg",
+                  "https://randomuser.me/api/portraits/men/32.jpg",
+                  "https://randomuser.me/api/portraits/women/68.jpg",
+                  "https://randomuser.me/api/portraits/men/75.jpg",
+                ].map((src, i) => (
+                  <img
+                    key={i}
+                    className="inline-block h-9 w-9 rounded-full ring-2 ring-white object-cover shadow-sm"
+                    src={src}
+                    alt="Doctor avatar"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
+                ))}
               </div>
 
               <div className="flex flex-col">
@@ -232,7 +221,7 @@ export default function Hero() {
                     <span>Next available: <strong className="text-slate-800 font-bold">11:30 AM</strong></span>
                   </div>
                   <Link
-                    to={user ? "/book?clinic=c6a5a96e-859b-47e6-8e4f-e03fcf829e61&doctor=1f3a53d3-b79b-4cf7-bd17-3e3f7cb4a655" : "/login"}
+                    to={user ? "/book" : "/register"}
                     className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#2534a5] hover:bg-[#1c2885] shadow-md shadow-indigo-600/20 active:scale-95 transition-all"
                   >
                     {t("quickBook")}

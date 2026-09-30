@@ -34,6 +34,49 @@ const playChimeSound = () => {
   }
 };
 
+// Web Speech API Multilingual Token Callout (Bengali + English)
+const speakAnnouncement = (tokenNum, roomNum, doctorName, voiceMode = "bilingual") => {
+  if (typeof window === "undefined" || !window.speechSynthesis || !tokenNum) return;
+
+  try {
+    window.speechSynthesis.cancel();
+
+    const englishPhrase = `Token number ${tokenNum}, please proceed to Room ${roomNum || "1"}.`;
+    const bengaliPhrase = `টোকেন নম্বর ${tokenNum}, রুম ${roomNum || "১"}-এ আসুন।`;
+
+    const voices = window.speechSynthesis.getVoices();
+    const bnVoice = voices.find((v) => v.lang.startsWith("bn")) || null;
+    const enVoice = voices.find((v) => v.lang.startsWith("en")) || null;
+
+    if (voiceMode === "bn" || voiceMode === "bilingual") {
+      const utterBn = new SpeechSynthesisUtterance(bengaliPhrase);
+      utterBn.rate = 0.9;
+      utterBn.pitch = 1.0;
+      if (bnVoice) utterBn.voice = bnVoice;
+      window.speechSynthesis.speak(utterBn);
+    }
+
+    if (voiceMode === "en" || voiceMode === "bilingual") {
+      const utterEn = new SpeechSynthesisUtterance(englishPhrase);
+      utterEn.rate = 0.95;
+      utterEn.pitch = 1.0;
+      if (enVoice) utterEn.voice = enVoice;
+
+      if (voiceMode === "bilingual") {
+        setTimeout(() => {
+          if (typeof window !== "undefined" && window.speechSynthesis) {
+            window.speechSynthesis.speak(utterEn);
+          }
+        }, 1800);
+      } else {
+        window.speechSynthesis.speak(utterEn);
+      }
+    }
+  } catch (err) {
+    console.warn("Speech synthesis announcement skipped:", err);
+  }
+};
+
 export default function WaitingRoomDisplay() {
   const { clinicId: paramClinicId } = useParams();
 
@@ -48,6 +91,8 @@ export default function WaitingRoomDisplay() {
   const [chamberSessions, setChamberSessions] = useState([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceMode, setVoiceMode] = useState("bilingual"); // "bilingual" | "bn" | "en" | "chime_only"
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const prevSerialsRef = useRef({});
@@ -120,7 +165,7 @@ export default function WaitingRoomDisplay() {
               heldPatientDetails: sess.held_patient_details,
               nextSerials: (sess.next_serials && sess.next_serials.length > 0)
                 ? sess.next_serials
-                : (sess.current_serial ? [sess.current_serial + 1, sess.current_serial + 2] : []),
+                : [],
               estWait: sess.delay_minutes ? `${sess.delay_minutes} mins` : "8 mins",
               patientName: sess.current_patient_name || "Patient"
             };
@@ -150,7 +195,22 @@ export default function WaitingRoomDisplay() {
           const oldState = prevSerialsRef.current[ch.doctorId];
           const currentStateKey = `${ch.currentSerial}-${ch.activeEmergency || "none"}`;
           if (oldState !== undefined && oldState !== currentStateKey) {
-            if (soundEnabled) playChimeSound();
+            // Preserve current_serial internally without announcing it as a new call during prayer break or when ended
+            if (soundEnabled && ch.status !== "PRAYER_BREAK" && ch.status !== "ENDED") {
+              playChimeSound();
+              if (voiceEnabled && ch.currentSerial > 0) {
+                setTimeout(() => {
+                  speakAnnouncement(
+                    ch.activeEmergency && ch.activeEmergencyDetails?.serial_number
+                      ? ch.activeEmergencyDetails.serial_number
+                      : ch.currentSerial,
+                    ch.roomNumber,
+                    ch.doctorName,
+                    voiceMode
+                  );
+                }, 600);
+              }
+            }
           }
           prevSerialsRef.current[ch.doctorId] = currentStateKey;
         });
@@ -162,7 +222,7 @@ export default function WaitingRoomDisplay() {
     pollAllChambers();
     const interval = setInterval(pollAllChambers, 8000);
     return () => clearInterval(interval);
-  }, [clinicId, doctors, soundEnabled]);
+  }, [clinicId, doctors, soundEnabled, voiceEnabled, voiceMode]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -243,12 +303,61 @@ export default function WaitingRoomDisplay() {
           </div>
         </div>
 
-        {/* Center Chime & Clock */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <Volume2 size={14} />
-            <span>AUDIO CHIME ACTIVE</span>
+        {/* Center Chime, Voice & Clock */}
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (soundEnabled && voiceEnabled) {
+                  setVoiceEnabled(false);
+                } else if (soundEnabled && !voiceEnabled) {
+                  setSoundEnabled(false);
+                } else {
+                  setSoundEnabled(true);
+                  setVoiceEnabled(true);
+                }
+              }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                soundEnabled && voiceEnabled
+                  ? "bg-emerald-950/70 border-emerald-500/50 text-emerald-300"
+                  : soundEnabled
+                  ? "bg-amber-950/70 border-amber-500/50 text-amber-300"
+                  : "bg-slate-800 border-slate-700 text-slate-400"
+              }`}
+              title="Click to cycle: Voice + Chime -> Chime Only -> Mute"
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  soundEnabled && voiceEnabled
+                    ? "bg-emerald-400 animate-pulse"
+                    : soundEnabled
+                    ? "bg-amber-400"
+                    : "bg-slate-500"
+                }`}
+              />
+              {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              <span>
+                {soundEnabled && voiceEnabled
+                  ? "VOICE & CHIME ON (ঘোষণা চালু)"
+                  : soundEnabled
+                  ? "CHIME ONLY (শুধু ঘণ্টা)"
+                  : "MUTED"}
+              </span>
+            </button>
+
+            {soundEnabled && voiceEnabled && (
+              <select
+                value={voiceMode}
+                onChange={(e) => setVoiceMode(e.target.value)}
+                className="bg-[#0B101D] text-slate-300 text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 focus:outline-none cursor-pointer"
+                title="Announcement Language"
+              >
+                <option value="bilingual">Dual (বাংলা + EN)</option>
+                <option value="bn">বাংলা (Bengali)</option>
+                <option value="en">English Only</option>
+              </select>
+            )}
           </div>
 
           <div className="text-right">
@@ -286,10 +395,12 @@ export default function WaitingRoomDisplay() {
       <main className="flex-1 p-6 flex items-center justify-center">
         <div className="w-full max-w-[1400px] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {activeChambers.map((ch, idx) => {
-            const isBreak = ch.status === "ON_BREAK" || ch.status === "PRAYER_BREAK";
-            const isEmergency = !!ch.activeEmergency;
-            const isInside = ch.status === "IN_PROGRESS" || ch.status === "IN_CHAMBER";
-            const isHighlighted = isEmergency || idx === 0 || ch.isHighlighted;
+            const isEnded = ch.status === "ENDED";
+            const isPrayerBreak = ch.status === "PRAYER_BREAK";
+            const isBreak = isPrayerBreak || ch.status === "PAUSED";
+            const isEmergency = !isEnded && !!ch.activeEmergency;
+            const isInside = !isEnded && (ch.status === "IN_PROGRESS" || ch.status === "IN_CHAMBER");
+            const isHighlighted = isEmergency || (!isEnded && idx === 0) || ch.isHighlighted;
 
             return (
               <div
@@ -315,21 +426,31 @@ export default function WaitingRoomDisplay() {
                       ROOM {ch.roomNumber}
                     </span>
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                      isEmergency
+                      isEnded
+                        ? "bg-slate-700/50 text-slate-300 border border-slate-600"
+                        : isEmergency
                         ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse"
+                        : isPrayerBreak
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                         : isBreak
                         ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                         : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                     }`}>
                       <span className={`w-2 h-2 rounded-full ${
-                        isEmergency
+                        isEnded
+                          ? "bg-slate-400"
+                          : isEmergency
                           ? "bg-rose-500 animate-ping"
                           : isBreak
                           ? "bg-amber-400"
                           : "bg-emerald-400 animate-pulse"
                       }`} />
-                      {isEmergency
+                      {isEnded
+                        ? "Session Ended"
+                        : isEmergency
                         ? "Priority Emergency"
+                        : isPrayerBreak
+                        ? "Prayer Break"
                         : isBreak
                         ? "In Recess"
                         : "Inside Chamber"}
@@ -346,42 +467,80 @@ export default function WaitingRoomDisplay() {
 
                 {/* Big Token Calling Center */}
                 <div className={`my-8 text-center rounded-2xl py-6 border ${
-                  isEmergency
+                  isEnded
+                    ? "bg-slate-900/80 border-slate-700"
+                    : isEmergency
                     ? "bg-rose-950/20 border-rose-800/40"
                     : "bg-[#0B101D]/80 border-slate-800/80"
                 }`}>
                   <span className={`text-[11px] uppercase font-extrabold tracking-widest block ${
-                    isEmergency ? "text-rose-400 animate-pulse" : "text-slate-400"
-                  }`}>
-                    {isEmergency
-                      ? "EMERGENCY IN CHAMBER"
+                    isEnded
+                      ? "text-slate-400"
+                      : isEmergency
+                      ? "text-rose-400 animate-pulse"
                       : isBreak
-                      ? "CURRENT TOKEN"
+                      ? "text-amber-400"
+                      : "text-slate-400"
+                  }`}>
+                    {isEnded
+                      ? "CHAMBER CLOSED"
+                      : isEmergency
+                      ? "EMERGENCY IN CHAMBER"
+                      : isPrayerBreak
+                      ? "QUEUE PAUSED (PRAYER BREAK)"
+                      : isBreak
+                      ? "CURRENT TOKEN (PAUSED)"
                       : "NOW CALLING / SERVING"}
                   </span>
-                  <div className={`text-6xl font-mono font-black tracking-tight my-2 ${
-                    isEmergency
+                  <div className={`text-5xl sm:text-6xl font-mono font-black tracking-tight my-2 ${
+                    isEnded
+                      ? "text-slate-500"
+                      : isEmergency
                       ? "text-rose-400"
                       : isBreak
                       ? "text-amber-400"
                       : "text-emerald-400"
                   }`}>
-                    # {String(
+                    {isEnded ? "CLOSED" : `# ${String(
                       isEmergency && ch.activeEmergencyDetails?.serial_number
                         ? ch.activeEmergencyDetails.serial_number
                         : ch.currentSerial || 0
-                    ).padStart(2, '0')}
+                    ).padStart(2, '0')}`}
                   </div>
                   <div className="text-sm font-bold text-slate-300">
-                    {isEmergency
+                    {isEnded
+                      ? "Session Concluded"
+                      : isEmergency
                       ? ch.activeEmergencyDetails?.patient_name || "Emergency Patient"
                       : ch.patientName || "Patient"}
                   </div>
                   <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                    {isEmergency
+                    {isEnded
+                      ? "Today's consultations ended"
+                      : isEmergency
                       ? "Priority Medical Attention"
                       : `Token: ${ch.tokenPrefix || `TK-${String(ch.currentSerial).padStart(2, '0')}`}`}
                   </div>
+
+                  {!isEnded && ch.currentSerial > 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        speakAnnouncement(
+                          isEmergency && ch.activeEmergencyDetails?.serial_number
+                            ? ch.activeEmergencyDetails.serial_number
+                            : ch.currentSerial,
+                          ch.roomNumber,
+                          ch.doctorName,
+                          voiceMode
+                        )
+                      }
+                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/90 hover:bg-indigo-900/60 border border-slate-700 hover:border-indigo-500/50 text-slate-300 hover:text-white text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Volume2 size={12} className="text-emerald-400" />
+                      <span>ঘোষণা শুনুন (Announce Again)</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Held Patient Notice */}
@@ -391,10 +550,17 @@ export default function WaitingRoomDisplay() {
                   </div>
                 )}
 
-                {/* Status Notice or Break Timer */}
-                {isBreak && !ch.heldPatientDetails && (
+                {/* Status Notice or Break Timer or Ended */}
+                {isEnded && (
+                  <div className="mb-4 p-3 rounded-xl bg-slate-800/60 border border-slate-700 text-slate-300 text-xs font-bold text-center">
+                    Today&apos;s session has ended.
+                  </div>
+                )}
+                {isBreak && !isEnded && !ch.heldPatientDetails && (
                   <div className="mb-4 p-3 rounded-xl bg-amber-950/40 border border-amber-700/40 text-amber-300 text-xs font-bold text-center">
-                    {ch.breakNote || "Namaz Break • Resumes shortly"}
+                    {isPrayerBreak
+                      ? "🕌 Prayer Break • Queue temporarily paused. Resumes shortly."
+                      : (ch.breakNote || "Chamber Paused • Resumes shortly")}
                   </div>
                 )}
 
@@ -402,27 +568,37 @@ export default function WaitingRoomDisplay() {
                 <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-medium text-slate-400">
                   <div>
                     <span className="text-[10px] uppercase font-extrabold text-slate-500 block">NEXT IN LINE</span>
-                    <div className="flex gap-1.5 mt-1 font-mono font-black text-slate-200 text-sm">
-                      {ch.nextSerials && ch.nextSerials.length > 0 ? (
-                        ch.nextSerials.map((s, sIdx) => (
-                          <span key={sIdx} className="px-2 py-0.5 bg-slate-800 rounded-md border border-slate-700">
-                            #{String(s).padStart(2, '0')}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-600 text-xs">No pending</span>
-                      )}
-                    </div>
+                    {isEnded ? (
+                      <span className="text-slate-500 text-xs font-bold mt-1 block">
+                        Chamber Closed
+                      </span>
+                    ) : isBreak ? (
+                      <span className="text-amber-400/90 text-xs font-bold mt-1 block">
+                        Queue Paused
+                      </span>
+                    ) : (
+                      <div className="flex gap-1.5 mt-1 font-mono font-black text-slate-200 text-sm">
+                        {ch.nextSerials && ch.nextSerials.length > 0 ? (
+                          ch.nextSerials.map((s, sIdx) => (
+                            <span key={sIdx} className="px-2 py-0.5 bg-slate-800 rounded-md border border-slate-700">
+                              #{String(s).padStart(2, '0')}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-600 text-xs">No pending</span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-extrabold text-slate-500 block">
-                      {isEmergency ? "STATUS" : isBreak ? "QUEUE ALERT" : "EST. WAIT"}
+                      {isEnded ? "STATUS" : isEmergency ? "STATUS" : isBreak ? "QUEUE ALERT" : "EST. WAIT"}
                     </span>
                     <span className={`font-bold mt-1 block ${
-                      isEmergency ? "text-rose-400" : isBreak ? "text-amber-400" : "text-emerald-400"
+                      isEnded ? "text-slate-400" : isEmergency ? "text-rose-400" : isBreak ? "text-amber-400" : "text-emerald-400"
                     }`}>
-                      {isEmergency ? "Priority Active" : isBreak ? "Please Wait" : `~ ${ch.estWait || "8 mins"}`}
+                      {isEnded ? "Session Ended" : isEmergency ? "Priority Active" : isBreak ? "Please Wait" : `~ ${ch.estWait || "8 mins"}`}
                     </span>
                   </div>
                 </div>

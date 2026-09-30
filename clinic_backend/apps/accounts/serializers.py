@@ -74,27 +74,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             else:
                 attrs[self.username_field] = cleaned.lower()
 
-        try:
-            data = super().validate(attrs)
-        except Exception:
-            # Tolerant fallback for demo password casing (Password123! vs password123!)
-            raw_pwd = attrs.get('password', '')
-            alt_pwd = None
-            if raw_pwd == 'password123!':
-                alt_pwd = 'Password123!'
-            elif raw_pwd == 'Password123!':
-                alt_pwd = 'password123!'
-
-            if alt_pwd:
-                attrs['password'] = alt_pwd
-                data = super().validate(attrs)
-            else:
-                try:
-                    with open('login_debug.log', 'a') as f:
-                        f.write(f"FAILED_LOGIN: email={attrs.get(self.username_field)} | password={raw_pwd} | len={len(raw_pwd)}\n")
-                except Exception:
-                    pass
-                raise
+        data = super().validate(attrs)
 
         data['user'] = {
             'id': str(self.user.id),
@@ -158,3 +138,48 @@ class UserSerializer(serializers.ModelSerializer):
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True, min_length=8)
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    confirm_password = serializers.CharField(required=True, write_only=True)
+
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({"new_password": "Passwords do not match."})
+
+        from django.utils.http import urlsafe_base64_decode
+        from django.utils.encoding import force_str
+        from django.contrib.auth.tokens import default_token_generator
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        uid = attrs['uid']
+        token = attrs['token']
+
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.filter(pk=user_id, is_active=True).first()
+        except (TypeError, ValueError, OverflowError):
+            user = None
+
+        if not user or not default_token_generator.check_token(user, token):
+            raise serializers.ValidationError({"detail": "Reset link is invalid or has expired."})
+
+        try:
+            validate_password(attrs['new_password'], user=user)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"new_password": list(e.messages)})
+
+        attrs['user'] = user
+        return attrs
+

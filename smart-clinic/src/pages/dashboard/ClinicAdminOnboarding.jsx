@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import apiClient from "../../api/axios";
 import { useAuth } from "../../Provider/AuthProvider";
+import { useBangladeshGeo } from "../../hooks/useBangladeshGeo";
 import {
   UserCheck,
   Building2,
@@ -54,10 +55,31 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
 
+  const {
+    divisions,
+    districts,
+    upazilas,
+    selectedDivisionId,
+    selectedDistrictId,
+    selectedUpazilaId,
+    loadingDivisions,
+    loadingDistricts,
+    loadingUpazilas,
+    setSelectedDivisionId,
+    setSelectedDistrictId,
+    setSelectedUpazilaId,
+    handleDivisionChange,
+    handleDistrictChange,
+    handleUpazilaChange,
+  } = useBangladeshGeo(clinic?.division || "", clinic?.district || "", clinic?.upazila || "");
+
   // Clinic Registration Form state
   const [clinicForm, setClinicForm] = useState({
     name: clinic?.name || "",
     city: clinic?.city || "",
+    division: clinic?.division || "",
+    district: clinic?.district || "",
+    upazila: clinic?.upazila || "",
     address: clinic?.address || "",
     phone: clinic?.phone || user?.phone || "",
     email: clinic?.email || user?.email || "",
@@ -67,6 +89,40 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
   });
   const [submittingClinic, setSubmittingClinic] = useState(false);
   const [clinicError, setClinicError] = useState("");
+
+  const onDivisionSelect = (e) => {
+    const divId = e.target.value;
+    handleDivisionChange(divId);
+    const divObj = divisions.find((d) => d.id === divId);
+    setClinicForm((prev) => ({
+      ...prev,
+      division: divId,
+      district: "",
+      upazila: "",
+      city: divObj ? divObj.name : prev.city,
+    }));
+  };
+
+  const onDistrictSelect = (e) => {
+    const distId = e.target.value;
+    handleDistrictChange(distId);
+    const distObj = districts.find((d) => d.id === distId);
+    setClinicForm((prev) => ({
+      ...prev,
+      district: distId,
+      upazila: "",
+      city: distObj ? distObj.name : prev.city,
+    }));
+  };
+
+  const onUpazilaSelect = (e) => {
+    const upzId = e.target.value;
+    handleUpazilaChange(upzId);
+    setClinicForm((prev) => ({
+      ...prev,
+      upazila: upzId,
+    }));
+  };
 
   // Location capture state
   const [capturingLocation, setCapturingLocation] = useState(false);
@@ -132,6 +188,9 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
         setClinicForm({
           name: clinic.name || "",
           city: clinic.city || "",
+          division: clinic.division || "",
+          district: clinic.district || "",
+          upazila: clinic.upazila || "",
           address: clinic.address || "",
           phone: clinic.phone || "",
           email: clinic.email || "",
@@ -139,6 +198,9 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
           longitude: clinic.longitude || "",
           certificate_url: clinic.certificate_url || "",
         });
+        if (clinic.division) setSelectedDivisionId(clinic.division);
+        if (clinic.district) setSelectedDistrictId(clinic.district);
+        if (clinic.upazila) setSelectedUpazilaId(clinic.upazila);
       } else if (clinic.verification_status === "PENDING") {
         setStep("PENDING");
       }
@@ -201,6 +263,9 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
         email: clinicForm.email.trim().toLowerCase(),
         certificate_url: clinicForm.certificate_url.trim(),
       };
+      if (selectedDivisionId) payload.division = selectedDivisionId;
+      if (selectedDistrictId) payload.district = selectedDistrictId;
+      if (selectedUpazilaId) payload.upazila = selectedUpazilaId;
       if (clinicForm.latitude) payload.latitude = clinicForm.latitude;
       if (clinicForm.longitude) payload.longitude = clinicForm.longitude;
 
@@ -558,15 +623,98 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
               </div>
 
               <div>
-                <label className="label text-xs font-bold text-base-content/70">City / Division *</label>
+                <label className="label text-xs font-bold text-base-content/70">City / District Display *</label>
                 <input
                   type="text"
                   required
                   value={clinicForm.city}
                   onChange={(e) => setClinicForm({ ...clinicForm, city: e.target.value })}
                   className="input input-bordered w-full text-sm"
-                  placeholder="e.g. Dhaka"
+                  placeholder="e.g. Dhaka (Auto-updated from district)"
                 />
+              </div>
+            </div>
+
+            {/* Bangladesh Geographic Hierarchy Cascading Selectors */}
+            <div className="p-4 bg-base-200/50 rounded-2xl border border-base-200 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                <MapPin size={14} />
+                <span>Geographic Location (Bangladesh Administrative Area)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Division Dropdown */}
+                <div>
+                  <label className="label text-xs font-semibold text-base-content/70 py-1">
+                    Division (বিভাগ) *
+                  </label>
+                  <select
+                    required
+                    value={selectedDivisionId}
+                    onChange={onDivisionSelect}
+                    className="select select-bordered select-sm w-full text-xs"
+                    disabled={loadingDivisions}
+                  >
+                    <option value="">Select Division</option>
+                    {divisions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.bn_name || d.name})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. District Dropdown */}
+                <div>
+                  <label className="label text-xs font-semibold text-base-content/70 py-1">
+                    District (জেলা) *
+                  </label>
+                  <select
+                    required
+                    value={selectedDistrictId}
+                    onChange={onDistrictSelect}
+                    className="select select-bordered select-sm w-full text-xs"
+                    disabled={!selectedDivisionId || loadingDistricts}
+                  >
+                    <option value="">
+                      {!selectedDivisionId
+                        ? "Select Division First"
+                        : loadingDistricts
+                        ? "Loading Districts..."
+                        : "Select District"}
+                    </option>
+                    {districts.map((dist) => (
+                      <option key={dist.id} value={dist.id}>
+                        {dist.name} ({dist.bn_name || dist.name})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Upazila / Thana Dropdown */}
+                <div>
+                  <label className="label text-xs font-semibold text-base-content/70 py-1">
+                    Upazila / Thana (উপজেলা / থানা)
+                  </label>
+                  <select
+                    value={selectedUpazilaId}
+                    onChange={onUpazilaSelect}
+                    className="select select-bordered select-sm w-full text-xs"
+                    disabled={!selectedDistrictId || loadingUpazilas}
+                  >
+                    <option value="">
+                      {!selectedDistrictId
+                        ? "Select District First"
+                        : loadingUpazilas
+                        ? "Loading Upazilas..."
+                        : "Select Upazila / Thana"}
+                    </option>
+                    {upazilas.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} {u.post_code ? `(${u.post_code})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -893,7 +1041,7 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
                 </div>
 
                 <div>
-                  <label className="label text-xs font-bold text-base-content/70">City *</label>
+                  <label className="label text-xs font-bold text-base-content/70">City / District Display *</label>
                   <input
                     type="text"
                     required
@@ -901,6 +1049,89 @@ export default function ClinicAdminOnboarding({ clinic, onClinicUpdated, onStatu
                     onChange={(e) => setClinicForm({ ...clinicForm, city: e.target.value })}
                     className="input input-bordered w-full text-sm"
                   />
+                </div>
+              </div>
+
+              {/* Bangladesh Geographic Hierarchy Cascading Selectors */}
+              <div className="p-4 bg-base-200/50 rounded-2xl border border-base-200 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                  <MapPin size={14} />
+                  <span>Geographic Location (Bangladesh Administrative Area)</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* 1. Division Dropdown */}
+                  <div>
+                    <label className="label text-xs font-semibold text-base-content/70 py-1">
+                      Division (বিভাগ) *
+                    </label>
+                    <select
+                      required
+                      value={selectedDivisionId}
+                      onChange={onDivisionSelect}
+                      className="select select-bordered select-sm w-full text-xs"
+                      disabled={loadingDivisions}
+                    >
+                      <option value="">Select Division</option>
+                      {divisions.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} ({d.bn_name || d.name})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 2. District Dropdown */}
+                  <div>
+                    <label className="label text-xs font-semibold text-base-content/70 py-1">
+                      District (জেলা) *
+                    </label>
+                    <select
+                      required
+                      value={selectedDistrictId}
+                      onChange={onDistrictSelect}
+                      className="select select-bordered select-sm w-full text-xs"
+                      disabled={!selectedDivisionId || loadingDistricts}
+                    >
+                      <option value="">
+                        {!selectedDivisionId
+                          ? "Select Division First"
+                          : loadingDistricts
+                          ? "Loading Districts..."
+                          : "Select District"}
+                      </option>
+                      {districts.map((dist) => (
+                        <option key={dist.id} value={dist.id}>
+                          {dist.name} ({dist.bn_name || dist.name})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 3. Upazila / Thana Dropdown */}
+                  <div>
+                    <label className="label text-xs font-semibold text-base-content/70 py-1">
+                      Upazila / Thana (উপজেলা / থানা)
+                    </label>
+                    <select
+                      value={selectedUpazilaId}
+                      onChange={onUpazilaSelect}
+                      className="select select-bordered select-sm w-full text-xs"
+                      disabled={!selectedDistrictId || loadingUpazilas}
+                    >
+                      <option value="">
+                        {!selectedDistrictId
+                          ? "Select District First"
+                          : loadingUpazilas
+                          ? "Loading Upazilas..."
+                          : "Select Upazila / Thana"}
+                      </option>
+                      {upazilas.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} {u.post_code ? `(${u.post_code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 

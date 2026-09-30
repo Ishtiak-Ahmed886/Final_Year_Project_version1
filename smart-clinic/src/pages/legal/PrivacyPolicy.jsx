@@ -36,7 +36,7 @@ export default function PrivacyPolicy({ initialTab = "privacy", embedded = false
           </Link>
           <div className="flex items-center gap-2">
             <span className="badge badge-success badge-soft font-bold text-xs gap-1 py-3 px-3">
-              <ShieldCheck size={14} /> ISO 27001 & HIPAA Compliant
+              <ShieldCheck size={14} /> Healthcare Privacy & Confidentiality
             </span>
             <button
               onClick={() => window.print()}

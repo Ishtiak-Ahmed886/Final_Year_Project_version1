@@ -44,6 +44,27 @@ class Clinic(BaseModel):
     slug = models.SlugField(max_length=220, unique=True, db_index=True)
     address = models.TextField()
     city = models.CharField(max_length=100, db_index=True)
+    division = models.ForeignKey(
+        'common.Division',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='clinics'
+    )
+    district = models.ForeignKey(
+        'common.District',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='clinics'
+    )
+    upazila = models.ForeignKey(
+        'common.Upazila',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='clinics'
+    )
     phone = models.CharField(max_length=20)
     email = models.EmailField()
     logo_url = models.URLField(blank=True, null=True)
@@ -264,3 +285,49 @@ class StaffAttendance(BaseModel):
 
     def __str__(self):
         return f"{self.staff.name} - {self.date} ({self.status})"
+
+
+class ShiftClosingLog(BaseModel):
+    """
+    Counter Shift Closing and Drawer Cash Reconciliation Log.
+    Tracks physical vs system collections, notes denominations, and handover signatures.
+    """
+    clinic = models.ForeignKey(
+        Clinic,
+        on_delete=models.CASCADE,
+        related_name='shift_closings'
+    )
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='closed_shifts'
+    )
+    shift_date = models.DateField()
+    shift_end_time = models.TimeField()
+    system_cash_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    physical_cash_counted = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    discrepancy = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    digital_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    total_tokens_handled = models.IntegerField(default=0)
+    total_transactions_count = models.IntegerField(default=0)
+    denominations = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Breakdown of currency counts: {'1000': 10, '500': 5, ...}"
+    )
+    handed_over_to = models.CharField(
+        max_length=150,
+        blank=True,
+        default='',
+        help_text="Name of supervisor or next duty receptionist"
+    )
+    notes = models.TextField(blank=True, default='')
+    is_verified = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-shift_date', '-shift_end_time']
+        verbose_name = 'Shift Closing Log'
+        verbose_name_plural = 'Shift Closing Logs'
+
+    def __str__(self):
+        return f"Shift Closing {self.clinic.name} - {self.shift_date} by {self.closed_by.full_name}"

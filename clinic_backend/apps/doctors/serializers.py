@@ -198,13 +198,14 @@ class ChamberSessionUpdateSerializer(serializers.Serializer):
 
 class DoctorScheduleSerializer(serializers.ModelSerializer):
     day_of_week_display = serializers.CharField(source='get_day_of_week_display', read_only=True)
+    clinic_name = serializers.CharField(source='clinic.name', read_only=True)
 
     class Meta:
         model = DoctorSchedule
         fields = (
-            'id', 'doctor', 'clinic', 'day_of_week', 'day_of_week_display',
+            'id', 'doctor', 'clinic', 'clinic_name', 'day_of_week', 'day_of_week_display',
             'start_time', 'end_time', 'slot_duration_minutes', 'max_patients',
             'is_active', 'created_at'
         )
-        read_only_fields = ('id', 'created_at', 'day_of_week_display')
+        read_only_fields = ('id', 'created_at', 'day_of_week_display', 'clinic_name')
 

@@ -4,7 +4,9 @@ import {
   ChevronRight,
   Info,
   Send,
+  DoorOpen,
 } from "lucide-react";
+
 
 export default function DoctorsTab({
   clinic,
@@ -12,6 +14,7 @@ export default function DoctorsTab({
   appointments = [],
   selectedDoctorCard,
   openDoctorCard,
+  onOpenLiveChamber,
   pendingIncomingRequests = [],
   handleRespondRequest,
   allDoctors = [],
@@ -22,17 +25,22 @@ export default function DoctorsTab({
 }) {
   return (
     <div className="space-y-6">
-      {/* Active Doctors (Top) */}
+      {/* Medical Workforce & Affiliated Doctors */}
       <div className="bg-base-100 border border-base-200 p-6 rounded-3xl shadow-md space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-            <Stethoscope className="text-primary" /> Active Doctors
-            <span className="badge badge-primary badge-sm font-bold">
-              {assignedDoctors.length}
-            </span>
-          </h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
+              <Stethoscope className="text-primary" /> Medical Workforce &amp; Affiliated Doctors
+              <span className="badge badge-primary badge-sm font-bold">
+                {assignedDoctors.length}
+              </span>
+            </h2>
+            <p className="text-xs text-base-content/60 mt-0.5">
+              Consultant roster, room allocations, consultation fee structures, and clinical affiliations
+            </p>
+          </div>
           <span className="text-xs text-base-content/40 italic">
-            Tap any doctor for full details →
+            Click any profile for full credentials →
           </span>
         </div>
         {assignedDoctors.length === 0 ? (
@@ -40,66 +48,79 @@ export default function DoctorsTab({
             No active doctors linked to your clinic.
           </div>
         ) : (
-          <div className="flex flex-col gap-2.5 max-h-[360px] overflow-y-auto pr-1">
+          <div className="flex flex-col gap-3 max-h-[460px] overflow-y-auto pr-1">
             {assignedDoctors.map((d) => {
-              const todayStr = new Date().toISOString().split("T")[0];
-              const docAptsToday = appointments.filter(
-                (a) =>
-                  a.appointment_date === todayStr &&
-                  (a.doctor === d.id || a.doctor_id === d.id)
-              );
-              const seenToday = docAptsToday.filter(
-                (a) => a.status === "COMPLETED"
-              ).length;
-              const totalToday = docAptsToday.length;
               const isSelected = selectedDoctorCard?.id === d.id;
 
               return (
-                <button
+                <div
                   key={d.id}
-                  onClick={() => clinic && openDoctorCard(d)}
-                  className={`w-full text-left p-4 rounded-2xl border flex items-center gap-3 transition-all duration-150 cursor-pointer ${
+                  onClick={() => clinic && openDoctorCard && openDoctorCard(d)}
+                  className={`w-full text-left p-4 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all duration-150 cursor-pointer ${
                     isSelected
                       ? "border-primary bg-primary/10 shadow-md"
-                      : "border-base-200 bg-base-200/40 hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm"
+                      : "border-base-200 bg-base-100 hover:border-primary/50 hover:bg-base-200/40 hover:shadow-xs"
                   }`}
                 >
-                  {/* Avatar */}
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-extrabold text-base shrink-0 shadow-sm">
-                    {(d.full_name || "?")[0].toUpperCase()}
-                  </div>
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-extrabold text-sm text-base-content truncate">
-                      {d.full_name?.startsWith("Dr.")
-                        ? d.full_name
-                        : `Dr. ${d.full_name}`}
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    {/* Avatar */}
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-extrabold text-base shrink-0 shadow-sm">
+                      {(d.full_name || "?")[0].toUpperCase()}
                     </div>
-                    <div className="text-xs text-base-content/55 mt-0.5 truncate">
-                      {d.qualification || "—"}
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-sm text-base-content">
+                          {d.full_name?.startsWith("Dr.")
+                            ? d.full_name
+                            : `Dr. ${d.full_name}`}
+                        </span>
+                        <span className="badge badge-xs badge-success text-white font-bold">
+                          Active
+                        </span>
+                        {d.room_number && (
+                          <span className="badge badge-xs badge-neutral font-semibold">
+                            Room {d.room_number}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-base-content/60 mt-0.5 truncate">
+                        {d.qualification || "Consultant"} · {d.department_name || d.department || "General Medicine"}
+                      </div>
+                      <div className="text-[11px] text-base-content/50 mt-0.5 flex items-center gap-3 flex-wrap">
+                        {d.bmdc_number && (
+                          <span className="font-mono">BMDC: {d.bmdc_number}</span>
+                        )}
+                        <span>•</span>
+                        <span>Fee: <strong>৳{d.consultation_fee || "—"}</strong></span>
+                        <span>•</span>
+                        <span className="text-indigo-600 dark:text-indigo-400 font-medium">80% Doctor / 20% Clinic</span>
+                      </div>
                     </div>
                   </div>
-                  {/* Meta */}
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-xs font-bold text-success flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-success inline-block"></span>
-                      Active
-                    </span>
-                    {totalToday > 0 ? (
-                      <span className="text-xs font-bold text-primary">
-                        {seenToday}/{totalToday} seen
-                      </span>
-                    ) : (
-                      <span className="text-xs text-base-content/35">
-                        No apts today
-                      </span>
+
+                  {/* Actions & Live Chamber Deep Link */}
+                  <div className="flex items-center gap-2 shrink-0 self-end md:self-center" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => clinic && openDoctorCard && openDoctorCard(d)}
+                      className="btn btn-ghost btn-xs text-xs font-semibold cursor-pointer"
+                    >
+                      Profile Details
+                    </button>
+                    {onOpenLiveChamber && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenLiveChamber(d.id)}
+                        className="btn btn-primary btn-xs font-bold gap-1 shadow-xs cursor-pointer"
+                        title={`Open live operational chamber for Dr. ${d.full_name}`}
+                      >
+                        <DoorOpen size={13} />
+                        <span>Open Live Chamber →</span>
+                      </button>
                     )}
                   </div>
-                  <ChevronRight
-                    size={14}
-                    className="text-base-content/30 shrink-0"
-                  />
-                </button>
+                </div>
               );
             })}
           </div>
