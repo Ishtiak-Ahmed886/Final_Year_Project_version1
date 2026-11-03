@@ -258,8 +258,8 @@ export default function ClinicList() {
     const isNew = !hasRating;
 
     return (
-      <div className="card bg-base-100 border border-base-200 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 rounded-2xl overflow-hidden group flex flex-col justify-between">
-        <div className="h-2 bg-gradient-to-r from-primary to-secondary"></div>
+      <div className="card bg-base-100 border border-base-200 card-hover-elevation rounded-2xl overflow-hidden group flex flex-col justify-between shadow-xs">
+        <div className="h-1.5 bg-gradient-to-r from-[#1e3a8a] to-[#0d9488]"></div>
         <div className="card-body p-6 space-y-4">
           {/* Header */}
           <div className="flex items-start gap-4">
@@ -368,9 +368,9 @@ export default function ClinicList() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
       {/* Hero Banner */}
-      <div className="bg-gradient-to-r from-[#283891] via-indigo-700 to-pink-600 text-white p-8 md:p-12 rounded-3xl shadow-2xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#1e3a8a] via-blue-900 to-teal-800 text-white p-8 md:p-12 rounded-3xl shadow-xl relative overflow-hidden">
         <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-bold tracking-wide">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-white text-xs font-bold tracking-wide border border-white/20">
             <Building2 size={14} /> {t("clinicPageBadge")}
           </div>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight leading-tight">
@@ -419,14 +419,14 @@ export default function ClinicList() {
                         key={item.id}
                         type="button"
                         onMouseDown={() => handleSelectSuggestion(item.name)}
-                        className="w-full text-left px-4 py-3 hover:bg-indigo-50/70 transition-colors flex items-center justify-between gap-3 group"
+                        className="w-full text-left px-4 py-3 hover:bg-teal-50/70 transition-colors flex items-center justify-between gap-3 group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-indigo-100 text-[#283891] flex items-center justify-center shrink-0 font-bold text-xs">
+                          <div className="w-8 h-8 rounded-lg bg-teal-100 text-[#0d9488] flex items-center justify-center shrink-0 font-bold text-xs">
                             <Building2 size={16} />
                           </div>
                           <div className="min-w-0">
-                            <div className="text-xs font-bold text-slate-800 group-hover:text-[#283891] truncate">
+                            <div className="text-xs font-bold text-slate-800 group-hover:text-[#1e3a8a] truncate">
                               {item.name}
                             </div>
                             <div className="text-[11px] text-slate-500 truncate flex items-center gap-1">
@@ -436,7 +436,7 @@ export default function ClinicList() {
                             </div>
                           </div>
                         </div>
-                        <span className="text-[11px] font-semibold text-[#283891] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <span className="text-[11px] font-semibold text-[#0d9488] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                           {language === "bn" ? "বাছাই করুন ➔" : "Select ➔"}
                         </span>
                       </button>
@@ -445,7 +445,7 @@ export default function ClinicList() {
                 </div>
               )}
             </div>
-            <button type="submit" className="btn btn-secondary shadow-lg gap-2 text-white font-bold rounded-xl px-6 shrink-0">
+            <button type="submit" className="btn shadow-lg gap-2 text-white font-bold rounded-xl px-6 shrink-0 bg-[#0d9488] hover:bg-[#0f766e] border-none">
               <Search size={18} /> {t("clinicSearchBtn")}
             </button>
           </form>
@@ -463,7 +463,7 @@ export default function ClinicList() {
                   onClick={() => handleDivisionClick(div)}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                     selectedDivision === div
-                      ? "bg-white text-[#283891] shadow-md scale-105"
+                      ? "bg-white text-[#1e3a8a] shadow-md scale-105"
                       : "bg-white/15 text-white hover:bg-white/30"
                   }`}
                 >

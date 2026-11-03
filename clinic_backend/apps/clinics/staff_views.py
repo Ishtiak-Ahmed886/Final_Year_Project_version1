@@ -467,6 +467,26 @@ class ReceptionWalkInCreateView(APIView):
                     }
                 )
 
+            # Dispatch SMS confirmation if phone number is provided
+            if patient_phone:
+                try:
+                    from apps.notifications.sms_service import send_sms_notification
+                    from apps.notifications.models import NotificationType
+                    doc_name = (getattr(doctor, 'full_name', '') or str(doctor)).strip()
+                    if not (doc_name.lower().startswith('dr.') or doc_name.lower().startswith('dr ')):
+                        doc_name = f"Dr. {doc_name}"
+                    send_sms_notification(
+                        recipient=patient_user,
+                        title="Walk-in Token Confirmed ✅",
+                        message=(
+                            f"Dear {patient_name}, your counter walk-in token for {doc_name} at {clinic.name} "
+                            f"is confirmed. Token Serial: #{appointment.serial_number}. Fee: ৳{fee:.0f} BDT paid at counter."
+                        ),
+                        notification_type=NotificationType.APPOINTMENT_CONFIRMED
+                    )
+                except Exception:
+                    pass
+
         return Response({
             'detail': 'Walk-in appointment registered successfully.',
             'appointment_id': str(appointment.id),

@@ -150,16 +150,73 @@ def create_doctor_schedule(*, doctor_id: str, clinic_id: str, day_of_week: int, 
     )
 
 
-def create_doctor_leave(*, doctor_id: str, start_date: date, end_date: date, clinic_id: Optional[str] = None, reason: str = "") -> DoctorLeave:
+def create_doctor_leave(
+    *,
+    doctor_id: str,
+    start_date: date,
+    end_date: date,
+    clinic_id: Optional[str] = None,
+    reason: str = "",
+    is_approved: bool = True,
+    cancel_existing: bool = False
+) -> DoctorLeave:
     if start_date > end_date:
         raise ValidationError({"start_date": "start_date must be on or before end_date."})
-    return DoctorLeave.objects.create(
+
+    leave = DoctorLeave.objects.create(
         doctor_id=doctor_id,
         clinic_id=clinic_id,
         start_date=start_date,
         end_date=end_date,
-        reason=reason
+        reason=reason,
+        is_approved=is_approved
     )
+
+    affected_count = 0
+    if is_approved:
+        from apps.appointments.models import Appointment, AppointmentStatus
+        from apps.appointments.services import format_doctor_display_name
+        from django.utils import timezone
+
+        apt_qs = Appointment.objects.filter(
+            doctor_id=doctor_id,
+            appointment_date__gte=start_date,
+            appointment_date__lte=end_date,
+            status__in=[AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED]
+        ).select_related('patient', 'family_member', 'doctor', 'clinic')
+
+        if clinic_id:
+            apt_qs = apt_qs.filter(clinic_id=clinic_id)
+
+        affected_apts = list(apt_qs)
+        affected_count = len(affected_apts)
+
+        for apt in affected_apts:
+            if cancel_existing:
+                apt.status = AppointmentStatus.CANCELLED
+                apt.save(update_fields=['status', 'updated_at'])
+
+            try:
+                from apps.notifications.sms_service import send_sms_notification
+                from apps.notifications.models import NotificationType
+                doc_display = format_doctor_display_name(apt.doctor)
+                patient_name = apt.family_member.full_name if apt.family_member else f"{apt.patient.first_name} {apt.patient.last_name}".strip()
+                action_msg = "has been cancelled" if cancel_existing else "requires rescheduling"
+                send_sms_notification(
+                    recipient=apt.patient,
+                    title="Doctor Emergency Leave Alert ⚠️",
+                    message=(
+                        f"Dear {patient_name}, {doc_display} is on emergency leave on {apt.appointment_date} "
+                        f"({reason or 'Urgent Leave'}). Your appointment (Serial #{apt.serial_number}) at {apt.clinic.name} "
+                        f"{action_msg}. Please choose a new date or contact clinic reception."
+                    ),
+                    notification_type=NotificationType.APPOINTMENT_CANCELLED if cancel_existing else NotificationType.SYSTEM
+                )
+            except Exception:
+                pass
+
+    leave.affected_appointments_count = affected_count
+    return leave
 
 
 def generate_doctor_available_slots(*, doctor_id: str, clinic_id: str, target_date: date) -> List[Dict[str, Any]]:

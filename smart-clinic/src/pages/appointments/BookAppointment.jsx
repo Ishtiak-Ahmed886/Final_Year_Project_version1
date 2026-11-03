@@ -13,6 +13,16 @@ import { formatTime, formatCurrency } from "../../utils/formatters";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DAY_NAMES_BN = ["সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার", "রবিবার"];
+const DAY_SHORT_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_SHORT_BN = ["সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র", "শনি", "রবি"];
+const MONTH_SHORT_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_SHORT_BN = ["জানু", "ফেব্রু", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টে", "অক্টো", "নভে", "ডিসে"];
+
+const formatDocName = (name) => {
+  if (!name) return "";
+  const cleaned = String(name).trim();
+  return /^dr\.?\s/i.test(cleaned) ? cleaned : `Dr. ${cleaned}`;
+};
 
 // Searchable clinic combobox component
 function ClinicSearchSelect({ clinics, value, onChange, language }) {
@@ -141,9 +151,11 @@ export default function BookAppointment() {
   const [selectedDoctorObj, setSelectedDoctorObj] = useState(null);
   const [consultationFee, setConsultationFee] = useState(null);
 
-  // Smart Availability State
+  // Smart Availability & 7-Day Strip State
   const [availability, setAvailability] = useState(null);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [stripStartIndex, setStripStartIndex] = useState(0);
+  const [autoSelectedPairKey, setAutoSelectedPairKey] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -152,11 +164,6 @@ export default function BookAppointment() {
   const [success, setSuccess] = useState("");
   const [geoError, setGeoError] = useState("");
   const [paymentPreference, setPaymentPreference] = useState("ONLINE"); // "ONLINE" | "CASH"
-
-  const fallbackTimeSlots = [
-    "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-    "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"
-  ];
 
   // Fetch clinics and family members on mount
   useEffect(() => {
@@ -249,7 +256,7 @@ export default function BookAppointment() {
     }
   }, [formData.doctor_id, formData.clinic_id, doctors]);
 
-  // Fetch Doctor Availability & Time Slots
+  // Fetch Doctor Availability & Time Slots + Auto-select First Open Date
   useEffect(() => {
     const fetchAvailability = async () => {
       if (!formData.doctor_id || !formData.clinic_id || !formData.appointment_date) {
@@ -263,12 +270,49 @@ export default function BookAppointment() {
         );
         setAvailability(res);
 
-        // Preselect first available slot if current time is not available
+        const pairKey = `${formData.clinic_id}:${formData.doctor_id}`;
+        const hasOpenSlotToday = res?.slots?.some((s) => s.available);
+
+        // Auto-jump to next_available_date on initial selection if current date is closed/full
+        if (
+          pairKey !== autoSelectedPairKey &&
+          !hasOpenSlotToday &&
+          res?.next_available_date &&
+          res.next_available_date !== formData.appointment_date
+        ) {
+          setAutoSelectedPairKey(pairKey);
+          const idx = (res.upcoming_days || []).findIndex((d) => d.date === res.next_available_date);
+          if (idx >= 0) {
+            setStripStartIndex(Math.floor(idx / 7) * 7);
+          }
+          setFormData((prev) => ({
+            ...prev,
+            appointment_date: res.next_available_date,
+            appointment_time: "",
+          }));
+          return;
+        }
+
+        if (pairKey !== autoSelectedPairKey) {
+          setAutoSelectedPairKey(pairKey);
+        }
+
+        // Preselect first available slot on the active date
         if (res?.slots?.length > 0) {
           const firstAvailable = res.slots.find((s) => s.available);
-          if (firstAvailable && !formData.appointment_time) {
-            setFormData((prev) => ({ ...prev, appointment_time: firstAvailable.time }));
+          if (firstAvailable) {
+            setFormData((prev) => ({
+              ...prev,
+              appointment_time:
+                prev.appointment_time && res.slots.some((s) => s.time === prev.appointment_time && s.available)
+                  ? prev.appointment_time
+                  : firstAvailable.time,
+            }));
+          } else {
+            setFormData((prev) => ({ ...prev, appointment_time: "" }));
           }
+        } else {
+          setFormData((prev) => ({ ...prev, appointment_time: "" }));
         }
       } catch {
         setAvailability(null);
@@ -277,7 +321,7 @@ export default function BookAppointment() {
       }
     };
     fetchAvailability();
-  }, [formData.doctor_id, formData.clinic_id, formData.appointment_date]);
+  }, [formData.doctor_id, formData.clinic_id, formData.appointment_date, autoSelectedPairKey]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -285,12 +329,14 @@ export default function BookAppointment() {
   };
 
   const selectNearbyClinic = (clinicId) => {
+    setStripStartIndex(0);
+    setAutoSelectedPairKey("");
     setFormData({ ...formData, clinic_id: clinicId, doctor_id: "", appointment_time: "" });
   };
 
   // Group slots by session time of day
   const groupedSlots = useMemo(() => {
-    const slots = availability?.slots || fallbackTimeSlots.map(t => ({ time: t, available: true }));
+    const slots = availability?.slots || [];
     const morning = [];
     const afternoon = [];
     const evening = [];
@@ -307,7 +353,7 @@ export default function BookAppointment() {
     });
 
     return { morning, afternoon, evening };
-  }, [availability, fallbackTimeSlots]);
+  }, [availability]);
 
   // Validation before advancing to next step
   const handleNextStep = () => {
@@ -688,9 +734,11 @@ export default function BookAppointment() {
                 clinics={clinics}
                 value={formData.clinic_id}
                 language={language}
-                onChange={(clinicId) =>
-                  setFormData({ ...formData, clinic_id: clinicId, doctor_id: "", appointment_time: "" })
-                }
+                onChange={(clinicId) => {
+                  setStripStartIndex(0);
+                  setAutoSelectedPairKey("");
+                  setFormData({ ...formData, clinic_id: clinicId, doctor_id: "", appointment_time: "" });
+                }}
               />
 
               {/* Doctor Dropdown */}
@@ -711,7 +759,12 @@ export default function BookAppointment() {
                   required
                   disabled={loading || !formData.clinic_id}
                   value={formData.doctor_id}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    setStripStartIndex(0);
+                    setAutoSelectedPairKey("");
+                    setFormData({ ...formData, doctor_id: e.target.value, appointment_time: "" });
+                    setError("");
+                  }}
                   className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-100 disabled:text-slate-400 transition-all"
                 >
                   <option value="">
@@ -725,7 +778,7 @@ export default function BookAppointment() {
                   </option>
                   {doctors.map((doctor) => (
                     <option key={doctor.id} value={doctor.id}>
-                      Dr. {doctor.full_name} ({doctor.qualification || "Specialist"})
+                      {formatDocName(doctor.full_name)} ({doctor.qualification || "Specialist"})
                     </option>
                   ))}
                 </select>
@@ -733,49 +786,82 @@ export default function BookAppointment() {
 
             </div>
 
-            {/* Selected Doctor Highlight Card */}
+            {/* Selected Doctor Highlight Card with Weekly Routine Preview */}
             {selectedDoctorObj && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4.5 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 font-black text-base flex items-center justify-center shrink-0 shadow-2xs">
-                    {selectedDoctorObj.avatar_url ? (
-                      <img src={selectedDoctorObj.avatar_url} alt="" className="w-12 h-12 rounded-2xl object-cover" />
-                    ) : (
-                      selectedDoctorObj.full_name?.slice(0, 2).toUpperCase()
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                        Dr. {selectedDoctorObj.full_name}
-                      </h3>
-                      {selectedDoctorObj.average_rating ? (
-                        <span className="flex items-center gap-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md">
-                          <Star size={11} className="fill-amber-500 text-amber-500" />
-                          <span>{selectedDoctorObj.average_rating}</span>
-                          <span className="text-amber-600">({selectedDoctorObj.review_count})</span>
-                        </span>
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4.5 sm:p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 font-black text-base flex items-center justify-center shrink-0 shadow-2xs">
+                      {selectedDoctorObj.avatar_url ? (
+                        <img src={selectedDoctorObj.avatar_url} alt="" className="w-12 h-12 rounded-2xl object-cover" />
+                      ) : (
+                        selectedDoctorObj.full_name?.slice(0, 2).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                          {formatDocName(selectedDoctorObj.full_name)}
+                        </h3>
+                        {selectedDoctorObj.average_rating ? (
+                          <span className="flex items-center gap-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md">
+                            <Star size={11} className="fill-amber-500 text-amber-500" />
+                            <span>{selectedDoctorObj.average_rating}</span>
+                            <span className="text-amber-600">({selectedDoctorObj.review_count})</span>
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-xs text-slate-600 mt-0.5">
+                        {selectedDoctorObj.qualification || "Medical Specialist"} · {selectedDoctorObj.specializations?.map(s => s.name).join(", ") || "General Practice"}
+                      </div>
+                      {selectedDoctorObj.experience_years ? (
+                        <div className="text-[11px] text-slate-500 mt-1">
+                          {selectedDoctorObj.experience_years} {language === "bn" ? "বছরের অভিজ্ঞতা" : "years clinical experience"}
+                        </div>
                       ) : null}
                     </div>
-                    <div className="text-xs text-slate-600 mt-0.5">
-                      {selectedDoctorObj.qualification || "Medical Specialist"} · {selectedDoctorObj.specializations?.map(s => s.name).join(", ") || "General Practice"}
-                    </div>
-                    {selectedDoctorObj.experience_years ? (
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        {selectedDoctorObj.experience_years} {language === "bn" ? "বছরের অভিজ্ঞতা" : "years clinical experience"}
-                      </div>
-                    ) : null}
                   </div>
+
+                  {consultationFee && (
+                    <div className="sm:text-right shrink-0 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
+                      <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                        {language === "bn" ? "পরামর্শ ফি" : "Consultation Fee"}
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-emerald-700">
+                        ৳{consultationFee} <span className="text-xs font-bold text-slate-500">BDT</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {consultationFee && (
-                  <div className="sm:text-right shrink-0 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                      {language === "bn" ? "পরামর্শ ফি" : "Consultation Fee"}
+                {/* Step 1 Weekly Routine Preview Strip */}
+                {availability?.weekly_schedules?.length > 0 && (
+                  <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-bold text-slate-700 flex items-center gap-1 mr-1">
+                        <Calendar size={14} className="text-emerald-700" />
+                        {language === "bn" ? "চেম্বার দিনসমূহ:" : "Chamber Days:"}
+                      </span>
+                      {availability.weekly_schedules.map((ws) => (
+                        <span
+                          key={ws.id || ws.day_of_week}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-[11px]"
+                        >
+                          <span>{language === "bn" ? DAY_NAMES_BN[ws.day_of_week] : DAY_NAMES[ws.day_of_week]}</span>
+                          <span className="text-emerald-600 font-medium">
+                            ({formatTime(ws.start_time)}–{formatTime(ws.end_time)})
+                          </span>
+                        </span>
+                      ))}
                     </div>
-                    <div className="text-xl sm:text-2xl font-black text-emerald-700">
-                      ৳{consultationFee} <span className="text-xs font-bold text-slate-500">BDT</span>
-                    </div>
+                    {availability?.next_available_date && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[11px]">
+                        <CheckCircle2 size={12} />
+                        {language === "bn"
+                          ? `পরবর্তী খালি তারিখ: ${availability.next_available_date}`
+                          : `Next Open: ${availability.next_available_date}`}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -807,7 +893,7 @@ export default function BookAppointment() {
                   {language === "bn" ? "২. চেম্বার সময় ও স্লট নির্বাচন" : "2. Select Chamber Schedule & Slot"}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Dr. {selectedDoctorObj?.full_name} · {selectedClinicObj?.name}
+                  {formatDocName(selectedDoctorObj?.full_name)} · {selectedClinicObj?.name}
                 </p>
               </div>
               <button
@@ -819,42 +905,219 @@ export default function BookAppointment() {
               </button>
             </div>
 
-            {/* Doctor Weekly Schedule Days Indicator */}
-            {availability?.available_days && availability.available_days.length > 0 && (
-              <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 flex items-center gap-2.5 text-xs text-emerald-900">
-                <Calendar size={16} className="text-emerald-700 shrink-0" />
-                <span>
-                  <strong>{language === "bn" ? "ডাক্তারের সাপ্তাহিক সূচি:" : "Weekly Chamber Days:"}</strong>{" "}
-                  {availability.available_days
-                    .map((d) => (language === "bn" ? DAY_NAMES_BN[d] : DAY_NAMES[d]))
-                    .join(", ")}
-                </span>
+            {/* 1. Prominent Weekly Routine Banner */}
+            {availability?.weekly_schedules?.length > 0 ? (
+              <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-950 uppercase tracking-wide">
+                    <Calendar size={16} className="text-emerald-700 shrink-0" />
+                    <span>{language === "bn" ? "সাপ্তাহিক চেম্বার রুটিন" : "Weekly Chamber Routine"}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-700">
+                    {language === "bn" ? "বাকি দিনগুলোতে চেম্বার বন্ধ থাকে" : "Closed on other weekdays"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availability.weekly_schedules.map((ws) => (
+                    <div
+                      key={ws.id || ws.day_of_week}
+                      className="px-3 py-1.5 rounded-xl bg-white border border-emerald-200/90 shadow-2xs flex items-center gap-2 text-xs"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                      <span className="font-extrabold text-slate-900">
+                        {language === "bn" ? DAY_NAMES_BN[ws.day_of_week] : DAY_NAMES[ws.day_of_week]}
+                      </span>
+                      <span className="text-slate-500 font-semibold">
+                        {formatTime(ws.start_time)} – {formatTime(ws.end_time)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              !loadingAvailability && (
+                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs font-semibold text-amber-900 flex items-center gap-2">
+                  <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                  <span>
+                    {language === "bn"
+                      ? "এই ক্লিনিকে ডাক্তারের কোনো সাপ্তাহিক চেম্বার রুটিন এখনো যুক্ত করা হয়নি।"
+                      : "No weekly chamber schedule has been configured for this doctor at this clinic yet."}
+                  </span>
+                </div>
+              )
+            )}
+
+            {/* 2. 7-Day Visual Horizontal Date Strip with Prev/Next Week Slider */}
+            {availability?.upcoming_days?.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                    <CalendarCheck size={15} className="text-emerald-700" />
+                    <span>
+                      {language === "bn"
+                        ? "অ্যাপয়েন্টমেন্টের তারিখ বেছে নিন (৭ দিনের ভিউ)"
+                        : "Select Appointment Date (7-Day View)"}
+                    </span>
+                  </label>
+
+                  {/* Left / Right Week Navigation Controls */}
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      disabled={stripStartIndex === 0}
+                      onClick={() => setStripStartIndex((prev) => Math.max(0, prev - 7))}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-slate-700 flex items-center gap-1 transition-all shadow-2xs"
+                    >
+                      <ChevronLeft size={14} />
+                      <span>{language === "bn" ? "পূর্ববর্তী ৭ দিন" : "Prev 7 Days"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={stripStartIndex + 7 >= availability.upcoming_days.length}
+                      onClick={() =>
+                        setStripStartIndex((prev) =>
+                          Math.min(Math.max(0, availability.upcoming_days.length - 7), prev + 7)
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-slate-700 flex items-center gap-1 transition-all shadow-2xs"
+                    >
+                      <span>{language === "bn" ? "পরবর্তী ৭ দিন" : "Next 7 Days"}</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 7-Day Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
+                  {availability.upcoming_days
+                    .slice(stripStartIndex, stripStartIndex + 7)
+                    .map((dayItem, idx) => {
+                      const isSelected = formData.appointment_date === dayItem.date;
+                      const isAvailable = dayItem.status === "AVAILABLE";
+                      const isFull = dayItem.status === "FULL";
+                      const isLeave = dayItem.status === "ON_LEAVE";
+                      const [, mo, dy] = dayItem.date.split("-").map(Number);
+
+                      const globalIdx = stripStartIndex + idx;
+                      const dayLabel =
+                        globalIdx === 0
+                          ? language === "bn"
+                            ? "আজ"
+                            : "Today"
+                          : globalIdx === 1
+                          ? language === "bn"
+                            ? "আগামীকাল"
+                            : "Tomorrow"
+                          : language === "bn"
+                          ? DAY_SHORT_BN[dayItem.day_of_week]
+                          : DAY_SHORT_EN[dayItem.day_of_week];
+
+                      const dateFormatted = `${dy} ${
+                        language === "bn" ? MONTH_SHORT_BN[mo - 1] : MONTH_SHORT_EN[mo - 1]
+                      }`;
+
+                      return (
+                        <button
+                          key={dayItem.date}
+                          type="button"
+                          disabled={!isAvailable}
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              appointment_date: dayItem.date,
+                              appointment_time: "",
+                            }));
+                            setError("");
+                          }}
+                          className={`p-3 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-between gap-1.5 ${
+                            isSelected
+                              ? "border-emerald-700 bg-emerald-700 text-white shadow-md scale-[1.02]"
+                              : isAvailable
+                              ? "border-emerald-200 bg-white hover:border-emerald-500 hover:bg-emerald-50/40 text-slate-900 cursor-pointer shadow-2xs"
+                              : isLeave
+                              ? "border-rose-200/80 bg-rose-50/50 text-rose-800 opacity-80 cursor-not-allowed"
+                              : isFull
+                              ? "border-amber-200/80 bg-amber-50/50 text-amber-900 opacity-80 cursor-not-allowed"
+                              : "border-slate-100 bg-slate-100/80 text-slate-400 opacity-75 cursor-not-allowed"
+                          }`}
+                        >
+                          <span
+                            className={`text-[11px] font-bold uppercase tracking-wide ${
+                              isSelected ? "text-emerald-100" : "text-slate-500"
+                            }`}
+                          >
+                            {dayLabel}
+                          </span>
+
+                          <span
+                            className={`text-sm sm:text-base font-black leading-tight ${
+                              isSelected ? "text-white" : isAvailable ? "text-slate-900" : "text-slate-400"
+                            }`}
+                          >
+                            {dateFormatted}
+                          </span>
+
+                          {/* Status Badge */}
+                          {isAvailable ? (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-white text-emerald-800"
+                                  : "bg-emerald-100 text-emerald-800"
+                              }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              {dayItem.available_count} {language === "bn" ? "টি খালি" : "open"}
+                            </span>
+                          ) : isLeave ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                              {language === "bn" ? "ছুটিতে" : "On Leave"}
+                            </span>
+                          ) : isFull ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              {language === "bn" ? "হাউসফুল" : "Full"}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200/70 text-slate-500">
+                              {language === "bn" ? "বন্ধ" : "Off"}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
               </div>
             )}
 
-            {/* Date Input */}
-            <div className="max-w-md space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
-                <CalendarCheck size={15} className="text-emerald-700" />
-                <span>{language === "bn" ? "অ্যাপয়েন্টমেন্টের তারিখ *" : "Appointment Date *"}</span>
-              </label>
-              <input
-                type="date"
-                name="appointment_date"
-                required
-                min={new Date().toISOString().split("T")[0]}
-                value={formData.appointment_date}
-                onChange={handleChange}
-                className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:outline-hidden focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all"
-              />
-            </div>
+            {/* Real-time Doctor Delay Alert Banner (if doctor is running late on selected date) */}
+            {availability?.delay_minutes > 0 && (
+              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-center gap-3 text-xs text-amber-950 shadow-2xs">
+                <Clock size={18} className="text-amber-600 shrink-0" />
+                <div>
+                  <div className="font-extrabold">
+                    {language === "bn"
+                      ? `ডাক্তার আজ নির্ধারিত সময়ের চেয়ে ${availability.delay_minutes} মিনিট দেরিতে চেম্বার শুরু করছেন`
+                      : `Doctor is running ${availability.delay_minutes} minutes behind schedule today`}
+                  </div>
+                  <div className="text-amber-800 mt-0.5">
+                    {language === "bn"
+                      ? "নিচের প্রতিটি স্লটের সাথে সম্ভাব্য নতুন সময় (~) দেখানো হয়েছে।"
+                      : "Updated estimated consultation times (~) are shown on each slot below."}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Chamber Sessions & Available Slots */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
                   <Clock size={15} className="text-emerald-700" />
-                  <span>{language === "bn" ? "উপলব্ধ সময় স্লট *" : "Available Time Slots *"}</span>
+                  <span>
+                    {language === "bn"
+                      ? `উপলব্ধ সময় স্লট (${formData.appointment_date}) *`
+                      : `Available Time Slots (${formData.appointment_date}) *`}
+                  </span>
                 </label>
                 {loadingAvailability && (
                   <span className="text-xs text-emerald-700 flex items-center gap-1 font-semibold">
@@ -900,6 +1163,7 @@ export default function BookAppointment() {
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                         {groupedSlots.morning.map((slot) => {
                           const isSelected = formData.appointment_time === slot.time;
+                          const hasShift = slot.estimated_time && slot.estimated_time !== slot.time;
                           return (
                             <button
                               key={slot.time}
@@ -914,7 +1178,12 @@ export default function BookAppointment() {
                                   : "border-slate-100 bg-slate-100 text-slate-400 line-through cursor-not-allowed"
                               }`}
                             >
-                              {slot.time}
+                              <div>{slot.time}</div>
+                              {hasShift && slot.available && (
+                                <div className={`text-[10px] font-medium ${isSelected ? "text-emerald-100" : "text-amber-700"}`}>
+                                  ~{slot.estimated_time}
+                                </div>
+                              )}
                             </button>
                           );
                         })}
@@ -932,6 +1201,7 @@ export default function BookAppointment() {
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                         {groupedSlots.afternoon.map((slot) => {
                           const isSelected = formData.appointment_time === slot.time;
+                          const hasShift = slot.estimated_time && slot.estimated_time !== slot.time;
                           return (
                             <button
                               key={slot.time}
@@ -946,7 +1216,12 @@ export default function BookAppointment() {
                                   : "border-slate-100 bg-slate-100 text-slate-400 line-through cursor-not-allowed"
                               }`}
                             >
-                              {slot.time}
+                              <div>{slot.time}</div>
+                              {hasShift && slot.available && (
+                                <div className={`text-[10px] font-medium ${isSelected ? "text-emerald-100" : "text-amber-700"}`}>
+                                  ~{slot.estimated_time}
+                                </div>
+                              )}
                             </button>
                           );
                         })}
@@ -964,6 +1239,7 @@ export default function BookAppointment() {
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                         {groupedSlots.evening.map((slot) => {
                           const isSelected = formData.appointment_time === slot.time;
+                          const hasShift = slot.estimated_time && slot.estimated_time !== slot.time;
                           return (
                             <button
                               key={slot.time}
@@ -978,7 +1254,12 @@ export default function BookAppointment() {
                                   : "border-slate-100 bg-slate-100 text-slate-400 line-through cursor-not-allowed"
                               }`}
                             >
-                              {slot.time}
+                              <div>{slot.time}</div>
+                              {hasShift && slot.available && (
+                                <div className={`text-[10px] font-medium ${isSelected ? "text-emerald-100" : "text-amber-700"}`}>
+                                  ~{slot.estimated_time}
+                                </div>
+                              )}
                             </button>
                           );
                         })}
@@ -1171,7 +1452,7 @@ export default function BookAppointment() {
                 </div>
                 <div className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
                   <Stethoscope size={15} className="text-emerald-700 shrink-0" />
-                  <span>Dr. {selectedDoctorObj?.full_name}</span>
+                  <span>{formatDocName(selectedDoctorObj?.full_name)}</span>
                 </div>
                 <div className="text-slate-500">
                   {selectedDoctorObj?.qualification || "Specialist"}

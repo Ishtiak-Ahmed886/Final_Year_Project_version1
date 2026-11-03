@@ -84,14 +84,14 @@ export default function Login() {
       <div className="max-w-4xl w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
 
         {/* LEFT BRANDING PANEL */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white p-7 sm:p-9 flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute -right-16 -top-16 w-56 h-56 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -left-16 -bottom-16 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="lg:col-span-5 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white p-7 sm:p-9 flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute -right-16 -top-16 w-56 h-56 bg-[#1e3a8a]/30 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -left-16 -bottom-16 w-56 h-56 bg-teal-500/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 space-y-6">
             {/* Brand */}
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg font-black text-xl">
+              <div className="w-11 h-11 rounded-2xl bg-[#1e3a8a] text-white flex items-center justify-center shadow-lg font-black text-xl border border-blue-400/30">
                 <HeartPulse size={22} />
               </div>
               <div>
@@ -265,6 +265,64 @@ export default function Login() {
               </button>
             </div>
           </form>
+
+          {/* Quick Demo & Test Logins (1-Click Fill) */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                {language === "bn" ? "টেস্ট অ্যাকাউন্ট (১-ক্লিক পূরণ)" : "Quick Test Accounts (1-Click Fill)"}
+              </span>
+              <span className="text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                Password123!
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginId("alia12bhhatt122@gmail.com");
+                  setPassword("Password123!");
+                  setError("");
+                }}
+                className="btn btn-xs btn-outline hover:btn-primary text-[11px] font-bold rounded-lg justify-start h-8 px-2.5 truncate"
+              >
+                🏥 Clinic Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginId("rahela_counter@clinic.test");
+                  setPassword("Password123!");
+                  setError("");
+                }}
+                className="btn btn-xs btn-outline hover:btn-primary text-[11px] font-bold rounded-lg justify-start h-8 px-2.5 truncate"
+              >
+                👩‍💼 Receptionist
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginId("dr.taskin@smartclinic.bd");
+                  setPassword("Password123!");
+                  setError("");
+                }}
+                className="btn btn-xs btn-outline hover:btn-primary text-[11px] font-bold rounded-lg justify-start h-8 px-2.5 truncate"
+              >
+                👨‍⚕️ Dr. Taskin
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginId("rahim@patient.com");
+                  setPassword("Password123!");
+                  setError("");
+                }}
+                className="btn btn-xs btn-outline hover:btn-primary text-[11px] font-bold rounded-lg justify-start h-8 px-2.5 truncate"
+              >
+                🧑‍🦱 Rahim (Patient)
+              </button>
+            </div>
+          </div>
 
           {/* Divider */}
           <div className="relative my-2">

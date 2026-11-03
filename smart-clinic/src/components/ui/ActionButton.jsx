@@ -4,9 +4,9 @@ import { Loader2 } from "lucide-react";
 const VARIANT_STYLES = {
   // Correction 2: Primary operational action uses the Smart Clinic #283891 indigo brand treatment
   primary:
-    "bg-[#283891] hover:bg-[#1f2c7a] text-white border border-[#283891] shadow-2xs focus:ring-[#283891]/30",
+    "bg-[#1e3a8a] hover:bg-[#172554] text-white border border-[#1e3a8a] shadow-2xs focus:ring-[#1e3a8a]/30",
   secondary:
-    "bg-indigo-50/70 hover:bg-indigo-100 text-[#283891] border border-indigo-200 focus:ring-[#283891]/20",
+    "bg-teal-50/80 hover:bg-teal-100 text-[#0d9488] border border-teal-200 focus:ring-[#0d9488]/20",
   outline:
     "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs focus:ring-slate-300",
   ghost:

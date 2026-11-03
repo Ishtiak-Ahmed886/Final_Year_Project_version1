@@ -12,6 +12,7 @@ from .views import (
     DoctorAssignClinicByPkView,
     ChamberSessionView,
     DoctorScheduleView,
+    DoctorLeaveView,
     DoctorAvailabilityView,
 )
 
@@ -24,9 +25,11 @@ urlpatterns = [
     # Chamber Session (Live Queue Tracking)
     path('chamber-session/', ChamberSessionView.as_view(), name='chamber_session'),
 
-    # Doctor Schedule Management
+    # Doctor Schedule & Emergency Leave Management
     path('schedule/', DoctorScheduleView.as_view(), name='doctor_schedule'),
     path('schedule/<uuid:pk>/', DoctorScheduleView.as_view(), name='doctor_schedule_delete'),
+    path('leaves/', DoctorLeaveView.as_view(), name='doctor_leaves'),
+    path('leaves/<uuid:pk>/', DoctorLeaveView.as_view(), name='doctor_leave_delete'),
 
     # Availability Slots API (used by booking flow)
     path('availability/', DoctorAvailabilityView.as_view(), name='doctor_availability'),

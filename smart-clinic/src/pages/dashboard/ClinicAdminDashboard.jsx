@@ -1325,8 +1325,8 @@ export default function ClinicAdminDashboard() {
       key: "chamber",
       label: "Live Reception",
       icon: <Tv size={16} />,
-      badge: "Live",
-      badgeClass: "badge-error animate-pulse text-white",
+      badge: "LIVE",
+      badgeClass: "bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full shadow-2xs",
     },
     {
       key: "appointments",
@@ -1383,81 +1383,90 @@ export default function ClinicAdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* ── CLINIC FACILITY STATUS & PAGE HEADER ── */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-        <PageHeader
-          title={clinic?.name || "Clinic Administration Portal"}
-          subtitle={
-            clinic
-              ? `${clinic.address}, ${clinic.city} • Registration: ${
-                  clinic.id ? clinic.id.slice(0, 13).toUpperCase() : "BD-MED-9942"
-                }`
-              : "Clinic Operations & Management Console"
-          }
-          badge={
-            <StatusBadge
-              status="ACTIVE"
-              customLabel="Active Facility"
-              size="sm"
-            />
-          }
-          actions={
-            <div className="flex items-center gap-2 flex-wrap">
-              {clinic?.id && (
-                <a
-                  href={`/clinics/${clinic.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
-                >
-                  <span>Live Public Page</span>
-                  <ExternalLink size={13} />
-                </a>
-              )}
-              <ActionButton
-                variant="primary"
-                size="sm"
-                icon={Tv}
-                onClick={() => {
-                  setActiveTab("chamber");
-                  setMsg("");
-                  setError("");
-                }}
-              >
-                Open Live Reception
-              </ActionButton>
-            </div>
-          }
-          className="mb-0"
-        />
+    <div className="space-y-4">
+      {/* ── CLINIC FACILITY STATUS & COMPACT PAGE HEADER ── */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5 relative overflow-hidden">
+        {/* Subtle top medical accent stripe */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#1E3A8A] via-blue-600 to-[#0D9488]" />
 
-        {/* Operational Load Strip */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-0.5">
+          {/* Clinic Brand & Info */}
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#1E3A8A] to-[#0D9488] text-white flex items-center justify-center font-black text-xl shadow-xs shrink-0 border border-white">
+              {clinic?.name ? clinic.name.charAt(0).toUpperCase() : <Building2 size={20} />}
+            </div>
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">
+                  {clinic?.name || "Clinic Administration Portal"}
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Active Facility
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium leading-normal max-w-2xl">
+                {clinic
+                  ? `${clinic.address}, ${clinic.city} • Registration: ${
+                      clinic.id ? clinic.id.slice(0, 13).toUpperCase() : "BD-MED-9942"
+                    }`
+                  : "Clinic Operations & Management Console"}
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {clinic?.id && (
+              <a
+                href={`/clinics/${clinic.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:border-slate-300"
+              >
+                <span>Live Public Page</span>
+                <ExternalLink size={12} />
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("chamber");
+                setMsg("");
+                setError("");
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-98"
+            >
+              <Tv size={14} />
+              <span>Open Live Reception</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Operational Stat Pills Strip */}
         {(() => {
           const todayDateStr = new Date().toISOString().split("T")[0];
           const todayAptsCount =
             overviewStats?.appointments?.total_today ??
             appointments.filter((a) => a.appointment_date === todayDateStr).length;
           return (
-            <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+            <div className="flex items-center justify-between flex-wrap gap-2.5 pt-3 border-t border-slate-100 text-xs">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="flex items-center gap-1.5 text-slate-700 font-medium">
-                  <MapPin size={13} className="text-[#283891]" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200/80 text-slate-700 font-bold text-[11px]">
+                  <MapPin size={12} className="text-[#0D9488]" />
                   <span>{clinic ? `${clinic.city}` : "Facility"}</span>
                 </span>
-                <span className="text-slate-300">•</span>
-                <span>
-                  Today&apos;s Queue:{" "}
-                  <strong className="text-slate-900 font-semibold">{todayAptsCount} Patients</strong>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200/80 text-[#1E3A8A] font-bold text-[11px]">
+                  <Users size={12} className="text-[#1E3A8A]" />
+                  <span>Today&apos;s Queue: <strong>{todayAptsCount} Patients</strong></span>
                 </span>
-                <span className="text-slate-300">•</span>
-                <span>
-                  Active Doctors:{" "}
-                  <strong className="text-slate-900 font-semibold">{assignedDoctors.length}</strong>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200/80 text-[#0D9488] font-bold text-[11px]">
+                  <Stethoscope size={12} className="text-[#0D9488]" />
+                  <span>Active Doctors: <strong>{assignedDoctors.length}</strong></span>
                 </span>
               </div>
-              <div className="font-mono text-[11px] text-slate-400">
-                {new Date().toLocaleDateString("en-GB", {
+              <div className="font-mono text-[11px] text-slate-500 font-semibold bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
+                📅 {new Date().toLocaleDateString("en-GB", {
                   weekday: "short",
                   day: "numeric",
                   month: "short",
@@ -1472,23 +1481,23 @@ export default function ClinicAdminDashboard() {
       {/* Admin Approval Banner for Clinic */}
       {clinic && clinic.verification_status !== "VERIFIED" && (
         <div
-          className={`p-5 rounded-3xl border flex items-start gap-4 ${
+          className={`p-4 rounded-2xl border flex items-start gap-3.5 ${
             clinic.verification_status === "REJECTED"
               ? "bg-error/15 border-error/30 text-error-content"
               : "bg-warning/15 border-warning/30 text-warning-content"
           }`}
         >
-          <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-bold text-base">
+            <h3 className="font-bold text-sm">
               {clinic.verification_status === "REJECTED"
                 ? "Clinic Registration Rejected"
                 : "Clinic Registration Pending Admin Verification"}
             </h3>
-            <p className="text-xs mt-1">
+            <p className="text-xs mt-0.5">
               {clinic.verification_status === "REJECTED"
                 ? "Your registration certificate was rejected by platform Admin. Please update your certificate URL."
-                : "Your registration certificate has been submitted and is currently PENDING approval from platform Admin. You can invite doctors and offer services once approved."}
+                : "Your registration certificate has been submitted and is currently PENDING approval from platform Admin."}
             </p>
           </div>
         </div>
@@ -1496,58 +1505,63 @@ export default function ClinicAdminDashboard() {
 
       {/* Alerts */}
       {msg && (
-        <div className="alert alert-success text-sm py-3 px-4 flex items-center gap-2 shadow-sm rounded-2xl">
-          <CheckCircle2 size={18} />
+        <div className="alert alert-success text-xs py-2 px-3.5 flex items-center gap-2 shadow-sm rounded-xl">
+          <CheckCircle2 size={16} />
           <span>{msg}</span>
         </div>
       )}
       {error && (
-        <div className="alert alert-error text-sm py-3 px-4 flex items-center gap-2 shadow-sm rounded-2xl">
-          <AlertCircle size={18} />
+        <div className="alert alert-error text-xs py-2 px-3.5 flex items-center gap-2 shadow-sm rounded-xl">
+          <AlertCircle size={16} />
           <span>{error}</span>
         </div>
       )}
 
       {/* Navigation Tabs with Badges */}
-      <div className="flex flex-wrap gap-2 pt-1 border-b border-slate-200 pb-3">
-        {tabs.map((tItem) => (
-          <button
-            key={tItem.key}
-            onClick={() => {
-              setActiveTab(tItem.key);
-              setMsg("");
-              setError("");
-            }}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold text-xs sm:text-sm transition-all border cursor-pointer select-none ${
-              activeTab === tItem.key
-                ? "bg-[#283891] text-white border-[#283891] shadow-2xs"
-                : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
-            }`}
-          >
-            {tItem.icon}
-            <span>{tItem.label}</span>
-            {tItem.badge && (
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
-                  tItem.badgeClass || "bg-indigo-100 text-[#283891]"
-                }`}
-              >
-                {tItem.badge}
-              </span>
-            )}
-            {typeof tItem.count === "number" && tItem.count > 0 && (
-              <span
-                className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold font-mono ${
-                  activeTab === tItem.key
-                    ? "bg-white/20 text-white"
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {tItem.count}
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="inline-flex flex-wrap items-center gap-1 p-1 bg-slate-200/75 rounded-2xl border border-slate-300/60 shadow-2xs">
+        {tabs.map((tItem) => {
+          const isActive = activeTab === tItem.key;
+          return (
+            <button
+              key={tItem.key}
+              onClick={() => {
+                setActiveTab(tItem.key);
+                setMsg("");
+                setError("");
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer select-none ${
+                isActive
+                  ? "bg-[#1E3A8A] text-white shadow-xs scale-[1.01]"
+                  : "bg-white/70 hover:bg-white text-slate-700 hover:text-slate-950"
+              }`}
+            >
+              <span className={isActive ? "text-white" : "text-slate-500"}>{tItem.icon}</span>
+              <span>{tItem.label}</span>
+              {tItem.badge && (
+                <span
+                  className={`text-[9px] px-1.5 py-0.2 rounded-full font-black tracking-wider ${
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : tItem.badgeClass || "bg-rose-600 text-white"
+                  }`}
+                >
+                  {tItem.badge}
+                </span>
+              )}
+              {typeof tItem.count === "number" && tItem.count > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-black font-mono ${
+                    isActive
+                      ? "bg-white/25 text-white"
+                      : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  {tItem.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Panels */}

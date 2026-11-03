@@ -30,7 +30,7 @@ const ReceptionistPanel = lazy(() => import("./ReceptionistPanel"));
 
 const DashboardLoader = () => (
   <div className="flex flex-col items-center justify-center p-16 text-center">
-    <div className="w-10 h-10 border-3 border-[#283891] border-t-transparent rounded-full animate-spin"></div>
+    <div className="w-10 h-10 border-3 border-[#1e3a8a] border-t-transparent rounded-full animate-spin"></div>
     <span className="mt-3 text-xs font-semibold tracking-wider text-slate-500">
       Loading workspace...
     </span>
@@ -112,7 +112,7 @@ export default function DashboardLayout() {
         );
       case "CLINIC_ADMIN":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-[#283891] border border-indigo-200">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-[#1e3a8a] border border-blue-200">
             Clinic Admin
           </span>
         );
@@ -189,7 +189,7 @@ export default function DashboardLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50/60 flex flex-col">
+    <div className="min-h-screen bg-[#F1F5F9] flex flex-col">
       {/* ── TOP HEADER (RESTRAINED APPLICATION TOPBAR) ── */}
       <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 h-16 px-3.5 sm:px-6 lg:px-8 flex items-center justify-between shadow-2xs sticky top-0 z-40 transition-colors">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -217,14 +217,14 @@ export default function DashboardLayout() {
           {/* Brand & Title / Role Context */}
           <NavLink
             to="/"
-            className="flex items-center gap-2 text-[#283891] hover:opacity-90 transition-opacity shrink-0"
+            className="flex items-center gap-2 text-[#1e3a8a] hover:opacity-90 transition-opacity shrink-0"
             title="Return to Public Homepage"
           >
-            <div className="bg-indigo-50 p-2 rounded-xl text-[#283891] border border-indigo-100">
+            <div className="bg-blue-50 p-2 rounded-xl text-[#1e3a8a] border border-blue-100">
               <Hospital className="w-4 h-4" />
             </div>
-            <span className="font-black text-sm tracking-tight text-[#283891] hidden sm:inline">
-              Smart<span className="text-pink-600">Clinic</span>
+            <span className="font-black text-sm tracking-tight text-[#1e3a8a] hidden sm:inline">
+              Smart<span className="text-[#0d9488]">Clinic</span>
             </span>
           </NavLink>
           <span className="text-slate-300 hidden sm:inline">•</span>
@@ -254,7 +254,7 @@ export default function DashboardLayout() {
             title={t("accountSettings") || "Account Settings"}
             aria-label={t("accountSettings") || "Account Settings"}
           >
-            <div className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg bg-[#283891] text-white font-bold flex items-center justify-center text-xs shadow-2xs shrink-0">
+            <div className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg bg-[#1e3a8a] text-white font-bold flex items-center justify-center text-xs shadow-2xs shrink-0">
               {user?.first_name ? user.first_name[0].toUpperCase() : "U"}
             </div>
             <div className="hidden md:block leading-tight">
@@ -280,7 +280,7 @@ export default function DashboardLayout() {
       </header>
 
       {/* ── MAIN WORKSPACE CONTAINER ── */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8 min-w-0">
+      <div className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 flex flex-col lg:flex-row gap-5 lg:gap-6 min-w-0">
         {/* Desktop Sidebar */}
         <aside
           className={`hidden lg:flex flex-col bg-white border border-slate-200 rounded-2xl shadow-xs transition-all duration-200 shrink-0 h-fit sticky top-20 ${
@@ -290,7 +290,7 @@ export default function DashboardLayout() {
           {/* User ID Header in Sidebar */}
           {!isCollapsed && (
             <div className="flex items-center gap-3 pb-4 mb-3 border-b border-slate-100">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-[#283891] font-bold flex items-center justify-center text-sm shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-[#1e3a8a] font-bold flex items-center justify-center text-sm shrink-0">
                 {user?.first_name ? user.first_name[0].toUpperCase() : "U"}
               </div>
               <div className="min-w-0">
@@ -318,7 +318,7 @@ export default function DashboardLayout() {
                       : "gap-3 px-3.5 py-2.5 text-left"
                   } ${
                     item.isActive
-                      ? "bg-indigo-50/70 text-[#283891] border-l-3 border-[#283891] shadow-2xs font-bold"
+                      ? "bg-blue-50/70 text-[#1e3a8a] border-l-3 border-[#1e3a8a] shadow-2xs font-bold"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
@@ -341,7 +341,7 @@ export default function DashboardLayout() {
                         : "gap-3 px-3.5 py-2.5 text-left"
                     } ${
                       isActive
-                        ? "bg-indigo-50/70 text-[#283891] border-l-3 border-[#283891] font-bold"
+                        ? "bg-blue-50/70 text-[#1e3a8a] border-l-3 border-[#1e3a8a] font-bold"
                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                     }`
                   }
@@ -364,7 +364,7 @@ export default function DashboardLayout() {
                         : "gap-3 px-3.5 py-2.5 text-left"
                     } ${
                       isActive
-                        ? "bg-indigo-50/70 text-[#283891] border-l-3 border-[#283891] font-bold"
+                        ? "bg-blue-50/70 text-[#1e3a8a] border-l-3 border-[#1e3a8a] font-bold"
                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                     }`
                   }
@@ -383,7 +383,7 @@ export default function DashboardLayout() {
                         : "gap-3 px-3.5 py-2.5 text-left"
                     } ${
                       isActive
-                        ? "bg-indigo-50/70 text-[#283891] border-l-3 border-[#283891] font-bold"
+                        ? "bg-blue-50/70 text-[#1e3a8a] border-l-3 border-[#1e3a8a] font-bold"
                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                     }`
                   }
@@ -394,6 +394,23 @@ export default function DashboardLayout() {
               </>
             )}
           </nav>
+
+          {/* Desktop Sidebar Bottom System Status Card */}
+          {!isCollapsed && (
+            <div className="mt-8 pt-4 border-t border-slate-100">
+              <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-1.5 shadow-2xs">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                  <span>System Console</span>
+                  <span className="flex items-center gap-1.5 text-emerald-600 font-extrabold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Live
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 font-medium truncate">
+                  Chamber Node Active • 2026
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Mobile Navigation Drawer (Overlay) */}
@@ -410,7 +427,7 @@ export default function DashboardLayout() {
                 {/* Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#283891] text-white font-bold flex items-center justify-center text-xs">
+                    <div className="w-8 h-8 rounded-lg bg-[#1e3a8a] text-white font-bold flex items-center justify-center text-xs">
                       {user?.first_name ? user.first_name[0].toUpperCase() : "U"}
                     </div>
                     <div>
@@ -441,7 +458,7 @@ export default function DashboardLayout() {
                         onClick={item.onClick}
                         className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl font-semibold text-xs transition-colors text-left cursor-pointer min-h-[44px] ${
                           item.isActive
-                            ? "bg-indigo-50/70 text-[#283891] font-bold border-l-3 border-[#283891]"
+                            ? "bg-blue-50/70 text-[#1e3a8a] font-bold border-l-3 border-[#1e3a8a]"
                             : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                         }`}
                       >

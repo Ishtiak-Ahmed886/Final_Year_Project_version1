@@ -3,9 +3,14 @@ import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 const ACCENT_STYLES = {
   primary: {
-    iconBg: "bg-indigo-50 text-[#283891] border-indigo-100",
-    valueText: "text-[#283891]",
-    bar: "bg-[#283891]",
+    iconBg: "bg-blue-50 text-[#1e3a8a] border-blue-100",
+    valueText: "text-[#1e3a8a]",
+    bar: "bg-[#1e3a8a]",
+  },
+  teal: {
+    iconBg: "bg-teal-50 text-[#0d9488] border-teal-100",
+    valueText: "text-[#0d9488]",
+    bar: "bg-[#0d9488]",
   },
   success: {
     iconBg: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -78,7 +83,7 @@ export default function MetricCard({
       }
       className={`relative bg-white border border-slate-200 rounded-2xl p-5 shadow-xs transition-all overflow-hidden flex flex-col justify-between ${
         isInteractive
-          ? "cursor-pointer hover:border-slate-300 hover:shadow-sm active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#283891]/20"
+          ? "cursor-pointer hover:border-slate-300 card-hover-elevation active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20"
           : ""
       } ${className}`}
     >

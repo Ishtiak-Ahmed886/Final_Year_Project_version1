@@ -11,11 +11,12 @@
 [![Speech Synthesis](https://img.shields.io/badge/Audio-Web_Speech_API_Bilingual-FF6F00?style=for-the-badge&logo=google-cloud&logoColor=white)]()
 [![Database](https://img.shields.io/badge/Database-SQLite_/_PostgreSQL-4479A1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Status](https://img.shields.io/badge/Status-Production_Grade_Hardened-success?style=for-the-badge)]()
-[![Tests](https://img.shields.io/badge/Tests-148%2F148_Passing_(100%25)-brightgreen?style=for-the-badge)]()
+[![Tests](https://img.shields.io/badge/Tests-325%2F325_Passing_(100%25)-brightgreen?style=for-the-badge)]()
+[![System Audit](https://img.shields.io/badge/Audit_Report-README__AUDIT.md-blueviolet?style=for-the-badge)](file:///d:/Projects/README_AUDIT.md)
 
 **An enterprise-grade, distributed clinical ecosystem bridging Clinics, Specialist Doctors, Receptionists, Patients, and Platform Administrators across Bangladesh.**
 
-[Explore Features](#-key-features) • [System Architecture](#-system-architecture) • [Queue State Machine](#-digital-queue-engine--emergency-priority) • [Clinical Innovation Matrix](#-clinical-innovation--ai-architecture) • [Quick Start](#-quick-start-guide) • [Default Credentials](#-default-credentials-development) • [API Documentation](#-api-documentation)
+[Explore Features](#-key-features) • [System Architecture](#-system-architecture) • [Queue State Machine](#-digital-queue-engine--emergency-priority) • [Clinical Innovation Matrix](#-clinical-innovation--ai-architecture) • [Audit Report (README_AUDIT.md)](file:///d:/Projects/README_AUDIT.md) • [Quick Start](#-quick-start-guide) • [Default Credentials](#-default-credentials-development) • [API Documentation](#-api-documentation)
 
 </div>
 
@@ -26,6 +27,9 @@
 **Smart Clinic** is an end-to-end, multi-tenant digital health management platform engineered to resolve queue congestion, fragmented medical records, and manual counter discrepancies in healthcare facilities across Bangladesh. 
 
 Benchmarked against regional leaders like [Smart ClinicX by HEALTHx](https://clinic.healthxbd.com/), Smart Clinic eliminates physical waiting room chaos with **real-time live chamber dispatching**, empowers patients with **longitudinal vitals tracking & Gemini AI multimodal medical report analysis**, equips doctors with a **BMDC-standard chamber super-console**, and gives front-desk receptionists an **automated cash drawer reconciliation & denomination handover ledger**.
+
+> [!NOTE]
+> A full architectural, security, testing, and concurrency audit was executed on this codebase. For the complete 11-gap analysis matrix, system health scorecard (Grade: B+ / 82.2%), and code remediation snippets, see the dedicated [README_AUDIT.md](file:///d:/Projects/README_AUDIT.md).
 
 ---
 
@@ -99,49 +103,28 @@ stateDiagram-v2
         HeldState --> NormalConsultation: RESUME_HELD (Emergency Resolved)
     }
 
-    WAITING --> IN_CHAMBER: Doctor / Reception triggers NEXT_SERIAL
-    WAITING --> EMERGENCY_ACTIVE: ADMIT_EMERGENCY (Priority Bypass)
-    EMERGENCY_ACTIVE --> COMPLETED: COMPLETE_EMERGENCY (current_serial strictly preserved)
+    WAITING --> IN_CHAMBER: CALL_NEXT_SERIAL (Doctor Chamber Dispatch)
+    WAITING --> CANCELLED: Patient / Reception Cancel (< 2hr Guard)
     
-    IN_CHAMBER --> COMPLETED: Consultation Finished & E-Rx Signed
-    WAITING --> SKIPPED: SKIP_SERIAL (Patient absent when called)
-    SKIPPED --> IN_CHAMBER: RECALL_SERIAL (Patient returns to counter)
+    IN_CHAMBER --> COMPLETED: COMPLETE_CONSULTATION (Vitals & Rx Synced)
+    IN_CHAMBER --> NO_SHOW: PATIENT_NO_SHOW (Counter Skip)
     
     COMPLETED --> [*]
+    NO_SHOW --> [*]
+    CANCELLED --> [*]
 ```
-
-### Core Concurrency & Queue Invariants:
-1. **Immutable Serial Identity**: `Appointment.serial_number` is locked upon creation and never mutates or re-indexes.
-2. **Non-Advancing Serial Invariant**: Priority admission of emergency cases strictly preserves `ChamberSession.current_serial`. Normal tokens remain valid without confusing waiting patients.
-3. **No Blind Progression (`current_serial += 1` Forbidden)**: Sequential transitions query the database atomically with `select_for_update()` to locate the lowest valid unserved candidate.
-4. **Strict Separation of Held vs. Skipped**: Patients interrupted by an emergency are placed into `held_patient` state and are never mixed with `skipped_serials`.
 
 ---
 
-## 🧬 Clinical Innovation & AI Architecture
+## 💡 Clinical Innovation & AI Architecture
 
-### 1. Multimodal Medical Report AI Analyzer (`ai_analyzer.py`)
-- **Visual Diagnostics**: Analyzes CBC, Lipid Profiles, Liver Function Tests (LFT), Renal Function Tests (RFT), HbA1c, and Pathology images uploaded by patients or clinics.
-- **Multimodal Pipeline**: Powered by **Google Gemini 1.5 Flash Vision** with clinical rule-based deterministic fallback.
-- **Structured Clinical Extraction**: Automatically extracts quantitative parameters with standard reference ranges, abnormal flags (`HIGH`, `LOW`, `CRITICAL`), and contextual bilingual clinical summaries in English and Bengali.
-- **AI Suggested Questions**: Generates targeted exploratory questions for the attending physician to accelerate diagnostic interview during chamber visits.
+### 1. Gemini 1.5 Multimodal Diagnostic Analyzer
+- **Multimodal Lab Report Parsing**: Patients or clinics upload diagnostic investigations (CBC, Lipid Profile, Liver Function, HbA1c, Renal Panel, Urine R/E). The vision engine extracts discrete biometric parameters, flags out-of-range biomarkers, calculates medical risk indices, and provides patient-friendly explanations in both **Bengali and English**.
+- **Offline Clinical Heuristic Fallback Engine**: If the cloud AI gateway experiences downtime or quota exhaustion, an onboard rule-based clinical diagnostic model automatically classifies standard lab parameters.
 
-```mermaid
-flowchart LR
-    Upload[Patient / Clinic Uploads Medical Report] --> Vault[Cloudinary Authenticated Storage]
-    Vault --> Engine[apps.prescriptions.ai_analyzer]
-    Engine -->|Vision API Call| Gemini[Gemini 1.5 Flash Vision]
-    Engine -->|Fallback Rule Engine| RegexParser[Clinical Parameter Parser]
-    Gemini & RegexParser --> Classifier[Risk Stratification Engine]
-    Classifier --> NormalizedResult["Clinical Findings + Risk Level (NORMAL / ATTENTION / CRITICAL)"]
-    NormalizedResult --> DB[(Prescriptions & Reports DB)]
-    DB --> DoctorView[Doctor Chamber Super-Console & Patient Portal]
-```
-
-### 2. Patient Longitudinal Vitals & Health Indicator Trends (`PatientVitalLog`)
-- **Longitudinal Biomarkers**: Records Systolic BP, Diastolic BP, Pulse Rate, Blood Glucose (Fasting / Random / Postprandial), Weight (kg), and BMI.
-- **Automated Prescription Sync**: Vitals recorded during doctor chamber consultations automatically write to the patient's permanent vital log via database signals (`sync_prescription_vitals`).
-- **AHA & WHO Threshold Guides**: Built-in visual indicators evaluating Hypertension stages (`Normal <120/80`, `Elevated`, `Stage 1`, `Stage 2`, `Hypertensive Crisis >180/120`) and Diabetes guidelines.
+### 2. Longitudinal Vitals Tracking & WHO Risk Stratification
+- **Biometric Health Trends**: Automated tracking of Systolic/Diastolic Blood Pressure (mmHg), Fasting/Random Blood Sugar (mmol/L), Pulse Rate (bpm), Weight (kg), and Body Mass Index (BMI).
+- **Color-Coded WHO Risk Tiers**: Instant visualization across Normal, Elevated, Stage 1/Stage 2 Hypertension, and Hypertensive Crisis.
 - **Zero-Dependency SVG Trend Charts**: Ultra-lightweight, responsive SVG area and line graphs displaying historical health trajectories over 30, 90, and 365 days.
 
 ### 3. Dual Multilingual Voice Callouts on Waiting Room Signage TV
@@ -157,7 +140,7 @@ flowchart LR
 - **Fast-Dispatch Hotkey**: Global <kbd>F2</kbd> keyboard shortcut allowing receptionists to instantly call the next token without reaching for the mouse.
 
 ### 5. Bangladesh National Geo-Hierarchy Hierarchy
-- **Complete Administrative Seeder**: Built-in database architecture comprising **8 Divisions, 64 Districts, and 407 Upazilas** (`apps.common`).
+- **Complete Administrative Seeder**: Built-in database architecture comprising **8 Divisions, 64 Districts, and 495 Upazilas** (`apps.common`).
 - **Cascading Filter Engine**: Seamless division-to-district cascade in public clinic search, specialist doctor directories, and clinic onboarding registration.
 
 ---
@@ -166,11 +149,11 @@ flowchart LR
 
 | Persona | Key Capabilities & Hardened Features |
 | :--- | :--- |
-| **Patient** | • Real-time Mobile Queue Tracker (`/track/<uuid>`) with live position and wait times.<br/>• Longitudinal Vitals Graphing (BP, Glucose, Pulse, BMI) with WHO risk guides.<br/>• Medical Report Multimodal AI Analyzer with risk flags & suggested doctor questions.<br/>• Cryptographic QR Prescription Verification portal.<br/>• Online booking with SSLCommerz gateway & instant PDF appointment slip download. |
+| **Patient** | • Real-time Mobile Queue Tracker (`/track-queue/<uuid>`) with live position and wait times.<br/>• Longitudinal Vitals Graphing (BP, Glucose, Pulse, BMI) with WHO risk guides.<br/>• Medical Report Multimodal AI Analyzer with risk flags & suggested doctor questions.<br/>• Cryptographic QR Prescription Verification portal.<br/>• Online booking with SSLCommerz gateway & instant PDF appointment slip download. |
 | **Doctor** | • Chamber Super-Console with historical vitals drawer and comparison deltas.<br/>• Live patient consultation queue controls: Next, Skip, Recall, Hold, and Emergency Bypass.<br/>• Direct inspection of patient reports with AI Risk Badges (`NORMAL`, `ATTENTION_NEEDED`, `CRITICAL`).<br/>• Rapid Follow-up Scheduling chips (`+7 Days`, `+14 Days`, `+1 Month`, Custom Date).<br/>• Standard BMDC A4 Prescription Generator with diagnosis, Rx dosage, advice, and follow-up notes. |
-| **Receptionist** | • Standalone Front Desk Workstation (`/dashboard/receptionist`).<br/>• Lightning-fast token dispatch via <kbd>F2</kbd> keyboard hotkey.<br/>• Instant Walk-in Token Generation and 80mm thermal receipt printing (`TokenPrintModal`).<br/>• Lossless Token Reprinting without serial corruption.<br/>• Shift Closing & Cash Reconciliation with Bangladeshi denomination breakdown & printable audit slips. |
-| **Clinic Admin** | • Multi-Chamber scheduling, specialist roaster, and room allocation.<br/>• Diagnostic test catalog & pricing management (ECG, USG, CBC, X-Ray, etc.).<br/>• Staff attendance tracking (`PRESENT`, `LATE`, `LEAVE`, `ABSENT`) and monthly payroll management.<br/>• Virtual Clinic Showcase with high-res photo gallery and amenities badge configuration. |
-| **Waiting Room TV** | • High-contrast 4K/1080p full-screen lounge display (`/queue/waiting-room`).<br/>• Dual Multilingual Speech Synthesis (Bengali + English voice callouts).<br/>• Real-time chamber status broadcast (`In Chamber`, `Prayer Break`, `In Transit`, `Emergency`). |
+| **Receptionist** | • Standalone Front Desk Workstation (`/dashboard` with receptionist role).<br/>• Lightning-fast token dispatch via <kbd>F2</kbd> keyboard hotkey.<br/>• Instant Walk-in Token Generation and 80mm thermal receipt printing (`TokenPrintModal`).<br/>• Lossless Token Reprinting without serial corruption.<br/>• Shift Closing & Cash Reconciliation with Bangladeshi denomination breakdown & printable audit slips. |
+| **Clinic Admin** | • Multi-Chamber scheduling, specialist roster, and room allocation.<br/>• Diagnostic test catalog & pricing management (ECG, USG, CBC, X-Ray, etc.).<br/>• Staff attendance tracking (`PRESENT`, `LATE`, `LEAVE`, `ABSENT`) and monthly payroll management.<br/>• Virtual Clinic Showcase with high-res photo gallery and amenities badge configuration. |
+| **Waiting Room TV** | • High-contrast 4K/1080p full-screen lounge display (`/queue-display`).<br/>• Dual Multilingual Speech Synthesis (Bengali + English voice callouts).<br/>• Real-time chamber status broadcast (`In Chamber`, `Prayer Break`, `In Transit`, `Emergency`). |
 | **Super Admin** | • Nationwide clinic verification and BMDC registration audits.<br/>• Platform-wide transaction volumes, doctor onboarding, and geographical distribution telemetry. |
 
 ---
@@ -179,22 +162,21 @@ flowchart LR
 
 | Domain | Technology | Key Packages / Specifications |
 | :--- | :--- | :--- |
-| **Frontend SPA** | React 19 + Vite 8 | React Router v7, Axios, Lucide React |
-| **Styling & Design** | Tailwind CSS + DaisyUI 5 | Custom CSS variables, responsive typography, print-friendly media queries |
+| **Frontend SPA** | React 19 + Vite 8 | React Router v7, Axios, Lucide React, DaisyUI 5, Tailwind CSS 4 |
 | **Audio Engine** | Web Speech API | Dual synthesized Bengali & English speech synthesis |
 | **Backend API** | Django 5.x + DRF | Django REST Framework, SimpleJWT, django-cors-headers, drf-spectacular |
 | **AI Vision Engine** | Google Gemini 1.5 Flash | Multimodal report analysis & clinical parameter extraction |
 | **Database** | SQLite (Dev) / PostgreSQL (Prod) | Normalized relational models with atomic transactions (`select_for_update`) |
 | **Payments** | SSLCommerz & Cash Ledger | Multi-currency BDT sandbox/live gateway with IPN validation |
-| **SMS Gateway** | BD Telco Gateway Simulator | Automated SMS dispatch for token creation and E-Prescription readiness |
+| **SMS Gateway** | Bangladesh Telco Gateway | Automated SMS dispatch for token creation and E-Prescription readiness |
 
 ---
 
 ## 🚀 Quick Start Guide
 
 ### Prerequisites
-- **Node.js**: `v18.x` or higher
-- **Python**: `v3.10` or higher
+- **Node.js**: `v20.x` or higher
+- **Python**: `v3.11` or `v3.12`
 - **Git**
 
 ---
@@ -215,8 +197,8 @@ cd clinic_backend
 # 1. Create and activate Python virtual environment
 python -m venv venv
 
-# Windows:
-venv\Scripts\activate
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
 # Linux/macOS:
 source venv/bin/activate
 
@@ -258,10 +240,11 @@ npm run dev
 
 ## 🧪 Testing & Quality Assurance
 
-### Run Backend Unit & Integration Tests (148 Passing Tests)
+### Run Backend Unit & Integration Tests (325 Passing Tests Across Apps)
+To avoid colliding with root live HTTP e2e scripts, target the `apps` package:
 ```bash
 cd clinic_backend
-python manage.py test apps.common.tests apps.clinics.tests apps.prescriptions.tests
+.\venv\Scripts\python.exe -u manage.py test --noinput --keepdb apps
 ```
 
 ### Build Frontend Production Bundle (0 Errors)

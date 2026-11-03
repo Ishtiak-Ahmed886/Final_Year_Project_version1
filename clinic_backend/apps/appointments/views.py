@@ -17,34 +17,92 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Appointment.objects.select_related('patient', 'clinic', 'doctor', 'department').all()
+        queryset = Appointment.objects.select_related(
+            'patient', 'clinic', 'doctor', 'department', 'family_member'
+        ).prefetch_related('doctor__specializations').all()
+
+        # ── Role-based base filter ────────────────────────────────────────────
         if user.role == 'PATIENT':
-            return queryset.filter(patient=user)
+            queryset = queryset.filter(patient=user)
         elif user.role == 'DOCTOR':
-            return queryset.filter(doctor__email=user.email)
+            doctor_profile = getattr(user, 'doctor_profile', None)
+            if doctor_profile:
+                queryset = queryset.filter(doctor=doctor_profile)
+            else:
+                queryset = queryset.filter(doctor__email=user.email)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if staff:
+                queryset = queryset.filter(clinic=staff.clinic)
+            else:
+                return queryset.none()
         elif user.role == 'CLINIC_ADMIN':
-            return queryset.filter(clinic__owner=user)
+            queryset = queryset.filter(clinic__owner=user)
+        # ADMIN sees all
+
+        # ── Query param filters ───────────────────────────────────────────────
+        params = self.request.query_params
+
+        appointment_date = params.get('appointment_date') or params.get('date')
+        if appointment_date:
+            queryset = queryset.filter(appointment_date=appointment_date)
+
+        doctor_id = params.get('doctor_id')
+        if doctor_id:
+            queryset = queryset.filter(doctor__id=doctor_id)
+
+        clinic_id = params.get('clinic_id')
+        if clinic_id:
+            queryset = queryset.filter(clinic__id=clinic_id)
+
+        apt_status = params.get('status')
+        if apt_status:
+            queryset = queryset.filter(status=apt_status.upper())
+
+        is_emergency = params.get('is_emergency')
+        if is_emergency is not None:
+            queryset = queryset.filter(is_emergency=is_emergency.lower() in ['true', '1'])
+
+        ordering = params.get('ordering', '-appointment_date')
+        allowed_orderings = {
+            'appointment_date', '-appointment_date',
+            'serial_number', '-serial_number',
+            'appointment_time', '-appointment_time',
+            'created_at', '-created_at',
+        }
+        if ordering in allowed_orderings:
+            queryset = queryset.order_by(ordering, 'serial_number')
+
         return queryset
+
 
     def create(self, request, *args, **kwargs):
         user = request.user
-        if user.role not in ['PATIENT', 'CLINIC_ADMIN', 'ADMIN']:
+        if user.role not in ['PATIENT', 'CLINIC_ADMIN', 'RECEPTIONIST', 'ADMIN']:
             return Response({'detail': 'You do not have permission to book appointments.'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        if user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if not staff or str(staff.clinic_id) != str(data['clinic_id']):
+                return Response({'detail': 'You can only book appointments for your assigned clinic.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'CLINIC_ADMIN':
+            from apps.clinics.models import Clinic
+            if not Clinic.objects.filter(id=data['clinic_id'], owner=user).exists():
+                return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+
         target_patient = user
         is_walk_in = data.get('is_walk_in', False)
 
-        # Handle CLINIC_ADMIN walk-in counter patient booking
-        if user.role in ['CLINIC_ADMIN', 'ADMIN'] and is_walk_in:
+        # Handle counter walk-in booking by Clinic Admin or Receptionist
+        if user.role in ['CLINIC_ADMIN', 'RECEPTIONIST', 'ADMIN'] and is_walk_in:
             from apps.accounts.models import User, UserRole
             walk_in_phone = data.get('walk_in_phone', '').strip()
             walk_in_name = data.get('walk_in_name', '').strip() or 'Walk-in Patient'
 
-            # Try to match patient by phone, or create lightweight patient record
             patient_obj = None
             if walk_in_phone:
                 patient_obj = User.objects.filter(phone=walk_in_phone, role=UserRole.PATIENT).first()
@@ -56,7 +114,8 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
                 name_parts = walk_in_name.split(' ', 1)
                 first_name = name_parts[0]
                 last_name = name_parts[1] if len(name_parts) > 1 else ''
-                synthetic_email = f"walkin.{walk_in_phone or uuid.uuid4().hex[:8]}@smartclinic.local"
+                clean_phone = walk_in_phone.replace(' ', '').replace('-', '') if walk_in_phone else ''
+                synthetic_email = f"walkin.{clean_phone or uuid.uuid4().hex[:8]}@smartclinic.local"
                 patient_obj = User.objects.create_user(
                     email=synthetic_email,
                     first_name=first_name,
@@ -66,7 +125,7 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
                 )
             target_patient = patient_obj
 
-        initial_status = 'CONFIRMED' if (user.role in ['CLINIC_ADMIN', 'ADMIN'] and is_walk_in) else 'PENDING'
+        initial_status = 'CONFIRMED' if (user.role in ['CLINIC_ADMIN', 'RECEPTIONIST', 'ADMIN'] and is_walk_in) else 'PENDING'
 
         appointment = book_appointment(
             patient=target_patient,
@@ -85,8 +144,8 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
 @extend_schema(tags=['Appointments'])
 class AppointmentCheckInView(generics.GenericAPIView):
     """
-    1-Click Counter Cash Payment & Check-In by Clinic Receptionist.
-    Marks appointment as CONFIRMED and logs a CASH payment.
+    1-Click Counter Cash Payment & Check-In by Clinic Receptionist or Admin.
+    Marks appointment as CONFIRMED, arrived as True, and logs a CASH payment.
     """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = AppointmentSerializer
@@ -98,10 +157,15 @@ class AppointmentCheckInView(generics.GenericAPIView):
             return Response({'detail': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         user = request.user
-        if user.role == 'CLINIC_ADMIN' and appointment.clinic.owner != user:
-            return Response({'detail': 'You do not own the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
-        elif user.role not in ['CLINIC_ADMIN', 'ADMIN']:
-            return Response({'detail': 'Only clinic receptionist/admin can mark cash check-in.'}, status=status.HTTP_403_FORBIDDEN)
+        if user.role == 'CLINIC_ADMIN':
+            if appointment.clinic.owner != user:
+                return Response({'detail': 'You do not own the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if not staff or str(staff.clinic_id) != str(appointment.clinic_id):
+                return Response({'detail': 'You do not belong to the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role != 'ADMIN':
+            return Response({'detail': 'Only clinic receptionist or admin can mark cash check-in.'}, status=status.HTTP_403_FORBIDDEN)
 
         from .models import AppointmentStatus
         from apps.payments.models import Payment, PaymentMethod, PaymentStatus
@@ -136,14 +200,23 @@ class AppointmentDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Appointment.objects.select_related('patient', 'clinic', 'doctor', 'department').all()
+        queryset = Appointment.objects.select_related(
+            'patient', 'clinic', 'doctor', 'department', 'family_member'
+        ).prefetch_related('doctor__specializations').all()
         if user.role == 'PATIENT':
             return queryset.filter(patient=user)
         elif user.role == 'DOCTOR':
+            doctor_profile = getattr(user, 'doctor_profile', None)
+            if doctor_profile:
+                return queryset.filter(doctor=doctor_profile)
             return queryset.filter(doctor__email=user.email)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            return queryset.filter(clinic=staff.clinic) if staff else queryset.none()
         elif user.role == 'CLINIC_ADMIN':
             return queryset.filter(clinic__owner=user)
         return queryset
+
 
 @extend_schema(tags=['Appointments'])
 class AppointmentCancelView(generics.GenericAPIView):

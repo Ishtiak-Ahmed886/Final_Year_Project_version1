@@ -130,8 +130,8 @@ const STATUS_CONFIGS = {
   NEXT: {
     label: "Next",
     labelBn: "পরবর্তী",
-    bg: "bg-indigo-100 border-indigo-300 text-indigo-900",
-    badge: "bg-[#283891] text-white font-bold",
+    bg: "bg-blue-100 border-blue-300 text-blue-900",
+    badge: "bg-[#1e3a8a] text-white font-bold",
     icon: FastForward,
     pulse: false,
   },

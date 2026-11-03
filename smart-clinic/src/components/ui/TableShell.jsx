@@ -69,7 +69,7 @@ export default function TableShell({
           <div className="py-12 flex flex-col items-center justify-center text-center">
             <Loader2
               size={24}
-              className="animate-spin text-[#283891] mb-2"
+              className="animate-spin text-[#1e3a8a] mb-2"
               aria-hidden="true"
             />
             <span className="text-xs font-medium text-slate-500">

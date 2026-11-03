@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../Provider/AuthProvider";
 import { useLanguage } from "../../context/LanguageContext";
-import { formatCurrency } from "../../utils/formatters";
+import { formatCurrency, formatDoctorName } from "../../utils/formatters";
 
 export default function DoctorDetail() {
   const { id } = useParams();
@@ -121,7 +121,7 @@ export default function DoctorDetail() {
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl md:text-3xl font-extrabold text-base-content">
-                Dr. {doctor.full_name}
+                {formatDoctorName(doctor.full_name)}
               </h1>
               <span className="badge badge-success badge-soft text-xs gap-1 font-bold">
                 <ShieldCheck size={12} /> {t("docDetailVerified")}
@@ -186,7 +186,7 @@ export default function DoctorDetail() {
       {doctor.bio && (
         <div className="bg-base-100 border border-base-200 rounded-3xl p-6 shadow-sm space-y-2">
           <h2 className="text-lg font-bold text-base-content flex items-center gap-2">
-            <Stethoscope className="text-primary" size={20} /> {t("docDetailAbout")} Dr. {doctor.full_name}
+            <Stethoscope className="text-primary" size={20} /> {t("docDetailAbout")} {formatDoctorName(doctor.full_name)}
           </h2>
           <p className="text-sm text-base-content/80 leading-relaxed whitespace-pre-line">
             {doctor.bio}
@@ -214,7 +214,7 @@ export default function DoctorDetail() {
               return (
                 <div
                   key={dc.id}
-                  className="bg-base-100 border border-base-200 rounded-2xl p-6 shadow-md hover:shadow-lg transition-all space-y-4 flex flex-col justify-between"
+                  className="bg-base-100 border border-base-200 rounded-2xl p-6 shadow-xs card-hover-elevation transition-all space-y-4 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
@@ -267,7 +267,7 @@ export default function DoctorDetail() {
               <Star className="text-warning fill-warning" size={20} /> {t("docDetailVerifiedReviews")}
             </h2>
             <p className="text-xs text-base-content/60">
-              {t("docDetailReviewsSub")} Dr. {doctor.full_name}
+              {t("docDetailReviewsSub")} {formatDoctorName(doctor.full_name)}
             </p>
           </div>
           {reviews.length > 0 && (

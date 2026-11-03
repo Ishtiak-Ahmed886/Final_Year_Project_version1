@@ -209,3 +209,22 @@ class DoctorScheduleSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'created_at', 'day_of_week_display', 'clinic_name')
 
+
+from .models import DoctorLeave
+
+
+class DoctorLeaveSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source='doctor.full_name', read_only=True)
+    clinic_name = serializers.CharField(source='clinic.name', read_only=True, default='All Clinics')
+    affected_appointments_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = DoctorLeave
+        fields = (
+            'id', 'doctor', 'doctor_name', 'clinic', 'clinic_name',
+            'start_date', 'end_date', 'reason', 'is_approved',
+            'affected_appointments_count', 'created_at'
+        )
+        read_only_fields = ('id', 'created_at', 'doctor_name', 'clinic_name', 'affected_appointments_count')
+
+
