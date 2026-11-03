@@ -5,6 +5,8 @@ const ALLOWED_HEXES = new Set([
   '#1e3a8a', // brand-primary
   '#172554', // brand-primary-hover
   '#0d9488', // brand-teal
+  '#005c5f', // deep teal
+  '#00484a', // deep teal hover
   '#0f766e', // brand-teal-hover
   '#0284c7', // brand-accent
   '#f1f5f9', // neutral canvas
@@ -49,3 +51,4 @@ if (violations > 0) {
 } else {
   console.log('✅ Design system token lint passed: 0 forbidden hex literals found.');
 }
+
