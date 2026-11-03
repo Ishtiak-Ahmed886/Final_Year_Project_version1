@@ -116,7 +116,7 @@ export default function Navbar() {
             <Hospital className="w-5 h-5" />
           </div>
           <span>
-            Smart<span className="text-pink-600">Clinic</span>
+            Smart<span className="text-[#0d9488]">Clinic</span>
           </span>
         </NavLink>
       </div>

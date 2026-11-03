@@ -39,14 +39,14 @@ export default function Features() {
       titleKey: "featPatientRecordsTitle",
       descKey: "featPatientRecordsDesc",
       tagKey: "featPatientRecordsTag",
-      color: "bg-purple-50 text-purple-600 border-purple-100",
+      color: "bg-teal-50 text-[#0d9488] border-teal-200",
     },
     {
       icon: Bell,
       titleKey: "featNotificationsTitle",
       descKey: "featNotificationsDesc",
       tagKey: "featNotificationsTag",
-      color: "bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100",
+      color: "bg-blue-50 text-[#1e3a8a] border-blue-200",
     },
     {
       icon: ShieldCheck,
@@ -113,4 +113,4 @@ export default function Features() {
       </div>
     </section>
   );
-}
+}

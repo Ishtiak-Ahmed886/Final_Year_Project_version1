@@ -21,7 +21,7 @@ export default function Hero() {
     <section className="relative overflow-hidden pt-10 pb-20 lg:pt-14 lg:pb-24 bg-gradient-to-b from-slate-50 via-white to-slate-50 border-b border-slate-100">
       {/* Background subtle radial ambient glows */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-100/40 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute top-20 right-10 w-96 h-96 bg-fuchsia-100/30 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="absolute top-20 right-10 w-96 h-96 bg-teal-100/30 rounded-full blur-3xl pointer-events-none -z-10" />
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         <div className="grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
@@ -30,8 +30,8 @@ export default function Hero() {
           <div className="lg:col-span-7 flex flex-col items-start text-left">
             
             {/* Pill Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50/90 text-indigo-700 border border-indigo-100 shadow-sm mb-6 hover:bg-indigo-100/80 transition-colors">
-              <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-blue-50 text-[#1e3a8a] border border-blue-200/80 shadow-2xs mb-6 hover:bg-blue-100/80 transition-colors">
+              <span className="w-2 h-2 rounded-full bg-[#1e3a8a] animate-pulse" />
               <span>{t("heroBadge")}</span>
             </div>
 
@@ -41,7 +41,7 @@ export default function Hero() {
               <br />
               <span>{t("heroTitle2")}</span>
               <br />
-              <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-fuchsia-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[#1e3a8a] to-[#0d9488] bg-clip-text text-transparent">
                 {t("heroTitle3").replace(".", "")}
               </span>
               <span className="text-[#0d9488]">.</span>
@@ -81,14 +81,14 @@ export default function Hero() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <span className="w-5 h-5 rounded-full bg-blue-50 text-[#1e3a8a] flex items-center justify-center">
                   <ShieldCheck className="w-3.5 h-3.5 stroke-[2.5]" />
                 </span>
                 <span>{t("secureDataBadge")}</span>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center">
+                <span className="w-5 h-5 rounded-full bg-teal-50 text-[#0d9488] flex items-center justify-center">
                   <Sparkles className="w-3.5 h-3.5" />
                 </span>
                 <span>{t("uptimeBadge")}</span>
