@@ -36,12 +36,12 @@ export default function Stats() {
     {
       value: `${counts.clinics}+`,
       label: language === "bn" ? "নিবন্ধিত ক্লিনিক ও হাসপাতাল" : "Registered Clinics",
-      color: "text-[#1e3a8a]",
+      color: "text-[#2534a5]",
     },
     {
       value: `${counts.doctors}+`,
       label: language === "bn" ? "সার্টিফাইড বিশেষজ্ঞ চিকিৎসক" : "Certified Doctors",
-      color: "text-[#0d9488]",
+      color: "text-[#d91a6e]",
     },
     {
       value: `${counts.departments}+`,

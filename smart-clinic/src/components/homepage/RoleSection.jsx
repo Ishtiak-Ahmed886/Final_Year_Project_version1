@@ -88,7 +88,7 @@ export default function RoleSection() {
             <div className="mt-10">
               <Link
                 to={user ? "/dashboard" : "/register"}
-                className="w-full inline-flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-bold text-white bg-[#1e3a8a] hover:bg-[#172554] shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all text-base group cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-bold text-white bg-[#2534a5] hover:bg-[#1a2578] shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all text-base group cursor-pointer"
               >
                 <span>{t("openClinicBtn")}</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -99,15 +99,15 @@ export default function RoleSection() {
           {/* Patient Card */}
           <div className="relative bg-white rounded-3xl p-8 sm:p-10 border border-slate-200/80 shadow-md hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden group">
             {/* Top highlight bar */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-teal-500 to-[#0d9488]" />
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-pink-500 to-rose-600" />
 
             <div>
               {/* Header */}
               <div className="flex items-center justify-between">
-                <div className="w-14 h-14 rounded-2xl bg-teal-50 text-[#0d9488] border border-teal-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                <div className="w-14 h-14 rounded-2xl bg-pink-50 text-pink-600 border border-pink-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
                   <UserRound className="w-7 h-7" />
                 </div>
-                <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-teal-50 text-[#0d9488] border border-teal-200">
+                <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-pink-50 text-pink-700 border border-pink-100">
                   {t("forPatients")}
                 </span>
               </div>
@@ -124,7 +124,7 @@ export default function RoleSection() {
               <ul className="mt-7 space-y-3.5">
                 {patientFeatures.map((item) => (
                   <li key={item} className="flex items-center gap-3 text-sm sm:text-base font-semibold text-slate-700">
-                    <CheckCircle2 className="w-5 h-5 text-[#0d9488] shrink-0 fill-teal-50" />
+                    <CheckCircle2 className="w-5 h-5 text-pink-600 shrink-0 fill-pink-50" />
                     <span>{item}</span>
                   </li>
                 ))}
@@ -135,7 +135,7 @@ export default function RoleSection() {
             <div className="mt-10">
               <Link
                 to={user ? "/clinics" : "/register"}
-                className="w-full inline-flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-bold text-white bg-[#0d9488] hover:bg-[#0f766e] shadow-lg shadow-teal-900/20 active:scale-[0.98] transition-all text-base group cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-bold text-white bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 shadow-lg shadow-pink-600/25 active:scale-[0.98] transition-all text-base group cursor-pointer"
               >
                 <span>{t("becomePatientBtn")}</span>
                 <Heart className="w-4 h-4 transition-transform group-hover:scale-125 fill-white/20" />
