@@ -101,8 +101,8 @@ export default function OverviewTab({
     <div className="space-y-6">
       {/* Loading Indicator */}
       {loadingOverviewStats && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-indigo-50/60 border border-indigo-100 rounded-xl text-xs text-[#283891] font-medium animate-pulse">
-          <div className="w-4 h-4 border-2 border-[#283891] border-t-transparent rounded-full animate-spin shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3 bg-blue-50/60 border border-blue-100 rounded-xl text-xs text-[#1e3a8a] font-medium animate-pulse">
+          <div className="w-4 h-4 border-2 border-[#1e3a8a] border-t-transparent rounded-full animate-spin shrink-0" />
           <span>Refreshing clinic operational telemetry...</span>
         </div>
       )}
@@ -171,9 +171,9 @@ export default function OverviewTab({
                 setWalkInModalOpen(true);
               }
             }}
-            className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/70 hover:bg-indigo-100/70 border border-indigo-200/80 text-[#283891] transition text-left group cursor-pointer"
+            className="flex items-center gap-3 p-3 rounded-xl bg-blue-50/70 hover:bg-blue-100/70 border border-blue-200/80 text-[#1e3a8a] transition text-left group cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#283891] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <UserPlus size={18} />
             </div>
             <div className="min-w-0">
@@ -227,7 +227,7 @@ export default function OverviewTab({
             onClick={() => setActiveTab("doctors")}
             className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 transition text-left group cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#283891] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-xl bg-[#1e3a8a] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
               <Stethoscope size={18} />
             </div>
             <div className="min-w-0">
@@ -247,7 +247,7 @@ export default function OverviewTab({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
           <div>
             <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-              <Activity size={16} className="text-[#283891]" />
+              <Activity size={16} className="text-[#1e3a8a]" />
               Today&apos;s Live Chamber Operations
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -255,7 +255,7 @@ export default function OverviewTab({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-[#283891] border border-indigo-100">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">
               {liveChambers.length} Active Chamber{liveChambers.length === 1 ? "" : "s"}
             </span>
             <ActionButton
@@ -296,7 +296,7 @@ export default function OverviewTab({
                     <div className="text-[10px] text-slate-400 font-semibold uppercase">
                       Current
                     </div>
-                    <div className="text-sm font-bold font-mono text-[#283891]">
+                    <div className="text-sm font-bold font-mono text-[#1e3a8a]">
                       #{chamber.current_serial || 0}
                     </div>
                   </div>
@@ -370,7 +370,7 @@ export default function OverviewTab({
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Calendar size={14} className="text-[#283891]" />
+                <Calendar size={14} className="text-[#1e3a8a]" />
                 Today&apos;s Queue Breakdown
               </h3>
               <span className="text-[11px] text-slate-400 font-mono">
@@ -491,8 +491,8 @@ export default function OverviewTab({
                 </ActionButton>
               </div>
             ) : activeDoctorsCount === 0 ? (
-              <div className="flex items-start gap-3 p-3 rounded-xl border border-indigo-200 bg-indigo-50/60">
-                <Stethoscope size={15} className="text-[#283891] shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-blue-200 bg-blue-50/60">
+                <Stethoscope size={15} className="text-[#1e3a8a] shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-slate-900">
                     No active doctors in clinic
@@ -722,10 +722,10 @@ export default function OverviewTab({
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                        <TrendingUp size={16} className="text-[#283891]" />
+                        <TrendingUp size={16} className="text-[#1e3a8a]" />
                         Appointment Flow &amp; Trends
                       </h3>
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-[#283891] border border-indigo-100">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-[#1e3a8a] border border-blue-100">
                         {monthDisplayTitle}
                       </span>
                     </div>
@@ -764,7 +764,7 @@ export default function OverviewTab({
                         onClick={() => setTrendChartType("line")}
                         className={`px-2 py-1 text-xs font-semibold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
                           trendChartType === "line"
-                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            ? "bg-white text-[#1e3a8a] shadow-2xs font-bold"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -775,7 +775,7 @@ export default function OverviewTab({
                         onClick={() => setTrendChartType("bar")}
                         className={`px-2 py-1 text-xs font-semibold rounded-md flex items-center gap-1 transition-all cursor-pointer ${
                           trendChartType === "bar"
-                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            ? "bg-white text-[#1e3a8a] shadow-2xs font-bold"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -792,7 +792,7 @@ export default function OverviewTab({
                         }}
                         className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                           overviewTrendRange === "7d"
-                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            ? "bg-white text-[#1e3a8a] shadow-2xs font-bold"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -806,7 +806,7 @@ export default function OverviewTab({
                         }}
                         className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                           overviewTrendRange === "30d"
-                            ? "bg-white text-[#283891] shadow-2xs font-bold"
+                            ? "bg-white text-[#1e3a8a] shadow-2xs font-bold"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -835,10 +835,10 @@ export default function OverviewTab({
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] text-[#283891] font-semibold uppercase tracking-wider">
+                    <div className="text-[10px] text-[#1e3a8a] font-semibold uppercase tracking-wider">
                       Success Rate
                     </div>
-                    <div className="text-sm font-bold font-mono text-[#283891]">
+                    <div className="text-sm font-bold font-mono text-[#1e3a8a]">
                       {completionRate}%
                     </div>
                   </div>
@@ -892,12 +892,12 @@ export default function OverviewTab({
                           >
                             <stop
                               offset="0%"
-                              stopColor="#283891"
+                              stopColor="#1e3a8a"
                               stopOpacity="0.22"
                             />
                             <stop
                               offset="100%"
-                              stopColor="#283891"
+                              stopColor="#1e3a8a"
                               stopOpacity="0.0"
                             />
                           </linearGradient>
@@ -949,7 +949,7 @@ export default function OverviewTab({
                           <path
                             d={linePath}
                             fill="none"
-                            stroke="#283891"
+                            stroke="#1e3a8a"
                             strokeWidth="2.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -1001,8 +1001,8 @@ export default function OverviewTab({
                               cx={pt.x}
                               cy={pt.y}
                               r={isHovered ? 5.5 : 3}
-                              fill={isHovered ? "#283891" : "#ffffff"}
-                              stroke="#283891"
+                              fill={isHovered ? "#1e3a8a" : "#ffffff"}
+                              stroke="#1e3a8a"
                               strokeWidth={isHovered ? "2.5" : "1.5"}
                               className="cursor-pointer transition-all"
                             />
@@ -1016,7 +1016,7 @@ export default function OverviewTab({
                               y1={padT}
                               x2={activeHoverPoint.x}
                               y2={baseLineY}
-                              stroke="#283891"
+                              stroke="#1e3a8a"
                               strokeWidth="1.5"
                               strokeDasharray="2 2"
                             />
@@ -1024,7 +1024,7 @@ export default function OverviewTab({
                               cx={activeHoverPoint.x}
                               cy={activeHoverPoint.y}
                               r="6"
-                              fill="#283891"
+                              fill="#1e3a8a"
                               stroke="#ffffff"
                               strokeWidth="2.5"
                             />
@@ -1098,13 +1098,13 @@ export default function OverviewTab({
                               {d.total > 0 ? (
                                 <div
                                   className={`w-full rounded-t-md overflow-hidden flex flex-col justify-end ${
-                                    isToday ? "ring-2 ring-[#283891]" : ""
+                                    isToday ? "ring-2 ring-[#1e3a8a]" : ""
                                   }`}
                                   style={{
                                     height: `${Math.max(heightPct, 12)}%`,
                                   }}
                                 >
-                                  <div className="w-full flex-1 bg-[#283891] relative">
+                                  <div className="w-full flex-1 bg-[#1e3a8a] relative">
                                     {d.completed > 0 && (
                                       <div
                                         className="w-full bg-emerald-500"
@@ -1134,7 +1134,7 @@ export default function OverviewTab({
                 <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 gap-2">
                   <div className="flex items-center gap-4 flex-wrap">
                     <span className="flex items-center gap-1.5 font-medium text-[11px]">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#283891] inline-block" />{" "}
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#1e3a8a] inline-block" />{" "}
                       Total Bookings
                     </span>
                     <span className="flex items-center gap-1.5 font-medium text-[11px]">
@@ -1191,7 +1191,7 @@ export default function OverviewTab({
             <button
               type="button"
               onClick={() => setActiveTab("appointments")}
-              className="text-[#283891] hover:underline font-semibold cursor-pointer"
+              className="text-[#1e3a8a] hover:underline font-semibold cursor-pointer"
             >
               Open Full Appointments Management →
             </button>

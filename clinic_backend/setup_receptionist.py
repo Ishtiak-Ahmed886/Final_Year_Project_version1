@@ -67,3 +67,4 @@ for r in roles:
     print(f"\n[{r.name} / {r.value}] ({users.count()} users):")
     for u in users[:4]:
         print(f"  - {u.email} ({u.first_name} {u.last_name}) | Active: {u.is_active}")
+

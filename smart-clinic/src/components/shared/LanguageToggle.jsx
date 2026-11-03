@@ -17,7 +17,7 @@ export default function LanguageToggle({ className = "" }) {
       title={language === "en" ? "বাংলায় দেখুন" : "View in English"}
       aria-label={language === "en" ? "Switch to Bengali" : "Switch to English"}
     >
-      <Languages size={15} className="text-[#283891]" />
+      <Languages size={15} className="text-[#1e3a8a]" />
       <span>{language === "en" ? "বাংলা" : "EN"}</span>
     </button>
   );

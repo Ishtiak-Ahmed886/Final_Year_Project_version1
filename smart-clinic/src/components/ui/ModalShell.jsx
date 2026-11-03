@@ -97,7 +97,7 @@ export default function ModalShell({
             type="button"
             onClick={onClose}
             aria-label="Close modal"
-            className="w-8 h-8 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center shrink-0 transition-colors focus:outline-none focus:ring-2 focus:ring-[#283891]/20"
+            className="w-8 h-8 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center shrink-0 transition-colors focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20"
           >
             <X size={16} />
           </button>

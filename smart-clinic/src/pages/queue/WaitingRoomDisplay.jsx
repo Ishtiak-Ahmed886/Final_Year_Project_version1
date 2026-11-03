@@ -277,9 +277,9 @@ export default function WaitingRoomDisplay() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0E131F] text-slate-100 flex flex-col justify-between font-sans select-none overflow-hidden">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans select-none overflow-hidden">
       {/* ================= TOP HEADER (Stitch Image 5) ================= */}
-      <header className="px-6 py-4 bg-[#141B2D]/90 border-b border-slate-800/80 flex items-center justify-between gap-4">
+      <header className="px-6 py-4 bg-slate-900/90 border-b border-slate-800/80 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <Link
             to="/dashboard"
@@ -350,7 +350,7 @@ export default function WaitingRoomDisplay() {
               <select
                 value={voiceMode}
                 onChange={(e) => setVoiceMode(e.target.value)}
-                className="bg-[#0B101D] text-slate-300 text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 focus:outline-none cursor-pointer"
+                className="bg-slate-950 text-slate-300 text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 focus:outline-none cursor-pointer"
                 title="Announcement Language"
               >
                 <option value="bilingual">Dual (বাংলা + EN)</option>
@@ -405,7 +405,7 @@ export default function WaitingRoomDisplay() {
             return (
               <div
                 key={ch.doctorId || idx}
-                className={`bg-[#141B2D] rounded-3xl p-6 border flex flex-col justify-between transition-all duration-300 relative shadow-2xl ${
+                className={`bg-slate-900 rounded-3xl p-6 border flex flex-col justify-between transition-all duration-300 relative shadow-2xl ${
                   isEmergency
                     ? "border-rose-500 ring-2 ring-rose-500/30 shadow-rose-950/50"
                     : isHighlighted
@@ -471,7 +471,7 @@ export default function WaitingRoomDisplay() {
                     ? "bg-slate-900/80 border-slate-700"
                     : isEmergency
                     ? "bg-rose-950/20 border-rose-800/40"
-                    : "bg-[#0B101D]/80 border-slate-800/80"
+                    : "bg-slate-950/80 border-slate-800/80"
                 }`}>
                   <span className={`text-[11px] uppercase font-extrabold tracking-widest block ${
                     isEnded
@@ -609,7 +609,7 @@ export default function WaitingRoomDisplay() {
       </main>
 
       {/* ================= BOTTOM HOSPITAL NOTICE TICKER (Stitch Image 5) ================= */}
-      <footer className="px-6 py-3 bg-[#141B2D] border-t border-slate-800 flex items-center justify-between text-xs gap-4">
+      <footer className="px-6 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs gap-4">
         <div className="flex items-center gap-3 overflow-hidden">
           <span className="badge badge-sm bg-indigo-600 text-white font-extrabold uppercase px-3 py-1 tracking-wider shrink-0 gap-1">
             <Megaphone size={12} /> Hospital Notice

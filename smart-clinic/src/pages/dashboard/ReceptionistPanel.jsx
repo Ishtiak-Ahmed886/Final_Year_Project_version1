@@ -543,7 +543,7 @@ export default function ReceptionistPanel() {
         <div className="flex items-center gap-3 sm:gap-6 flex-wrap text-xs">
           {/* Duty Officer */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-[#283891] border border-indigo-100 flex items-center justify-center font-bold">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1e3a8a] border border-blue-100 flex items-center justify-center font-bold">
               <UserCheck size={16} />
             </div>
             <div>
@@ -685,7 +685,7 @@ export default function ReceptionistPanel() {
                 }}
                 className={`p-4 rounded-2xl border transition-all cursor-pointer select-none relative ${
                   isSelected
-                    ? "bg-indigo-50/30 border-[#283891] shadow-xs ring-2 ring-[#283891]/20"
+                    ? "bg-blue-50/30 border-[#1e3a8a] shadow-xs ring-2 ring-[#1e3a8a]/20"
                     : "bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-2xs"
                 }`}
               >
@@ -722,8 +722,8 @@ export default function ReceptionistPanel() {
                       : "Queue Ready"}
                   </span>
                   {isSelected ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#283891]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#283891] animate-pulse" />
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1e3a8a]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#1e3a8a] animate-pulse" />
                       Active Dispatch
                     </span>
                   ) : (
@@ -745,7 +745,7 @@ export default function ReceptionistPanel() {
           onClick={() => setMobileTab("controls")}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
             mobileTab === "controls"
-              ? "bg-white text-[#283891] shadow-2xs"
+              ? "bg-white text-[#1e3a8a] shadow-2xs"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
@@ -757,7 +757,7 @@ export default function ReceptionistPanel() {
           onClick={() => setMobileTab("queue")}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
             mobileTab === "queue"
-              ? "bg-white text-[#283891] shadow-2xs"
+              ? "bg-white text-[#1e3a8a] shadow-2xs"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
@@ -776,7 +776,7 @@ export default function ReceptionistPanel() {
           {/* Chamber Main Calling Controller */}
           <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs relative overflow-hidden space-y-4">
             {/* Top Accent Strip */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#283891]" />
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#1e3a8a]" />
 
             {/* Chamber Identification Header */}
             <div className="flex items-center justify-between gap-2 pt-1 border-b border-slate-100 pb-3">
@@ -800,11 +800,11 @@ export default function ReceptionistPanel() {
               <span className="text-[11px] uppercase font-bold text-slate-400 tracking-widest block">
                 Currently In Chamber
               </span>
-              <div className="text-6xl sm:text-7xl font-mono font-black text-[#283891] tracking-tight my-2">
+              <div className="text-6xl sm:text-7xl font-mono font-black text-[#1e3a8a] tracking-tight my-2">
                 #{chamberSession?.current_serial || "--"}
               </div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-600 text-xs font-semibold border border-slate-200 shadow-2xs">
-                <Volume2 size={13} className="text-[#283891]" />
+                <Volume2 size={13} className="text-[#1e3a8a]" />
                 <span>Audio Chime: Main OPD Waiting Hall</span>
               </div>
             </div>
@@ -1043,8 +1043,8 @@ export default function ReceptionistPanel() {
             <div className="pt-2">
               <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5 px-0.5 font-medium">
                 <span>Chamber Dispatch</span>
-                <span className="flex items-center gap-1 text-[#283891] font-semibold bg-indigo-50/80 border border-indigo-100 px-2 py-0.5 rounded-md">
-                  <kbd className="px-1 py-0.2 text-[10px] font-bold bg-white border border-indigo-200 rounded shadow-2xs font-mono">F2</kbd> Quick Call
+                <span className="flex items-center gap-1 text-[#1e3a8a] font-semibold bg-blue-50/80 border border-blue-100 px-2 py-0.5 rounded-md">
+                  <kbd className="px-1 py-0.2 text-[10px] font-bold bg-white border border-blue-200 rounded shadow-2xs font-mono">F2</kbd> Quick Call
                 </span>
               </div>
               <ActionButton
@@ -1169,7 +1169,7 @@ export default function ReceptionistPanel() {
                   }
                   className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all text-center ${
                     isSessionEnded
-                      ? "bg-[#283891] text-white border-[#283891] shadow-2xs"
+                      ? "bg-[#1e3a8a] text-white border-[#1e3a8a] shadow-2xs"
                       : "bg-white text-rose-700 border-rose-200 hover:bg-rose-50"
                   }`}
                 >
@@ -1197,14 +1197,14 @@ export default function ReceptionistPanel() {
             <div className="grid grid-cols-6 gap-1 h-5 items-end pt-1">
               <div className="bg-slate-200 h-2 rounded-xs" />
               <div className="bg-indigo-200 h-3.5 rounded-xs" />
-              <div className="bg-[#283891] h-5 rounded-xs" />
+              <div className="bg-[#1e3a8a] h-5 rounded-xs" />
               <div className="bg-indigo-200 h-3 rounded-xs" />
               <div className="bg-slate-200 h-1.5 rounded-xs" />
               <div className="bg-slate-100 h-1 rounded-xs" />
             </div>
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
               <span className="text-slate-600 font-medium flex items-center gap-1.5">
-                <Volume2 size={13} className="text-[#283891]" /> Token Voice Chime
+                <Volume2 size={13} className="text-[#1e3a8a]" /> Token Voice Chime
               </span>
               <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                 Bangla + English Active
@@ -1241,7 +1241,7 @@ export default function ReceptionistPanel() {
                     placeholder="Search name, phone, serial..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-slate-900 placeholder:text-slate-400 font-medium"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-slate-900 placeholder:text-slate-400 font-medium"
                   />
                 </div>
 
@@ -1263,7 +1263,7 @@ export default function ReceptionistPanel() {
                     onClick={() => setFilterTab("waiting")}
                     className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                       filterTab === "waiting"
-                        ? "bg-white text-[#283891] shadow-2xs"
+                        ? "bg-white text-[#1e3a8a] shadow-2xs"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
@@ -1326,7 +1326,7 @@ export default function ReceptionistPanel() {
                     key={a.id}
                     className={`transition-colors ${
                       isServing
-                        ? "bg-indigo-50/40 font-semibold"
+                        ? "bg-blue-50/40 font-semibold"
                         : "hover:bg-slate-50/70"
                     }`}
                   >
@@ -1335,7 +1335,7 @@ export default function ReceptionistPanel() {
                       <div className="flex items-center gap-1.5">
                         <span>#{a.serial_number}</span>
                         {isServing && (
-                          <span className="w-2 h-2 rounded-full bg-[#283891] animate-ping" />
+                          <span className="w-2 h-2 rounded-full bg-[#1e3a8a] animate-ping" />
                         )}
                       </div>
                     </td>
@@ -1442,7 +1442,7 @@ export default function ReceptionistPanel() {
                         <button
                           type="button"
                           onClick={() => setPrintTokenData(a)}
-                          className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-[#283891] hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors shadow-2xs"
+                          className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-[#1e3a8a] hover:border-indigo-300 hover:bg-blue-50/50 transition-colors shadow-2xs"
                           title="Print Thermal Token Slip"
                         >
                           <Printer size={13} />
@@ -1499,7 +1499,7 @@ export default function ReceptionistPanel() {
 
           {/* Audit Verification */}
           <div className="flex items-center gap-2.5 pl-0 sm:pl-6 sm:border-l sm:border-slate-200">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-[#283891] border border-indigo-100 flex items-center justify-center font-bold">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1e3a8a] border border-blue-100 flex items-center justify-center font-bold">
               <RefreshCw size={16} />
             </div>
             <div>
@@ -1576,7 +1576,7 @@ export default function ReceptionistPanel() {
                   fee: doc?.consultation_fee || 800,
                 }));
               }}
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-slate-900 font-semibold"
+              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-slate-900 font-semibold"
               required
             >
               <option value="">Select Chamber / Doctor</option>
@@ -1600,7 +1600,7 @@ export default function ReceptionistPanel() {
               onChange={(e) =>
                 setWalkInForm({ ...walkInForm, patient_name: e.target.value })
               }
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-slate-900 font-medium"
+              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-slate-900 font-medium"
               required
             />
           </div>
@@ -1611,7 +1611,7 @@ export default function ReceptionistPanel() {
                 <span className="flex items-center justify-between">
                   <span>Phone Number</span>
                   {searchingPatient && (
-                    <span className="text-[10px] text-[#283891] font-normal">
+                    <span className="text-[10px] text-[#1e3a8a] font-normal">
                       Searching...
                     </span>
                   )}
@@ -1627,7 +1627,7 @@ export default function ReceptionistPanel() {
                     patient_phone: e.target.value,
                   })
                 }
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-slate-900 font-medium"
+                className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-slate-900 font-medium"
               />
               {foundPatient && (
                 <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center gap-1.5">
@@ -1649,7 +1649,7 @@ export default function ReceptionistPanel() {
                 onChange={(e) =>
                   setWalkInForm({ ...walkInForm, fee: e.target.value })
                 }
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-emerald-700 font-bold font-mono"
+                className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-emerald-700 font-bold font-mono"
               />
             </div>
           </div>
@@ -1668,7 +1668,7 @@ export default function ReceptionistPanel() {
                   problem_description: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-slate-900 font-medium"
+              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-slate-900 font-medium"
             />
           </div>
 

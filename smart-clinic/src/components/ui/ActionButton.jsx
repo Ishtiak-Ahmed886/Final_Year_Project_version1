@@ -2,7 +2,7 @@ import React from "react";
 import { Loader2 } from "lucide-react";
 
 const VARIANT_STYLES = {
-  // Correction 2: Primary operational action uses the Smart Clinic #283891 indigo brand treatment
+  // Correction 2: Primary operational action uses the Smart Clinic #1e3a8a indigo brand treatment
   primary:
     "bg-[#1e3a8a] hover:bg-[#172554] text-white border border-[#1e3a8a] shadow-2xs focus:ring-[#1e3a8a]/30",
   secondary:
@@ -30,7 +30,7 @@ const SIZE_STYLES = {
  * Standard ActionButton Primitive
  *
  * Enforces Smart Clinic button hierarchy:
- * - 'primary' strictly uses the #283891 brand color (NOT green).
+ * - 'primary' strictly uses the #1e3a8a brand color (NOT green).
  * - 'success' (emerald) is reserved for confirmations / check-in / cash collection.
  * - 'danger' (rose) for emergency / cancellations / deletions.
  *

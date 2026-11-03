@@ -12,11 +12,11 @@ export default function CTA() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         
         {/* Main Banner */}
-        <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-[#1c278a] via-[#2a37ad] to-[#6c1b7a] px-6 py-16 sm:px-12 sm:py-20 text-center text-white shadow-2xl shadow-indigo-900/30">
+        <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-[#1e3a8a] to-[#0d9488] px-6 py-16 sm:px-12 sm:py-20 text-center text-white shadow-2xl shadow-blue-950/20">
           
           {/* Subtle decorative glow circles */}
           <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-blue-400/20 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-fuchsia-400/20 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-teal-400/20 blur-3xl pointer-events-none" />
 
           {/* Badge */}
           <div className="relative z-10 inline-block px-4 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-widest bg-white/10 border border-white/20 backdrop-blur-md mb-6">
@@ -37,7 +37,7 @@ export default function CTA() {
           <div className="relative z-10 mt-8 flex flex-wrap items-center justify-center gap-4">
             <Link
               to={user ? "/dashboard" : "/register"}
-              className="px-8 py-3.5 rounded-xl font-extrabold text-[#1c278a] bg-white hover:bg-slate-100 shadow-xl active:scale-[0.98] transition-all text-sm sm:text-base cursor-pointer"
+              className="px-8 py-3.5 rounded-xl font-extrabold text-[#1e3a8a] bg-white hover:bg-slate-100 shadow-xl active:scale-[0.98] transition-all text-sm sm:text-base cursor-pointer"
             >
               {t("getStarted")}
             </Link>

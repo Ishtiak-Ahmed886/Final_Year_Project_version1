@@ -35,12 +35,12 @@ export default function AppointmentsTab({
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Title & Total Count */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1E3A8A] flex items-center justify-center font-bold border border-blue-100 shadow-2xs">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1e3a8a] flex items-center justify-center font-bold border border-blue-100 shadow-2xs">
             <Calendar size={18} />
           </div>
           <div className="flex items-center gap-2">
             <h2 className="font-black text-slate-900 text-sm sm:text-base tracking-tight">Clinic Appointments</h2>
-            <span className="px-2 py-0.2 rounded-full bg-[#1E3A8A] text-white font-black text-xs font-mono">
+            <span className="px-2 py-0.2 rounded-full bg-[#1e3a8a] text-white font-black text-xs font-mono">
               {appointments.length}
             </span>
           </div>
@@ -89,7 +89,7 @@ export default function AppointmentsTab({
             }));
             setWalkInModalOpen(true);
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0f766e] text-white font-bold text-xs shadow-xs cursor-pointer transition-all active:scale-98 shrink-0 self-start md:self-auto"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0d9488] hover:bg-[#0f766e] text-white font-bold text-xs shadow-xs cursor-pointer transition-all active:scale-98 shrink-0 self-start md:self-auto"
         >
           <UserPlus size={14} />
           <span>+ New Walk-in</span>
@@ -121,7 +121,7 @@ export default function AppointmentsTab({
 
               {/* Col 1: Token Serial + Patient Information + Status */}
               <div className="flex items-center gap-3 pl-1.5 min-w-0 flex-1">
-                <span className="bg-[#1E3A8A] text-white font-mono font-black text-xs px-2.5 py-1 rounded-lg shrink-0 shadow-2xs">
+                <span className="bg-[#1e3a8a] text-white font-mono font-black text-xs px-2.5 py-1 rounded-lg shrink-0 shadow-2xs">
                   #{String(apt.serial_number || 0).padStart(2, '0')}
                 </span>
 
@@ -131,7 +131,7 @@ export default function AppointmentsTab({
                       {apt.patient?.first_name} {apt.patient?.last_name}
                     </span>
                     {apt.is_walk_in && (
-                      <span className="px-1.5 py-0.2 rounded-md bg-teal-50 border border-teal-200 text-[#0D9488] font-bold text-[10px]">
+                      <span className="px-1.5 py-0.2 rounded-md bg-teal-50 border border-teal-200 text-[#0d9488] font-bold text-[10px]">
                         Walk-in
                       </span>
                     )}
@@ -170,11 +170,11 @@ export default function AppointmentsTab({
               {/* Col 2: Doctor & Schedule Chip */}
               <div className="flex items-center gap-2 text-xs text-slate-600 shrink-0">
                 <span className="inline-flex items-center gap-1 font-semibold text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
-                  <Stethoscope size={13} className="text-[#0D9488]" />
+                  <Stethoscope size={13} className="text-[#0d9488]" />
                   <span className="truncate max-w-[160px]">{formatDoctorName(apt.doctor?.full_name)}</span>
                 </span>
                 <span className="inline-flex items-center gap-1 font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/60 font-mono text-[11px]">
-                  <Clock size={12} className="text-[#1E3A8A]" />
+                  <Clock size={12} className="text-[#1e3a8a]" />
                   <span>{formatTime(apt.appointment_time)}</span>
                 </span>
               </div>
@@ -206,7 +206,7 @@ export default function AppointmentsTab({
                         href={`/track-queue/${apt.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1E3A8A] border border-blue-200 font-bold text-xs transition-colors"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1e3a8a] border border-blue-200 font-bold text-xs transition-colors"
                         title="Open Live Patient Queue Tracker"
                       >
                         <Activity size={12} /> <span>Track</span>

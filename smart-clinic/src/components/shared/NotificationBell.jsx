@@ -141,7 +141,7 @@ export default function NotificationBell({ className = "" }) {
                         {n.title}
                       </span>
                       {!n.is_read && (
-                        <span className="w-1.5 h-1.5 bg-[#283891] rounded-full shrink-0" />
+                        <span className="w-1.5 h-1.5 bg-[#1e3a8a] rounded-full shrink-0" />
                       )}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed line-clamp-2">

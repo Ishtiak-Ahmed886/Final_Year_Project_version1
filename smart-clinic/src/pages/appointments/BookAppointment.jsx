@@ -1546,9 +1546,9 @@ export default function BookAppointment() {
                       : "Pay securely via bKash, Nagad, Rocket, or Credit/Debit Card."}
                   </div>
                   <div className="flex gap-1.5 mt-2.5">
-                    <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#E2136E] text-white">bKash</span>
-                    <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#F7941D] text-white">Nagad</span>
-                    <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#8C3494] text-white">Rocket</span>
+                    <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-600 text-white">bKash</span>
+                    <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500 text-white">Nagad</span>
+                    <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#1e3a8a] text-white">Rocket</span>
                     <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-700 text-white">Cards</span>
                   </div>
                 </button>

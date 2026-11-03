@@ -126,7 +126,7 @@ export default function ShiftClosingModal({
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-[#283891] text-white flex items-center justify-between">
+        <div className="px-6 py-5 bg-gradient-to-r from-slate-900 to-[#1e3a8a] text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
               <Lock className="w-5 h-5 text-amber-300" />
@@ -374,7 +374,7 @@ export default function ShiftClosingModal({
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Receipt size={14} className="text-[#283891]" />
+                      <Receipt size={14} className="text-[#1e3a8a]" />
                       Drawer Physical Cash Breakdown (নোট অনুযায়ী গণনা)
                     </h4>
                     <p className="text-[10px] text-slate-500">
@@ -413,7 +413,7 @@ export default function ShiftClosingModal({
                           value={counts[d.key] || ""}
                           placeholder="0"
                           onChange={(e) => handleCountChange(d.key, e.target.value)}
-                          className="w-full px-2 py-1 text-xs font-bold font-mono text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#283891]"
+                          className="w-full px-2 py-1 text-xs font-bold font-mono text-slate-800 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1e3a8a]"
                         />
                       </div>
                       <div className="text-[10px] font-mono text-right text-slate-400 mt-1">
@@ -436,7 +436,7 @@ export default function ShiftClosingModal({
                     placeholder="e.g. Md. Tariqul Islam (Shift Supervisor / Admin)"
                     value={handedOverTo}
                     onChange={(e) => setHandedOverTo(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-slate-900 font-medium"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-slate-900 font-medium"
                   />
                 </div>
 
@@ -449,7 +449,7 @@ export default function ShiftClosingModal({
                     placeholder="e.g. All drawer keys handed over, no petty cash discrepancy"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-[#283891] text-slate-900 font-medium"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-[#1e3a8a] text-slate-900 font-medium"
                   />
                 </div>
               </div>

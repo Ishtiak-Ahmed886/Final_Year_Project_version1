@@ -44,7 +44,7 @@ export default function Hero() {
               <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-fuchsia-600 bg-clip-text text-transparent">
                 {t("heroTitle3").replace(".", "")}
               </span>
-              <span className="text-fuchsia-600">.</span>
+              <span className="text-[#0d9488]">.</span>
             </h1>
 
             {/* Subtitle Description */}
@@ -56,7 +56,7 @@ export default function Hero() {
             <div className="mt-8 flex flex-wrap items-center gap-3.5 w-full sm:w-auto">
               <Link
                 to={user ? "/dashboard" : "/register"}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl font-bold text-white bg-[#2534a5] hover:bg-[#1c2885] active:scale-[0.98] shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/35 transition-all duration-200 text-sm sm:text-base group cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl font-bold text-white bg-[#1e3a8a] hover:bg-[#172554] active:scale-[0.98] shadow-lg shadow-blue-900/20 hover:shadow-blue-900/30 transition-all duration-200 text-sm sm:text-base group cursor-pointer"
               >
                 <span>{t("openYourClinic")}</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -134,15 +134,15 @@ export default function Hero() {
             <div className="relative w-full max-w-md">
               
               {/* Decorative background blur glow */}
-              <div className="absolute -inset-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-fuchsia-600 rounded-[2.5rem] opacity-20 blur-xl"></div>
+              <div className="absolute -inset-1.5 bg-gradient-to-r from-[#1e3a8a] to-[#0d9488] rounded-[2.5rem] opacity-20 blur-xl"></div>
 
               {/* Main Card Container */}
-              <div className="relative bg-white rounded-3xl p-6 sm:p-7 shadow-2xl shadow-indigo-100/80 border border-slate-100 flex flex-col gap-5">
+              <div className="relative bg-white rounded-3xl p-6 sm:p-7 shadow-2xl shadow-blue-900/10 border border-slate-100 flex flex-col gap-5">
                 
                 {/* Clinic Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-[#2534a5] text-white flex items-center justify-center shadow-md shadow-indigo-900/20">
+                    <div className="w-11 h-11 rounded-2xl bg-[#1e3a8a] text-white flex items-center justify-center shadow-md shadow-blue-900/20">
                       <Building2 className="w-6 h-6" />
                     </div>
                     <div>
@@ -222,7 +222,7 @@ export default function Hero() {
                   </div>
                   <Link
                     to={user ? "/book" : "/register"}
-                    className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#2534a5] hover:bg-[#1c2885] shadow-md shadow-indigo-600/20 active:scale-95 transition-all"
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#1e3a8a] hover:bg-[#172554] shadow-md shadow-blue-900/20 active:scale-95 transition-all"
                   >
                     {t("quickBook")}
                   </Link>

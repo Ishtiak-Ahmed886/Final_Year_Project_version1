@@ -266,9 +266,9 @@ export default function CheckoutGateway() {
                   {language === "bn" ? "গৃহীত ডিজিটাল পেমেন্ট মাধ্যম:" : "Accepted Digital Payment Channels:"}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <span className="px-2.5 py-1 bg-[#E2136E] text-white rounded-md text-xs font-bold shadow-2xs">bKash</span>
-                  <span className="px-2.5 py-1 bg-[#F7941D] text-white rounded-md text-xs font-bold shadow-2xs">Nagad</span>
-                  <span className="px-2.5 py-1 bg-[#8C3494] text-white rounded-md text-xs font-bold shadow-2xs">Rocket</span>
+                  <span className="px-2.5 py-1 bg-rose-600 text-white rounded-md text-xs font-bold shadow-2xs">bKash</span>
+                  <span className="px-2.5 py-1 bg-amber-500 text-white rounded-md text-xs font-bold shadow-2xs">Nagad</span>
+                  <span className="px-2.5 py-1 bg-[#1e3a8a] text-white rounded-md text-xs font-bold shadow-2xs">Rocket</span>
                   <span className="px-2.5 py-1 bg-slate-700 text-white rounded-md text-xs font-bold shadow-2xs">Visa / Mastercard</span>
                   <span className="px-2.5 py-1 bg-blue-700 text-white rounded-md text-xs font-bold shadow-2xs">DBBL Nexus</span>
                 </div>

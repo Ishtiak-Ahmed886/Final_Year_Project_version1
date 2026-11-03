@@ -443,16 +443,16 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
             >
               <defs>
                 <linearGradient id="bpGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#e11d48" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#e11d48" stopOpacity="0.0" />
                 </linearGradient>
                 <linearGradient id="glucoseGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#d97706" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#d97706" stopOpacity="0.0" />
                 </linearGradient>
                 <linearGradient id="pulseGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#0284c7" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#0284c7" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
 
@@ -505,7 +505,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                         ((140 - svgMetrics.minY) / (svgMetrics.maxY - svgMetrics.minY)) *
                           svgMetrics.innerHeight
                       }
-                      stroke="#ef4444"
+                      stroke="#e11d48"
                       strokeWidth="1.5"
                       strokeDasharray="5 5"
                       opacity="0.6"
@@ -528,7 +528,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                         ((120 - svgMetrics.minY) / (svgMetrics.maxY - svgMetrics.minY)) *
                           svgMetrics.innerHeight
                       }
-                      stroke="#10b981"
+                      stroke="#059669"
                       strokeWidth="1.5"
                       strokeDasharray="5 5"
                       opacity="0.6"
@@ -544,7 +544,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                   <path
                     d={generatePath(svgMetrics.points, "cySystolic")}
                     fill="none"
-                    stroke="#ef4444"
+                    stroke="#e11d48"
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -553,7 +553,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                   <path
                     d={generatePath(svgMetrics.points, "cyDiastolic")}
                     fill="none"
-                    stroke="#0ea5e9"
+                    stroke="#0284c7"
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -565,7 +565,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                 <path
                   d={generatePath(svgMetrics.points, "cyGlucose")}
                   fill="none"
-                  stroke="#f59e0b"
+                  stroke="#d97706"
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -576,7 +576,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                 <path
                   d={generatePath(svgMetrics.points, "cyPulse")}
                   fill="none"
-                  stroke="#0ea5e9"
+                  stroke="#0284c7"
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -587,7 +587,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                 <path
                   d={generatePath(svgMetrics.points, "cyWeight")}
                   fill="none"
-                  stroke="#8b5cf6"
+                  stroke="#0d9488"
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -616,7 +616,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                           cx={p.cx}
                           cy={p.cySystolic}
                           r={hoveredPoint?.id === p.id ? 6 : 4.5}
-                          fill="#ef4444"
+                          fill="#e11d48"
                           stroke="#ffffff"
                           strokeWidth="2"
                           className="cursor-pointer transition-all duration-150"
@@ -628,7 +628,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                             cx={p.cx}
                             cy={p.cyDiastolic}
                             r={hoveredPoint?.id === p.id ? 6 : 4.5}
-                            fill="#0ea5e9"
+                            fill="#0284c7"
                             stroke="#ffffff"
                             strokeWidth="2"
                             className="cursor-pointer transition-all duration-150"
@@ -644,7 +644,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                         cx={p.cx}
                         cy={p.cyGlucose}
                         r={hoveredPoint?.id === p.id ? 6 : 4.5}
-                        fill="#f59e0b"
+                        fill="#d97706"
                         stroke="#ffffff"
                         strokeWidth="2"
                         className="cursor-pointer transition-all duration-150"
@@ -658,7 +658,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                         cx={p.cx}
                         cy={p.cyPulse}
                         r={hoveredPoint?.id === p.id ? 6 : 4.5}
-                        fill="#0ea5e9"
+                        fill="#0284c7"
                         stroke="#ffffff"
                         strokeWidth="2"
                         className="cursor-pointer transition-all duration-150"
@@ -672,7 +672,7 @@ export default function VitalsTrendDashboard({ patientId = "", familyMemberId = 
                         cx={p.cx}
                         cy={p.cyWeight}
                         r={hoveredPoint?.id === p.id ? 6 : 4.5}
-                        fill="#8b5cf6"
+                        fill="#0d9488"
                         stroke="#ffffff"
                         strokeWidth="2"
                         className="cursor-pointer transition-all duration-150"

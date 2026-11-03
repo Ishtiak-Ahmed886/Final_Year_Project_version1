@@ -94,8 +94,8 @@ export default function ChamberReceptionTab({
 
   if (assignedDoctors.length === 0) {
     return (
-      <div className="p-6 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex items-start gap-4 text-slate-800">
-        <AlertTriangle className="text-[#283891] shrink-0 mt-0.5" size={20} />
+      <div className="p-6 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-start gap-4 text-slate-800">
+        <AlertTriangle className="text-[#1e3a8a] shrink-0 mt-0.5" size={20} />
         <div>
           <h3 className="font-bold text-sm">No Active Doctors</h3>
           <p className="text-xs text-slate-600 mt-1">
@@ -230,7 +230,7 @@ export default function ChamberReceptionTab({
           title="Live Reception — Chamber Operations"
           subtitle="Real-time queue dispatch, patient calling, and chamber coordination console"
           badge={
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-[#283891] border border-indigo-100">
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1e3a8a] border border-blue-100">
               {assignedDoctors.length} Chambers Roster
             </span>
           }
@@ -358,13 +358,13 @@ export default function ChamberReceptionTab({
               value={receptionSearchQuery}
               onChange={(e) => setReceptionSearchQuery(e.target.value)}
               placeholder="Search doctor by name, room # or department..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-slate-300"
             />
           </div>
           <select
             value={receptionDeptFilter}
             onChange={(e) => setReceptionDeptFilter(e.target.value)}
-            className="w-full sm:w-60 py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300 cursor-pointer"
+            className="w-full sm:w-60 py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-slate-300 cursor-pointer"
           >
             <option value="ALL">
               All Departments ({assignedDoctors.length})
@@ -387,7 +387,7 @@ export default function ChamberReceptionTab({
               .getElementById("receptionDoctorStrip")
               ?.scrollBy({ left: -280, behavior: "smooth" });
           }}
-          className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 z-10 hover:bg-[#283891] hover:text-white transition-all hidden sm:flex cursor-pointer"
+          className="absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 z-10 hover:bg-[#1e3a8a] hover:text-white transition-all hidden sm:flex cursor-pointer"
           title="Scroll Left"
         >
           <ChevronLeft size={16} />
@@ -456,7 +456,7 @@ export default function ChamberReceptionTab({
                   }}
                   className={`flex-shrink-0 w-72 text-left p-4 rounded-2xl border transition-all duration-150 relative cursor-pointer select-none ${
                     isSelected
-                      ? "bg-indigo-50/50 border-[#283891] shadow-xs ring-2 ring-[#283891]/20"
+                      ? "bg-blue-50/50 border-[#1e3a8a] shadow-xs ring-2 ring-[#1e3a8a]/20"
                       : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60"
                   }`}
                 >
@@ -508,7 +508,7 @@ export default function ChamberReceptionTab({
                       <div className="text-[10px] uppercase font-bold text-slate-400">
                         Now Serving
                       </div>
-                      <div className="font-mono font-bold text-base text-[#283891]">
+                      <div className="font-mono font-bold text-base text-[#1e3a8a]">
                         {nowServingSerial ? `#${nowServingSerial}` : "—"}
                       </div>
                     </div>
@@ -553,7 +553,7 @@ export default function ChamberReceptionTab({
               .getElementById("receptionDoctorStrip")
               ?.scrollBy({ left: 280, behavior: "smooth" });
           }}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 z-10 hover:bg-[#283891] hover:text-white transition-all hidden sm:flex cursor-pointer"
+          className="absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 z-10 hover:bg-[#1e3a8a] hover:text-white transition-all hidden sm:flex cursor-pointer"
           title="Scroll Right"
         >
           <ChevronRight size={16} />
@@ -567,7 +567,7 @@ export default function ChamberReceptionTab({
           onClick={() => setMobileViewTab("controller")}
           className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             mobileViewTab === "controller"
-              ? "bg-white text-[#283891] shadow-2xs"
+              ? "bg-white text-[#1e3a8a] shadow-2xs"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
@@ -578,7 +578,7 @@ export default function ChamberReceptionTab({
           onClick={() => setMobileViewTab("queue")}
           className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             mobileViewTab === "queue"
-              ? "bg-white text-[#283891] shadow-2xs"
+              ? "bg-white text-[#1e3a8a] shadow-2xs"
               : "text-slate-600 hover:text-slate-900"
           }`}
         >
@@ -597,11 +597,11 @@ export default function ChamberReceptionTab({
           {/* Active Doctor Chamber Bar */}
           <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#283891] border border-indigo-100 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1e3a8a] border border-blue-100 flex items-center justify-center shrink-0">
                 <Stethoscope size={20} />
               </div>
               <div className="min-w-0">
-                <div className="font-mono font-bold text-[11px] text-[#283891] uppercase">
+                <div className="font-mono font-bold text-[11px] text-[#1e3a8a] uppercase">
                   {activeReceptionDoc?.room_number
                     ? `Chamber ${activeReceptionDoc.room_number}`
                     : "Chamber Operations Desk"}
@@ -626,7 +626,7 @@ export default function ChamberReceptionTab({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold shrink-0 transition-colors shadow-2xs"
                 title="Open fullscreen TV screen for waiting room"
               >
-                <Tv size={13} className="text-[#283891]" />
+                <Tv size={13} className="text-[#1e3a8a]" />
                 <span>TV Display ↗</span>
               </a>
             )}
@@ -659,12 +659,12 @@ export default function ChamberReceptionTab({
 
               {/* Now Serving Panel */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs relative overflow-hidden text-center space-y-4">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#283891]" />
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#1e3a8a]" />
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Currently In Chamber
                   </div>
-                  <div className="text-5xl font-black font-mono tracking-tight text-[#283891] my-2">
+                  <div className="text-5xl font-black font-mono tracking-tight text-[#1e3a8a] my-2">
                     #{chamberSession.current_serial || 0}
                   </div>
                   <div className="flex items-center justify-center gap-2">
@@ -1046,7 +1046,7 @@ export default function ChamberReceptionTab({
                         size="xs"
                         className={
                           chamberSession.status === b.status
-                            ? "ring-2 ring-[#283891]/30 font-bold"
+                            ? "ring-2 ring-[#1e3a8a]/30 font-bold"
                             : "opacity-80"
                         }
                         disabled={
@@ -1114,7 +1114,7 @@ export default function ChamberReceptionTab({
             title="Today's Live Patient Queue"
             subtitle={`Patients scheduled for Dr. ${activeReceptionDoc?.full_name || "Doctor"} today`}
             badge={
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-[#283891] border border-indigo-100">
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-blue-50 text-[#1e3a8a] border border-blue-100">
                 {docTodayAppointments.length}
               </span>
             }
@@ -1125,7 +1125,7 @@ export default function ChamberReceptionTab({
                   onClick={() => setQueueFilter("ALL")}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     queueFilter === "ALL"
-                      ? "bg-[#283891] text-white shadow-2xs font-bold"
+                      ? "bg-[#1e3a8a] text-white shadow-2xs font-bold"
                       : "bg-slate-100 text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -1287,7 +1287,7 @@ export default function ChamberReceptionTab({
                           <button
                             type="button"
                             onClick={() => setPrintTokenData(apt)}
-                            className="w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:text-[#283891] hover:border-[#283891]/40 hover:bg-indigo-50/50 flex items-center justify-center transition-colors cursor-pointer"
+                            className="w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:text-[#1e3a8a] hover:border-[#1e3a8a]/40 hover:bg-blue-50/50 flex items-center justify-center transition-colors cursor-pointer"
                             title="Print / Reprint Thermal Token Slip"
                           >
                             <Printer size={13} />
@@ -1395,7 +1395,7 @@ export default function ChamberReceptionTab({
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Mobile Number *
                 {searchingPatient && (
-                  <span className="ml-2 text-[10px] text-[#283891] font-semibold animate-pulse">
+                  <span className="ml-2 text-[10px] text-[#1e3a8a] font-semibold animate-pulse">
                     Searching profile...
                   </span>
                 )}
@@ -1410,7 +1410,7 @@ export default function ChamberReceptionTab({
                     walk_in_phone: e.target.value,
                   })
                 }
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-slate-300"
                 placeholder="e.g. 01712345678"
               />
               {foundPatient ? (
@@ -1445,7 +1445,7 @@ export default function ChamberReceptionTab({
                     walk_in_name: e.target.value,
                   })
                 }
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-slate-300"
                 placeholder="e.g. Md. Rafiqul Islam"
               />
             </div>
@@ -1465,7 +1465,7 @@ export default function ChamberReceptionTab({
                     doctor_id: e.target.value,
                   })
                 }
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-slate-300"
               >
                 <option value="">-- Select Doctor --</option>
                 {assignedDoctors.map((d) => (
@@ -1489,7 +1489,7 @@ export default function ChamberReceptionTab({
                     appointment_time: e.target.value,
                   })
                 }
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-slate-300"
               />
             </div>
           </div>
@@ -1507,7 +1507,7 @@ export default function ChamberReceptionTab({
                   problem_description: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#283891]/20 focus:border-slate-300"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1e3a8a]/20 focus:border-slate-300"
               placeholder="e.g. High fever for 3 days, headache"
             />
           </div>

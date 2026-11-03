@@ -11,8 +11,8 @@ export default function Footer() {
           
           {/* Brand Column (takes 2 cols on lg) */}
           <div className="lg:col-span-2 space-y-4">
-            <Link to="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-[#2534a5]">
-              <div className="bg-indigo-50 p-2 rounded-xl text-[#2534a5] border border-indigo-100">
+            <Link to="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-[#1e3a8a]">
+              <div className="bg-blue-50 p-2 rounded-xl text-[#1e3a8a] border border-blue-100">
                 <Hospital className="w-5 h-5" />
               </div>
               <span>Smart<span className="text-pink-600">Clinic</span></span>
@@ -32,7 +32,7 @@ export default function Footer() {
                 <ShieldCheck className="w-3 h-3" />
                 Role-Based Access
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-blue-50 text-indigo-700 border border-indigo-200">
                 <Lock className="w-3 h-3" />
                 Audit Logging
               </span>

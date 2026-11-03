@@ -93,7 +93,7 @@ export default function DoctorList() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
       {/* Modern Clinical Header Banner */}
-      <div className="bg-gradient-to-r from-[#1E3A8A] via-[#1e40af] to-[#0D9488] text-white p-8 md:p-12 rounded-3xl shadow-xl space-y-4">
+      <div className="bg-gradient-to-r from-[#1e3a8a] to-[#0d9488] text-white p-8 md:p-12 rounded-3xl shadow-xl space-y-4">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-bold backdrop-blur-xs">
           <Stethoscope size={15} /> <span>{t("doctorPageBadge")}</span>
         </div>
@@ -177,7 +177,7 @@ export default function DoctorList() {
               onClick={() => handleFilterChange("")}
               className={`px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all ${
                 selectedSpec === ""
-                  ? "bg-white text-[#1E3A8A] shadow-md scale-105"
+                  ? "bg-white text-[#1e3a8a] shadow-md scale-105"
                   : "bg-white/15 text-white hover:bg-white/25"
               }`}
             >
@@ -190,7 +190,7 @@ export default function DoctorList() {
                 onClick={() => handleFilterChange(spec.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all ${
                   selectedSpec === spec.id
-                    ? "bg-white text-[#1E3A8A] shadow-md scale-105"
+                    ? "bg-white text-[#1e3a8a] shadow-md scale-105"
                     : "bg-white/15 text-white hover:bg-white/25"
                 }`}
               >
@@ -206,14 +206,14 @@ export default function DoctorList() {
         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
           <div className="text-sm font-extrabold text-slate-700">
             {language === "bn" ? (
-              <><span className="text-[#1E3A8A] font-black">{doctors.length}</span> {t("doctorRegisteredSpecs")}</>
+              <><span className="text-[#1e3a8a] font-black">{doctors.length}</span> {t("doctorRegisteredSpecs")}</>
             ) : (
-              <>{t("doctorShowingCount")} <span className="text-[#1E3A8A] font-black">{doctors.length}</span> {t("doctorRegisteredSpecs")}</>
+              <>{t("doctorShowingCount")} <span className="text-[#1e3a8a] font-black">{doctors.length}</span> {t("doctorRegisteredSpecs")}</>
             )}
           </div>
           <Link
             to="/clinics"
-            className="btn btn-ghost btn-sm gap-1.5 text-xs font-bold text-[#1E3A8A] hover:bg-blue-50"
+            className="btn btn-ghost btn-sm gap-1.5 text-xs font-bold text-[#1e3a8a] hover:bg-blue-50"
           >
             <Building2 size={14} /> {t("doctorViewClinics")}
           </Link>
@@ -250,15 +250,15 @@ export default function DoctorList() {
                         onError={(e) => { e.currentTarget.style.display = "none"; }}
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#1E3A8A] font-black flex items-center justify-center text-xl shrink-0 border border-blue-200/60 shadow-2xs">
+                      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#1e3a8a] font-black flex items-center justify-center text-xl shrink-0 border border-blue-200/60 shadow-2xs">
                         {doctor.full_name ? doctor.full_name.replace(/^dr\.?\s*/i, "")[0]?.toUpperCase() : "D"}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-base font-extrabold text-slate-900 hover:text-[#1E3A8A] transition-colors truncate">
+                      <h2 className="text-base font-extrabold text-slate-900 hover:text-[#1e3a8a] transition-colors truncate">
                         <Link to={`/doctors/${doctor.id}`}>{formatDoctorName(doctor.full_name)}</Link>
                       </h2>
-                      <p className="text-xs text-[#0D9488] font-bold">
+                      <p className="text-xs text-[#0d9488] font-bold">
                         {doctor.qualification || "Medical Specialist"}
                       </p>
                       <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-500">
@@ -296,13 +296,13 @@ export default function DoctorList() {
                   {doctor.doctor_clinics?.length > 0 && (
                     <div className="pt-3 border-t border-slate-100 text-xs text-slate-600 space-y-1.5">
                       <span className="font-extrabold text-slate-800 flex items-center gap-1 text-[11px] uppercase tracking-wide">
-                        <Building2 size={13} className="text-[#1E3A8A]" /> {t("doctorPracticingClinics")}
+                        <Building2 size={13} className="text-[#1e3a8a]" /> {t("doctorPracticingClinics")}
                       </span>
                       <div className="space-y-1">
                         {doctor.doctor_clinics.slice(0, 2).map((dc) => (
                           <div key={dc.id} className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-200/70">
                             <span className="font-semibold text-slate-800 truncate mr-2">{dc.clinic?.name}</span>
-                            <span className="font-black text-[#0D9488] shrink-0">{formatCurrency(dc.consultation_fee)} BDT</span>
+                            <span className="font-black text-[#0d9488] shrink-0">{formatCurrency(dc.consultation_fee)} BDT</span>
                           </div>
                         ))}
                       </div>
@@ -320,7 +320,7 @@ export default function DoctorList() {
                   </Link>
                   <Link
                     to={`/book?doctor=${doctor.id}`}
-                    className="px-4 py-2 rounded-xl bg-[#1E3A8A] hover:bg-[#172554] text-white text-xs font-extrabold transition-all text-center flex-1 flex items-center justify-center gap-1.5 shadow-md shadow-blue-900/15 active:scale-95"
+                    className="px-4 py-2 rounded-xl bg-[#1e3a8a] hover:bg-[#172554] text-white text-xs font-extrabold transition-all text-center flex-1 flex items-center justify-center gap-1.5 shadow-md shadow-blue-900/15 active:scale-95"
                   >
                     <CalendarCheck size={14} />
                     <span>{t("doctorBookBtn")}</span>
