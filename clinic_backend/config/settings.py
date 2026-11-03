@@ -7,6 +7,9 @@ from django.core.exceptions import ImproperlyConfigured
 
 # Load environment variables from .env
 BASE_DIR = Path(__file__).resolve().parent.parent
+dotenv.load_dotenv(BASE_DIR.parent / '.env.local')
+dotenv.load_dotenv(BASE_DIR.parent / '.env')
+dotenv.load_dotenv(BASE_DIR / '.env.local')
 dotenv.load_dotenv(BASE_DIR / '.env')
 
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
@@ -91,7 +94,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration
-database_url = os.getenv('DATABASE_URL', '').strip()
+# Neon Best Practice: Direct/Unpooled connection for migrations; Pooled for web/application requests
+is_migration_command = any(cmd in sys.argv for cmd in ('migrate', 'makemigrations'))
+raw_db_url = os.getenv('DATABASE_URL_UNPOOLED') if (is_migration_command and os.getenv('DATABASE_URL_UNPOOLED')) else os.getenv('DATABASE_URL')
+database_url = (raw_db_url or '').strip().strip('\'"')
+
 if database_url:
     from urllib.parse import urlparse, parse_qs, unquote
     parsed_db = urlparse(database_url)
@@ -115,6 +122,9 @@ if database_url:
             db_options['sslmode'] = query_params['sslmode'][0]
         elif parsed_db.hostname not in ('localhost', '127.0.0.1', None):
             db_options['sslmode'] = 'require'
+
+        if 'channel_binding' in query_params:
+            db_options['channel_binding'] = query_params['channel_binding'][0]
 
         DATABASES = {
             'default': {
