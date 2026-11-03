@@ -22,6 +22,9 @@ if DEBUG:
         ALLOWED_HOSTS = ['*']
 else:
     ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '').split(',') if host.strip()]
+    render_hostname = os.getenv('RENDER_EXTERNAL_HOSTNAME', '').strip()
+    if render_hostname and render_hostname not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(render_hostname)
     if not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS:
         raise ImproperlyConfigured("ALLOWED_HOSTS must be explicitly defined and cannot contain wildcard '*' when DEBUG=False.")
 
@@ -88,40 +91,77 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration
-db_engine = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3').strip()
-if 'sqlite' in db_engine.lower():
-    if not DEBUG and not (os.getenv('ALLOW_SQLITE_IN_PROD', 'False').lower() in ('true', '1', 't')):
-        raise ImproperlyConfigured(
-            "SQLite is not permitted in production. Configure a production database (e.g. PostgreSQL) "
-            "or explicitly set ALLOW_SQLITE_IN_PROD=True for testing/staging."
-        )
-    DATABASES = {
-        'default': {
-            'ENGINE': db_engine,
-            'NAME': BASE_DIR / os.getenv('DB_NAME', 'db.sqlite3'),
+database_url = os.getenv('DATABASE_URL', '').strip()
+if database_url:
+    from urllib.parse import urlparse, parse_qs, unquote
+    parsed_db = urlparse(database_url)
+    if 'sqlite' in parsed_db.scheme.lower():
+        if not DEBUG and not (os.getenv('ALLOW_SQLITE_IN_PROD', 'False').lower() in ('true', '1', 't')):
+            raise ImproperlyConfigured(
+                "SQLite is not permitted in production. Configure a production database (e.g. PostgreSQL) "
+                "or explicitly set ALLOW_SQLITE_IN_PROD=True for testing/staging."
+            )
+        db_path = parsed_db.path.lstrip('/')
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / db_path if db_path else BASE_DIR / 'db.sqlite3',
+            }
         }
-    }
+    else:
+        query_params = parse_qs(parsed_db.query)
+        db_options = {}
+        if 'sslmode' in query_params:
+            db_options['sslmode'] = query_params['sslmode'][0]
+        elif parsed_db.hostname not in ('localhost', '127.0.0.1', None):
+            db_options['sslmode'] = 'require'
+
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': unquote(parsed_db.path.lstrip('/')),
+                'USER': unquote(parsed_db.username or ''),
+                'PASSWORD': unquote(parsed_db.password or ''),
+                'HOST': parsed_db.hostname or 'localhost',
+                'PORT': str(parsed_db.port or 5432),
+                'OPTIONS': db_options,
+            }
+        }
 else:
-    db_name = os.getenv('DB_NAME')
-    db_user = os.getenv('DB_USER')
-    db_password = os.getenv('DB_PASSWORD')
-    db_host = os.getenv('DB_HOST')
-    db_port = os.getenv('DB_PORT', '5432')
-
-    if not DEBUG and not all([db_name, db_user, db_password, db_host]):
-        missing = [var for var, val in [('DB_NAME', db_name), ('DB_USER', db_user), ('DB_PASSWORD', db_password), ('DB_HOST', db_host)] if not val]
-        raise ImproperlyConfigured(f"Production database configuration incomplete. Missing required environment variables: {', '.join(missing)}")
-
-    DATABASES = {
-        'default': {
-            'ENGINE': db_engine,
-            'NAME': db_name or 'smartclinic',
-            'USER': db_user or 'clinic_user',
-            'PASSWORD': db_password or '',
-            'HOST': db_host or 'localhost',
-            'PORT': db_port or '5432',
+    db_engine = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3').strip()
+    if 'sqlite' in db_engine.lower():
+        if not DEBUG and not (os.getenv('ALLOW_SQLITE_IN_PROD', 'False').lower() in ('true', '1', 't')):
+            raise ImproperlyConfigured(
+                "SQLite is not permitted in production. Configure a production database (e.g. PostgreSQL) "
+                "or explicitly set ALLOW_SQLITE_IN_PROD=True for testing/staging."
+            )
+        DATABASES = {
+            'default': {
+                'ENGINE': db_engine,
+                'NAME': BASE_DIR / os.getenv('DB_NAME', 'db.sqlite3'),
+            }
         }
-    }
+    else:
+        db_name = os.getenv('DB_NAME')
+        db_user = os.getenv('DB_USER')
+        db_password = os.getenv('DB_PASSWORD')
+        db_host = os.getenv('DB_HOST')
+        db_port = os.getenv('DB_PORT', '5432')
+
+        if not DEBUG and not all([db_name, db_user, db_password, db_host]):
+            missing = [var for var, val in [('DB_NAME', db_name), ('DB_USER', db_user), ('DB_PASSWORD', db_password), ('DB_HOST', db_host)] if not val]
+            raise ImproperlyConfigured(f"Production database configuration incomplete. Missing required environment variables: {', '.join(missing)}")
+
+        DATABASES = {
+            'default': {
+                'ENGINE': db_engine,
+                'NAME': db_name or 'smartclinic',
+                'USER': db_user or 'clinic_user',
+                'PASSWORD': db_password or '',
+                'HOST': db_host or 'localhost',
+                'PORT': db_port or '5432',
+            }
+        }
 
 # User Authentication Model
 AUTH_USER_MODEL = 'accounts.User'
