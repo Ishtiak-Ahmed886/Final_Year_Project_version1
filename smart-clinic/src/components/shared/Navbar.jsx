@@ -111,12 +111,12 @@ export default function Navbar() {
           )}
         </div>
 
-        <NavLink to="/" className="flex items-center gap-2 text-xl font-black tracking-tight text-[#283891]">
-          <div className="bg-indigo-50 p-1.5 rounded-xl text-[#283891] border border-indigo-100">
+        <NavLink to="/" className="flex items-center gap-2 text-xl font-black tracking-tight text-[#1e3a8a]">
+          <div className="bg-indigo-50 p-1.5 rounded-xl text-[#1e3a8a] border border-indigo-100">
             <Hospital className="w-5 h-5" />
           </div>
           <span>
-            Smart<span className="text-pink-600">Clinic</span>
+            Smart<span className="text-[#0d9488]">Clinic</span>
           </span>
         </NavLink>
       </div>
@@ -210,7 +210,7 @@ export default function Navbar() {
         ) : (
           <div className="relative" ref={guestMenuRef}>
             <button
-              className="btn btn-ghost btn-circle border border-slate-200 text-slate-600 hover:text-[#283891]"
+              className="btn btn-ghost btn-circle border border-slate-200 text-slate-600 hover:text-[#1e3a8a]"
               onClick={() => setShowGuestMenu((v) => !v)}
               aria-label="Sign in"
             >
@@ -232,7 +232,7 @@ export default function Navbar() {
                   <NavLink
                     to="/register"
                     onClick={() => setShowGuestMenu(false)}
-                    className="flex items-center gap-2 text-[#283891] hover:bg-indigo-50 px-3 py-2.5 rounded-xl font-semibold text-sm transition-colors"
+                    className="flex items-center gap-2 text-[#1e3a8a] hover:bg-indigo-50 px-3 py-2.5 rounded-xl font-semibold text-sm transition-colors"
                   >
                     <UserPlus size={16} /> {t("signUp")}
                   </NavLink>

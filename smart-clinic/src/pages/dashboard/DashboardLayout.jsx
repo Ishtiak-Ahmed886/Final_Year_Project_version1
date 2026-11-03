@@ -220,11 +220,11 @@ export default function DashboardLayout() {
             className="flex items-center gap-2 text-[#1e3a8a] hover:opacity-90 transition-opacity shrink-0"
             title="Return to Public Homepage"
           >
-            <div className="bg-indigo-50 p-2 rounded-xl text-[#2534a5] border border-indigo-100">
+            <div className="bg-blue-50 p-2 rounded-xl text-[#1e3a8a] border border-blue-100">
               <Hospital className="w-4 h-4" />
             </div>
-            <span className="font-black text-sm tracking-tight text-[#2534a5] hidden sm:inline">
-              Smart<span className="text-pink-600">Clinic</span>
+            <span className="font-black text-sm tracking-tight text-[#1e3a8a] hidden sm:inline">
+              Smart<span className="text-[#0d9488]">Clinic</span>
             </span>
           </NavLink>
           <span className="text-slate-300 hidden sm:inline">•</span>

@@ -11,11 +11,11 @@ export default function Footer() {
           
           {/* Brand Column (takes 2 cols on lg) */}
           <div className="lg:col-span-2 space-y-4">
-            <Link to="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-[#2534a5]">
-              <div className="bg-indigo-50 p-2 rounded-xl text-[#2534a5] border border-indigo-100">
+            <Link to="/" className="inline-flex items-center gap-2 text-xl font-black tracking-tight text-[#1e3a8a]">
+              <div className="bg-indigo-50 p-2 rounded-xl text-[#1e3a8a] border border-indigo-100">
                 <Hospital className="w-5 h-5" />
               </div>
-              <span>Smart<span className="text-pink-600">Clinic</span></span>
+              <span>Smart<span className="text-[#0d9488]">Clinic</span></span>
             </Link>
 
             <p className="text-slate-500 text-xs sm:text-sm max-w-sm leading-relaxed">
