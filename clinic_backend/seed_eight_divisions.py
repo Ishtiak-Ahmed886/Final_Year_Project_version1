@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import uuid
 import datetime
@@ -49,7 +49,7 @@ specialization_names = [
 ]
 spec_map = {}
 for sname in specialization_names:
-    s, _ = Specialization.objects.get_or_create(name=sname, defaults={"is_active": True})
+    s, _ = Specialization.objects.get_or_create(name=sname)
     spec_map[sname] = s
 
 # 3. Eight Divisions Clinic Definitions

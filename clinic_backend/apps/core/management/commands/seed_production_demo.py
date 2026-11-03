@@ -56,7 +56,7 @@ class Command(BaseCommand):
 
         # Both guards passed — safe to continue. #
         self.stdout.write(self.style.WARNING(
-            "⚠  ALLOW_DEMO_SEED=True + DEBUG=True confirmed. "
+            "[!] ALLOW_DEMO_SEED=True + DEBUG=True confirmed. "
             "Proceeding with destructive demo data seeding..."
         ))
 
@@ -124,6 +124,8 @@ class Command(BaseCommand):
 
         metro_clinic = Clinic.objects.filter(owner__email="ish@gmail.com").first()
         if not metro_clinic:
+            metro_clinic = Clinic.objects.filter(name__icontains="Metro Health").first()
+        if not metro_clinic:
             metro_clinic = Clinic.objects.filter(name__icontains="ABC").first()
         if metro_clinic:
             metro_clinic.name = "Metro Health Hub"
@@ -174,6 +176,8 @@ class Command(BaseCommand):
             sherpur_clinic.save()
 
         popular_clinic = Clinic.objects.filter(owner__email="mptop@gmail.com").first()
+        if not popular_clinic:
+            popular_clinic = Clinic.objects.filter(name__icontains="Popular Diagnostic & Medical Center").first()
         if not popular_clinic:
             popular_clinic = Clinic.objects.filter(name__icontains="Hospital1").first()
         if popular_clinic:

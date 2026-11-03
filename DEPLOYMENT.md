@@ -93,10 +93,10 @@ Before you begin, ensure you have:
 | `DEBUG` | `False` | Enforces production security checks |
 | `SECRET_KEY` | *(Generate a 50+ character random string)* | E.g. run `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
 | `DATABASE_URL` | `postgresql://...from Neon...` | Direct connection string from Neon |
-| `BACKEND_URL` | `https://smartclinic-api.onrender.com` | Your Render web service public URL |
-| `FRONTEND_URL` | `https://smartclinic.vercel.app` | Your Vercel frontend URL (from Step 4) |
-| `CORS_ALLOWED_ORIGINS` | `https://smartclinic.vercel.app` | Comma-separated allowed frontend domains |
-| `CSRF_TRUSTED_ORIGINS` | `https://smartclinic.vercel.app` | Comma-separated trusted origins |
+| `BACKEND_URL` | `https://backend-smart-clinic.onrender.com` | Your Render web service public URL |
+| `FRONTEND_URL` | `https://final-year-project-version1.vercel.app` | Your Vercel frontend URL |
+| `CORS_ALLOWED_ORIGINS` | `https://final-year-project-version1.vercel.app` | Comma-separated allowed frontend domains |
+| `CSRF_TRUSTED_ORIGINS` | `https://final-year-project-version1.vercel.app` | Comma-separated trusted origins |
 | `CLOUDINARY_CLOUD_NAME` | *(Your Cloudinary Cloud Name)* | From Step 2 |
 | `CLOUDINARY_API_KEY` | *(Your Cloudinary API Key)* | From Step 2 |
 | `CLOUDINARY_API_SECRET` | *(Your Cloudinary API Secret)* | From Step 2 |
@@ -128,8 +128,8 @@ Before you begin, ensure you have:
    - **Output Directory**: `dist`
    - **Install Command**: `npm install`
 4. Expand **Environment Variables** and add:
-   - `VITE_API_BASE_URL` = `https://smartclinic-api.onrender.com/api/v1` *(Replace with your actual Render URL from Step 3)*
-5. Click **Deploy**. Vercel will build the frontend in ~20 seconds and provide your live URL (e.g. `https://smart-clinic-xyz.vercel.app`).
+   - `VITE_API_BASE_URL` = `https://backend-smart-clinic.onrender.com/api/v1`
+5. Click **Deploy**. Vercel will build the frontend in ~20 seconds and provide your live URL (`https://final-year-project-version1.vercel.app`).
 
 > [!IMPORTANT]
 > **Client-Side SPA Routing**: This repository includes [`smart-clinic/vercel.json`](file:///d:/Projects/smart-clinic/vercel.json) with client-side SPA route rewrites:
@@ -194,3 +194,4 @@ After both services are live, verify all clinical workflows:
 ### 5. Media upload fails or avatars disappear
 * **Cause**: Ephemeral filesystem on Render wipes local `/media/` folder on container restart.
 * **Fix**: Configure `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in Render environment variables so files upload to Cloudinary.
+
