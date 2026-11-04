@@ -85,7 +85,8 @@ export default function ClinicList() {
       if (search) {
         params.append("search", search.trim());
       }
-      const qs = params.toString() ? `?${params.toString()}` : "";
+      params.append("all", "true");
+      const qs = `?${params.toString()}`;
       const res = await apiClient.get(`/clinics/${qs}`);
       const list = res.results || res || [];
       setClinics(list);

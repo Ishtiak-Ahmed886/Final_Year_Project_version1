@@ -56,7 +56,7 @@ export default function Hero() {
             <div className="mt-8 flex flex-wrap items-center gap-3.5 w-full sm:w-auto">
               <Link
                 to={user ? "/dashboard" : "/register"}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl font-bold text-white bg-[#2534a5] hover:bg-[#1c2885] active:scale-[0.98] shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/35 transition-all duration-200 text-sm sm:text-base group cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl font-bold text-white bg-[#1e3a8a] hover:bg-[#172554] active:scale-[0.98] shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/35 transition-all duration-200 text-sm sm:text-base group cursor-pointer"
               >
                 <span>{t("openYourClinic")}</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -142,7 +142,7 @@ export default function Hero() {
                 {/* Clinic Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-[#2534a5] text-white flex items-center justify-center shadow-md shadow-indigo-900/20">
+                    <div className="w-11 h-11 rounded-2xl bg-[#1e3a8a] text-white flex items-center justify-center shadow-md shadow-indigo-900/20">
                       <Building2 className="w-6 h-6" />
                     </div>
                     <div>
@@ -222,7 +222,7 @@ export default function Hero() {
                   </div>
                   <Link
                     to={user ? "/book" : "/register"}
-                    className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#2534a5] hover:bg-[#1c2885] shadow-md shadow-indigo-600/20 active:scale-95 transition-all"
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#1e3a8a] hover:bg-[#172554] shadow-md shadow-indigo-600/20 active:scale-95 transition-all"
                   >
                     {t("quickBook")}
                   </Link>

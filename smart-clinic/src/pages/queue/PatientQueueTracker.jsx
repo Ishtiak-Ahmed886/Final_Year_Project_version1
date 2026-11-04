@@ -243,6 +243,16 @@ export default function PatientQueueTracker() {
               </div>
             </div>
           </div>
+        ) : appointment.status === "COMPLETED" ? (
+          <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-3">
+            <CheckCircle2 size={22} className="shrink-0 text-emerald-400" />
+            <div>
+              <div className="font-bold text-white text-sm">Consultation Completed ✅</div>
+              <div className="text-emerald-200 mt-0.5">
+                Your consultation has been successfully completed. You can view your digital prescription and test records in your patient dashboard.
+              </div>
+            </div>
+          </div>
         ) : isPassed ? (
           <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-3">
             <AlertTriangle size={20} className="shrink-0 text-amber-400" />
@@ -379,6 +389,49 @@ export default function PatientQueueTracker() {
                   </span>
                 </>
               )}
+            </div>
+          </div>
+
+          {/* Dual Timestamp Card: Scheduled Slot vs Live Dynamic Call Time */}
+          <div className="relative z-10 bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 flex items-center gap-1.5 font-medium">
+                <Calendar size={13} className="text-slate-400" /> Booked Schedule:
+              </span>
+              <span className="font-mono font-bold text-slate-300">
+                {appointment.appointment_time || "General"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/80">
+              <span className="text-slate-200 flex items-center gap-1.5 font-bold">
+                <Clock size={14} className={live_queue.is_delayed ? "text-amber-400 animate-pulse" : "text-emerald-400"} /> Live Dynamic ETA:
+              </span>
+              <div className="flex items-center gap-1.5">
+                {live_queue.is_delayed && (
+                  <span className="badge badge-warning badge-xs text-[9px] font-black uppercase tracking-wider py-1 px-1.5">
+                    +{live_queue.delay_minutes}m Delay
+                  </span>
+                )}
+                <span className={`font-mono font-black text-sm ${
+                  isSessionEnded
+                    ? "text-slate-400"
+                    : isTurn
+                    ? "text-emerald-400"
+                    : live_queue.is_delayed
+                    ? "text-amber-300"
+                    : "text-emerald-300"
+                }`}>
+                  {isSessionEnded
+                    ? "Closed"
+                    : isTurn
+                    ? "NOW (Entry Ready)"
+                    : live_queue.estimated_consultation_time
+                    ? live_queue.estimated_consultation_time
+                    : live_queue.estimated_wait_mins != null
+                    ? `~${live_queue.estimated_wait_mins} mins`
+                    : "On Schedule"}
+                </span>
+              </div>
             </div>
           </div>
 

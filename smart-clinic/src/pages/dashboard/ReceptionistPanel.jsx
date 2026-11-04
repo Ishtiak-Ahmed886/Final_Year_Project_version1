@@ -117,6 +117,17 @@ export default function ReceptionistPanel() {
   // Token print & reprint modal state
   const [printTokenData, setPrintTokenData] = useState(null);
 
+  // Rollover state
+  const [rolloverModalOpen, setRolloverModalOpen] = useState(false);
+  const [rollingOver, setRollingOver] = useState(false);
+  const [rolloverTargetDate, setRolloverTargetDate] = useState("");
+
+  // Individual Reschedule state
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [selectedApptForReschedule, setSelectedApptForReschedule] = useState(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ new_date: "", new_time: "10:00", reason: "" });
+  const [rescheduling, setRescheduling] = useState(false);
+
   // Patient phone lookup state
   const [searchingPatient, setSearchingPatient] = useState(false);
   const [foundPatient, setFoundPatient] = useState(null);
@@ -215,15 +226,75 @@ export default function ReceptionistPanel() {
     loadInitialData();
   }, []);
 
+  // Live Real-Time Queue Helpers
+  const currentServingPatient = useMemo(() => {
+    const s = chamberSession?.current_serial;
+    const skipped = chamberSession?.skipped_serials || [];
+    if (!s || skipped.includes(s)) return null;
+    return appointments.find(
+      (a) => a.serial_number === s && a.status !== "COMPLETED" && a.status !== "CANCELLED"
+    );
+  }, [chamberSession, appointments]);
+
+  const nextSerialCandidate = useMemo(() => {
+    if (chamberSession?.next_serials && chamberSession.next_serials.length > 0) {
+      return chamberSession.next_serials[0];
+    }
+    const curr = chamberSession?.current_serial || 0;
+    const skipped = chamberSession?.skipped_serials || [];
+    const waiting = appointments
+      .filter(
+        (a) =>
+          !a.is_emergency &&
+          a.serial_number > curr &&
+          ["CONFIRMED", "PENDING"].includes(a.status) &&
+          !skipped.includes(a.serial_number)
+      )
+      .sort((a, b) => a.serial_number - b.serial_number);
+    return waiting.length > 0 ? waiting[0].serial_number : null;
+  }, [chamberSession, appointments]);
+
+  const isSlotStarted = useMemo(() => {
+    if (chamberSession?.is_slot_started !== undefined) {
+      return chamberSession.is_slot_started;
+    }
+    return true;
+  }, [chamberSession]);
+
+  const slotLockReason = useMemo(() => {
+    if (chamberSession?.slot_lock_reason) return chamberSession.slot_lock_reason;
+    if (!isSlotStarted) {
+      return chamberSession?.schedule_start_time
+        ? `Chamber slot starts at ${chamberSession.schedule_start_time}.`
+        : "Doctor's chamber slot has not started yet.";
+    }
+    return null;
+  }, [chamberSession, isSlotStarted]);
+
   useEffect(() => {
     if (selectedDoctorId) {
       loadDoctorQueue(selectedDoctorId);
     }
   }, [selectedDoctorId, clinicData]);
 
+  // Real-time synchronization: Poll doctor queue every 5s when tab is active
+  useEffect(() => {
+    if (!selectedDoctorId) return;
+    const interval = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        loadDoctorQueue(selectedDoctorId);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [selectedDoctorId, clinicData]);
+
   // Queue Action Handler
   const handleQueueAction = async (action, targetSerial = null, extraPayload = {}) => {
     if (!selectedDoctorId || !clinicData?.clinic_id) return;
+    if (["NEXT_SERIAL", "SKIP_SERIAL", "RECALL_SERIAL", "SET_SERIAL"].includes(action) && !isSlotStarted) {
+      showErr(slotLockReason || "Doctor's chamber slot has not started yet.");
+      return;
+    }
     setUpdatingChamber(true);
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -242,7 +313,7 @@ export default function ReceptionistPanel() {
       showMsg(`Queue updated: ${action.replace("_", " ")}`);
       loadDoctorQueue(selectedDoctorId);
     } catch (err) {
-      showErr(err?.response?.data?.error || err?.detail || "Action failed.");
+      showErr(err?.response?.data?.detail || err?.response?.data?.error || err?.detail || "Action failed.");
     } finally {
       setUpdatingChamber(false);
     }
@@ -255,14 +326,22 @@ export default function ReceptionistPanel() {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (e.key === "F2") {
         e.preventDefault();
-        if (selectedDoctorId && !updatingChamber) {
+        if (!isSlotStarted) {
+          showErr(slotLockReason || "Doctor's chamber slot has not started yet.");
+          return;
+        }
+        if (selectedDoctorId && !updatingChamber && nextSerialCandidate) {
+          if (currentServingPatient && !currentServingPatient.has_prescription) {
+            showErr(`Doctor has not issued digital prescription for Serial #${currentServingPatient.serial_number} yet.`);
+            return;
+          }
           handleQueueAction("NEXT_SERIAL");
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedDoctorId, updatingChamber, clinicData]);
+  }, [selectedDoctorId, updatingChamber, clinicData, nextSerialCandidate]);
 
   // Toggle Emergency Status
   const handleToggleEmergency = async (apt) => {
@@ -328,6 +407,9 @@ export default function ReceptionistPanel() {
   // Walk-in Submit
   const handleWalkInSubmit = async (e) => {
     e.preventDefault();
+    if (isSessionEnded) {
+      return showErr("Chamber session has ended. Reopen session before registering walk-in patients.");
+    }
     if (!walkInForm.patient_name || !walkInForm.doctor_id) {
       return showErr("Patient name and Doctor are required.");
     }
@@ -380,6 +462,21 @@ export default function ReceptionistPanel() {
         appointment_id: selectedApptForCash.id,
         amount: parseFloat(cashAmount),
       });
+
+      // Optimistically update appointment row in state
+      setAppointments((prev) =>
+        prev.map((item) =>
+          item.id === selectedApptForCash.id
+            ? {
+                ...item,
+                status: "CONFIRMED",
+                is_arrived: true,
+                arrived_at: item.arrived_at || new Date().toISOString(),
+                amount: parseFloat(cashAmount),
+              }
+            : item
+        )
+      );
       showMsg(
         `Cash payment of ৳${cashAmount} recorded by ${
           user?.full_name || "Receptionist"
@@ -398,6 +495,67 @@ export default function ReceptionistPanel() {
       showErr(err?.detail || "Failed to log cash payment.");
     } finally {
       setSubmittingCash(false);
+    }
+  };
+
+  // Bulk Rollover Unserved Appointments to Next Chamber Day
+  const handleRolloverUnserved = async () => {
+    if (!selectedDoctorId || !clinicData?.clinic_id) return;
+    setRollingOver(true);
+    try {
+      const payload = {
+        doctor_id: selectedDoctorId,
+        clinic_id: clinicData.clinic_id,
+        session_date: today,
+      };
+      if (rolloverTargetDate) {
+        payload.target_date = rolloverTargetDate;
+      }
+      const res = await apiClient.post("/appointments/rollover/", payload);
+      showMsg(res.message || `Successfully rolled over ${res.count} patient(s) to next session!`);
+      setRolloverModalOpen(false);
+      setRolloverTargetDate("");
+      loadDoctorQueue(selectedDoctorId);
+    } catch (err) {
+      showErr(err?.detail || err?.target_date?.[0] || "Failed to rollover unserved appointments.");
+    } finally {
+      setRollingOver(false);
+    }
+  };
+
+  // Open Individual Reschedule Modal
+  const handleOpenRescheduleModal = (appt) => {
+    setSelectedApptForReschedule(appt);
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const tomorrowStr = d.toISOString().split("T")[0];
+    setRescheduleForm({
+      new_date: tomorrowStr,
+      new_time: (appt.appointment_time || "10:00").substring(0, 5),
+      reason: "",
+    });
+    setRescheduleModalOpen(true);
+  };
+
+  // Submit Individual Reschedule
+  const handleConfirmReschedule = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!selectedApptForReschedule) return;
+    setRescheduling(true);
+    try {
+      await apiClient.post(`/appointments/${selectedApptForReschedule.id}/reschedule/`, {
+        new_date: rescheduleForm.new_date,
+        new_time: rescheduleForm.new_time,
+        reason: rescheduleForm.reason,
+      });
+      showMsg(`Appointment rescheduled to ${rescheduleForm.new_date} (${rescheduleForm.new_time}) successfully!`);
+      setRescheduleModalOpen(false);
+      setSelectedApptForReschedule(null);
+      loadDoctorQueue(selectedDoctorId);
+    } catch (err) {
+      showErr(err?.detail || err?.new_date?.[0] || err?.new_time?.[0] || "Failed to reschedule appointment.");
+    } finally {
+      setRescheduling(false);
     }
   };
 
@@ -426,14 +584,6 @@ export default function ReceptionistPanel() {
     });
   }, [appointments, searchQuery, filterTab, chamberSession]);
 
-  const currentServingPatient = useMemo(() => {
-    const s = chamberSession?.current_serial;
-    if (!s) return null;
-    return appointments.find((a) => a.serial_number === s);
-  }, [chamberSession, appointments]);
-
-  const nextSerialCandidate = (chamberSession?.current_serial || 0) + 1;
-
   // Key KPI Calculations
   const waitingPatientsCount = useMemo(() => {
     return appointments.filter(
@@ -449,6 +599,12 @@ export default function ReceptionistPanel() {
 
   const emergencyPatientsCount = useMemo(() => {
     return appointments.filter((a) => a.is_emergency).length;
+  }, [appointments]);
+
+  const unservedAppointments = useMemo(() => {
+    return appointments.filter((a) =>
+      ["SCHEDULED", "CONFIRMED", "PENDING"].includes(a.status)
+    );
   }, [appointments]);
 
   const todayFormatted = useMemo(() => {
@@ -530,7 +686,13 @@ export default function ReceptionistPanel() {
               variant="primary"
               size="sm"
               icon={Plus}
-              onClick={() => setWalkInModalOpen(true)}
+              onClick={() => {
+                if (isSessionEnded) {
+                  showErr("Chamber session has ended. Reopen session before registering walk-ins.");
+                  return;
+                }
+                setWalkInModalOpen(true);
+              }}
             >
               <span>+ Register Walk-in</span>
             </ActionButton>
@@ -1023,19 +1185,39 @@ export default function ReceptionistPanel() {
             )}
 
             {isSessionEnded && (
-              <div className="p-3 rounded-2xl bg-slate-100 border border-slate-300 flex items-center justify-between gap-2 text-slate-800 text-xs">
-                <span className="font-bold flex items-center gap-1.5">
-                  <StopCircle size={14} className="text-slate-600" /> Chamber Session
-                  Ended (Locked)
-                </span>
-                <ActionButton
-                  variant="secondary"
-                  size="xs"
-                  loading={updatingChamber}
-                  onClick={() => handleSetChamberStatus("IN_CHAMBER")}
-                >
-                  ▶ Reopen Session
-                </ActionButton>
+              <div className="space-y-2">
+                <div className="p-3 rounded-2xl bg-slate-100 border border-slate-300 flex items-center justify-between gap-2 text-slate-800 text-xs">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <StopCircle size={14} className="text-slate-600" /> Chamber Session
+                    Ended (Locked)
+                  </span>
+                  <ActionButton
+                    variant="secondary"
+                    size="xs"
+                    loading={updatingChamber}
+                    onClick={() => handleSetChamberStatus("IN_CHAMBER")}
+                  >
+                    ▶ Reopen Session
+                  </ActionButton>
+                </div>
+
+                {unservedAppointments.length > 0 && (
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-2 text-amber-900 text-xs shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                      <span>{unservedAppointments.length} unserved patient(s) remaining</span>
+                    </div>
+                    <ActionButton
+                      variant="primary"
+                      size="xs"
+                      icon={RotateCcw}
+                      loading={rollingOver}
+                      onClick={() => setRolloverModalOpen(true)}
+                    >
+                      Roll Over
+                    </ActionButton>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1047,20 +1229,42 @@ export default function ReceptionistPanel() {
                   <kbd className="px-1 py-0.2 text-[10px] font-bold bg-white border border-blue-200 rounded shadow-2xs font-mono">F2</kbd> Quick Call
                 </span>
               </div>
+              {/* Slot Not Started Warning */}
+              {!isSlotStarted && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold">
+                  <Clock size={16} className="text-amber-600 shrink-0" />
+                  <span>{slotLockReason || "Doctor's chamber slot has not started yet. Patient calling is locked until chamber starts."}</span>
+                </div>
+              )}
+
               <ActionButton
                 variant="primary"
                 size="lg"
                 loading={updatingChamber}
                 disabled={
+                  !isSlotStarted ||
                   hasActiveEmergency ||
                   hasHeldPatient ||
                   isPrayerBreak ||
-                  isSessionEnded
+                  isSessionEnded ||
+                  !nextSerialCandidate
                 }
-                onClick={() => handleQueueAction("NEXT_SERIAL")}
-                className="w-full justify-center shadow-sm"
+                onClick={() => {
+                  if (!isSlotStarted) {
+                    showErr(slotLockReason || "Doctor's chamber slot has not started yet.");
+                    return;
+                  }
+                  if (currentServingPatient && !currentServingPatient.has_prescription) {
+                    showErr(`Doctor has not issued digital prescription for Serial #${currentServingPatient.serial_number} yet. Waiting for prescription before calling next patient.`);
+                    return;
+                  }
+                  handleQueueAction("NEXT_SERIAL");
+                }}
+                className={`w-full justify-center shadow-sm ${!isSlotStarted ? "opacity-60 cursor-not-allowed" : ""}`}
                 title={
-                  isSessionEnded
+                  !isSlotStarted
+                    ? (slotLockReason || "Chamber slot has not started yet.")
+                    : isSessionEnded
                     ? "Chamber session has ended. Reopen session before calling next patient."
                     : isPrayerBreak
                     ? "Chamber is on Prayer Break. Resume 'In Chamber' before calling next patient."
@@ -1068,11 +1272,19 @@ export default function ReceptionistPanel() {
                     ? "Cannot call next serial while an emergency patient is in chamber."
                     : hasHeldPatient
                     ? "Resume held patient first."
-                    : `Call Next Patient (#${nextSerialCandidate})`
+                    : nextSerialCandidate
+                    ? `Call Next Patient (#${nextSerialCandidate})`
+                    : "All waiting patients have been called."
                 }
               >
-                <FastForward size={18} />
-                <span>CALL NEXT PATIENT (#{nextSerialCandidate})</span>
+                {!isSlotStarted ? <Lock size={18} /> : <FastForward size={18} />}
+                <span>
+                  {!isSlotStarted
+                    ? `CHAMBER NOT STARTED (${chamberSession?.schedule_start_time ? `STARTS ${chamberSession.schedule_start_time}` : "LOCKED"})`
+                    : nextSerialCandidate
+                    ? `CALL NEXT PATIENT (#${nextSerialCandidate})`
+                    : "ALL PATIENTS CALLED (QUEUE COMPLETE)"}
+                </span>
               </ActionButton>
             </div>
 
@@ -1082,7 +1294,8 @@ export default function ReceptionistPanel() {
                 variant="warning"
                 size="sm"
                 disabled={
-                  !chamberSession?.current_serial ||
+                  !isSlotStarted ||
+                  !nextSerialCandidate ||
                   hasActiveEmergency ||
                   hasHeldPatient ||
                   isPrayerBreak ||
@@ -1092,7 +1305,9 @@ export default function ReceptionistPanel() {
                 onClick={() => handleQueueAction("SKIP_SERIAL")}
                 icon={Pause}
                 title={
-                  isSessionEnded
+                  !nextSerialCandidate
+                    ? "No waiting patients left to skip"
+                    : isSessionEnded
                     ? "Session ended"
                     : isPrayerBreak
                     ? "On prayer break"
@@ -1439,6 +1654,17 @@ export default function ReceptionistPanel() {
                         >
                           <AlertTriangle size={13} />
                         </button>
+                        {/* Reschedule Button */}
+                        {["SCHEDULED", "CONFIRMED", "PENDING"].includes(a.status) && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRescheduleModal(a)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors shadow-2xs"
+                            title="Reschedule to another date/time"
+                          >
+                            <Calendar size={13} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setPrintTokenData(a)}
@@ -1836,6 +2062,166 @@ export default function ReceptionistPanel() {
             </strong>
           </div>
         </div>
+      </ModalShell>
+
+      {/* ================= MODAL: ROLLOVER UNSERVED APPOINTMENTS ================= */}
+      <ModalShell
+        isOpen={rolloverModalOpen}
+        onClose={() => setRolloverModalOpen(false)}
+        title="🔄 Roll Over Unserved Patients to Next Chamber"
+        subtitle={`Automatically migrate remaining patients to Dr. ${selectedDoctor?.full_name || "Doctor"}'s next chamber day.`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <ActionButton
+              variant="outline"
+              size="sm"
+              onClick={() => setRolloverModalOpen(false)}
+              disabled={rollingOver}
+            >
+              Cancel
+            </ActionButton>
+            <ActionButton
+              variant="primary"
+              size="sm"
+              icon={RotateCcw}
+              loading={rollingOver}
+              onClick={handleRolloverUnserved}
+            >
+              Confirm Rollover ({unservedAppointments.length} Patients)
+            </ActionButton>
+          </div>
+        }
+      >
+        <div className="space-y-4 py-1 text-xs text-slate-700">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
+            <p className="font-bold text-amber-900 flex items-center gap-1.5">
+              <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+              {unservedAppointments.length} unserved patient(s) from today's session
+            </p>
+            <p className="text-amber-800 leading-relaxed text-[11px]">
+              This action will automatically reschedule all unserved patients to the doctor's next available chamber session according to their schedule.
+            </p>
+          </div>
+
+          <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Operational Invariants & Guarantees:</h4>
+            <ul className="list-disc pl-4 space-y-1 text-slate-600 text-[11px]">
+              <li><strong>Monotonic Serials:</strong> New tokens will be assigned starting after existing bookings on the next date.</li>
+              <li><strong>Payment Preservation:</strong> Original consultation fees & transaction IDs remain intact. Patients are NOT charged again.</li>
+              <li><strong>Automated Patient SMS:</strong> Every patient receives an immediate SMS with their new date, slot time, and token number.</li>
+            </ul>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+              Custom Target Date (Optional)
+            </label>
+            <input
+              type="date"
+              value={rolloverTargetDate}
+              min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+              onChange={(e) => setRolloverTargetDate(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#1e3a8a] outline-none font-medium"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">
+              Leave blank to automatically detect the doctor's next scheduled chamber day (skipping leaves).
+            </p>
+          </div>
+        </div>
+      </ModalShell>
+
+      {/* ================= MODAL: RESCHEDULE INDIVIDUAL APPOINTMENT ================= */}
+      <ModalShell
+        isOpen={rescheduleModalOpen && !!selectedApptForReschedule}
+        onClose={() => {
+          setRescheduleModalOpen(false);
+          setSelectedApptForReschedule(null);
+        }}
+        title="🗓️ Reschedule Appointment"
+        subtitle={`Reschedule ${selectedApptForReschedule?.patient_name || selectedApptForReschedule?.patient?.full_name || "Patient"}'s booking.`}
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <ActionButton
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setRescheduleModalOpen(false);
+                setSelectedApptForReschedule(null);
+              }}
+              disabled={rescheduling}
+            >
+              Cancel
+            </ActionButton>
+            <ActionButton
+              variant="primary"
+              size="sm"
+              icon={Calendar}
+              loading={rescheduling}
+              onClick={handleConfirmReschedule}
+            >
+              Confirm Reschedule
+            </ActionButton>
+          </div>
+        }
+      >
+        <form onSubmit={handleConfirmReschedule} className="space-y-3.5 py-1 text-xs">
+          <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 text-slate-700 space-y-1">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-500">Current Token:</span>
+              <span className="font-bold font-mono text-[#1e3a8a]">Serial #{selectedApptForReschedule?.serial_number}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-500">Scheduled Time:</span>
+              <span className="font-medium text-slate-700">{selectedApptForReschedule?.appointment_date} at {selectedApptForReschedule?.appointment_time}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="font-semibold text-slate-500">Payment Status:</span>
+              <span className="font-bold text-emerald-700">Fee Preserved (Paid)</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+              New Appointment Date *
+            </label>
+            <input
+              type="date"
+              required
+              value={rescheduleForm.new_date}
+              min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_date: e.target.value })}
+              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#1e3a8a] outline-none font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+              New Consultation Time *
+            </label>
+            <input
+              type="time"
+              required
+              value={rescheduleForm.new_time}
+              onChange={(e) => setRescheduleForm({ ...rescheduleForm, new_time: e.target.value })}
+              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#1e3a8a] outline-none font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+              Reason / Reception Note
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Doctor session ended early, patient requested tomorrow"
+              value={rescheduleForm.reason}
+              onChange={(e) => setRescheduleForm({ ...rescheduleForm, reason: e.target.value })}
+              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#1e3a8a] outline-none font-medium"
+            />
+          </div>
+        </form>
       </ModalShell>
 
       {/* ================= MODAL: 76mm THERMAL TOKEN PRINT ================= */}

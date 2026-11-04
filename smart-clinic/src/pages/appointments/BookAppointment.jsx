@@ -32,11 +32,14 @@ function ClinicSearchSelect({ clinics, value, onChange, language }) {
   const selected = clinics.find((c) => c.id === value);
 
   const filtered = query.trim()
-    ? clinics.filter(
-        (c) =>
-          c.name.toLowerCase().includes(query.toLowerCase()) ||
-          c.city.toLowerCase().includes(query.toLowerCase())
-      )
+    ? clinics.filter((c) => {
+        const q = query.toLowerCase();
+        return (
+          (c.name || "").toLowerCase().includes(q) ||
+          (c.city || "").toLowerCase().includes(q) ||
+          (c.address || "").toLowerCase().includes(q)
+        );
+      })
     : clinics;
 
   const handleSelect = (clinic) => {
@@ -45,11 +48,18 @@ function ClinicSearchSelect({ clinics, value, onChange, language }) {
     setOpen(false);
   };
 
-  const handleClear = () => {
+  const handleClear = (e) => {
+    e?.stopPropagation();
     onChange("");
     setQuery("");
     setOpen(false);
   };
+
+  const displayValue = open
+    ? query
+    : selected
+    ? `${selected.name} (${selected.city})`
+    : query;
 
   return (
     <div className="space-y-1.5 relative">
@@ -69,8 +79,11 @@ function ClinicSearchSelect({ clinics, value, onChange, language }) {
               ? "ক্লিনিকের নাম লিখুন বা বেছে নিন..."
               : "Search clinic by name or city..."
           }
-          value={query}
-          onFocus={() => setOpen(true)}
+          value={displayValue}
+          onFocus={() => {
+            setOpen(true);
+            if (!query && selected) setQuery("");
+          }}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           className={`w-full h-11 pl-3.5 pr-9 rounded-xl border text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 transition-all ${
@@ -169,7 +182,7 @@ export default function BookAppointment() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const clinicsRes = await apiClient.get("/clinics/");
+        const clinicsRes = await apiClient.get("/clinics/?all=true");
         setClinics(clinicsRes.results || clinicsRes || []);
 
         const familyRes = await apiClient.get("/accounts/family-members/");
@@ -334,26 +347,117 @@ export default function BookAppointment() {
     setFormData({ ...formData, clinic_id: clinicId, doctor_id: "", appointment_time: "" });
   };
 
-  // Group slots by session time of day
-  const groupedSlots = useMemo(() => {
+  // Derive selectable chamber shift ranges (Morning, Afternoon, Evening)
+  const sessionRanges = useMemo(() => {
+    if (availability?.sessions?.length > 0) {
+      return availability.sessions.map((s) => ({
+        ...s,
+        displayName: language === "bn" ? s.name_bn || s.name : s.name,
+      }));
+    }
     const slots = availability?.slots || [];
-    const morning = [];
-    const afternoon = [];
-    const evening = [];
+    if (!slots.length) return [];
 
-    slots.forEach((s) => {
-      const hour = parseInt(s.time.split(":")[0], 10);
-      if (hour < 12) {
-        morning.push(s);
-      } else if (hour < 17) {
-        afternoon.push(s);
-      } else {
-        evening.push(s);
-      }
+    const morning = slots.filter((s) => parseInt(s.time.split(":")[0], 10) < 12);
+    const afternoon = slots.filter((s) => {
+      const h = parseInt(s.time.split(":")[0], 10);
+      return h >= 12 && h < 17;
     });
+    const evening = slots.filter((s) => parseInt(s.time.split(":")[0], 10) >= 17);
 
-    return { morning, afternoon, evening };
+    const list = [];
+    if (morning.length > 0) {
+      list.push({
+        id: "morning",
+        name: "Morning Shift",
+        displayName: language === "bn" ? "সকালের শিফট" : "Morning Shift",
+        start_time: morning[0].time,
+        end_time: morning[morning.length - 1].time,
+        total_slots: morning.length,
+        available_count: morning.filter((s) => s.available).length,
+        first_available_time: morning.find((s) => s.available)?.time || null,
+      });
+    }
+    if (afternoon.length > 0) {
+      list.push({
+        id: "afternoon",
+        name: "Afternoon Shift",
+        displayName: language === "bn" ? "দুপুরের শিফট" : "Afternoon Shift",
+        start_time: afternoon[0].time,
+        end_time: afternoon[afternoon.length - 1].time,
+        total_slots: afternoon.length,
+        available_count: afternoon.filter((s) => s.available).length,
+        first_available_time: afternoon.find((s) => s.available)?.time || null,
+      });
+    }
+    if (evening.length > 0) {
+      list.push({
+        id: "evening",
+        name: "Evening Shift",
+        displayName: language === "bn" ? "সন্ধ্যার শিফট" : "Evening Shift",
+        start_time: evening[0].time,
+        end_time: evening[evening.length - 1].time,
+        total_slots: evening.length,
+        available_count: evening.filter((s) => s.available).length,
+        first_available_time: evening.find((s) => s.available)?.time || null,
+      });
+    }
+    return list;
+  }, [availability, language]);
+
+  const [selectedSessionId, setSelectedSessionId] = useState("");
+
+  const predictedSerial = useMemo(() => {
+    return availability?.next_serial || (availability?.booked_count ? availability.booked_count + 1 : 1);
   }, [availability]);
+
+  // Automatically select shift and auto-assign next available serial slot
+  useEffect(() => {
+    if (!sessionRanges.length) {
+      setSelectedSessionId("");
+      return;
+    }
+
+    let active = null;
+    if (formData.appointment_time) {
+      const h = parseInt(formData.appointment_time.split(":")[0], 10);
+      active = sessionRanges.find((s) => {
+        if (s.id === "morning") return h < 12;
+        if (s.id === "afternoon") return h >= 12 && h < 17;
+        if (s.id === "evening") return h >= 17;
+        return false;
+      });
+    }
+
+    if (!active) {
+      active = sessionRanges.find((s) => s.available_count > 0) || sessionRanges[0];
+    }
+
+    if (active) {
+      setSelectedSessionId(active.id);
+      if (active.first_available_time && (!formData.appointment_time || !availability?.slots?.some((s) => s.time === formData.appointment_time && s.available))) {
+        setFormData((prev) => ({
+          ...prev,
+          appointment_time: active.first_available_time,
+        }));
+      }
+    }
+  }, [sessionRanges, availability, formData.appointment_time]);
+
+  const handleSelectSession = (session) => {
+    setSelectedSessionId(session.id);
+    if (session.first_available_time) {
+      setFormData((prev) => ({
+        ...prev,
+        appointment_time: session.first_available_time,
+      }));
+    }
+    setError("");
+  };
+
+  const selectedSessionObj = useMemo(() => {
+    return sessionRanges.find((s) => s.id === selectedSessionId) || sessionRanges[0] || null;
+  }, [sessionRanges, selectedSessionId]);
 
   // Validation before advancing to next step
   const handleNextStep = () => {
@@ -466,9 +570,23 @@ export default function BookAppointment() {
     }
   };
 
+  // Combine all clinics with any nearby clinics to guarantee selection & search match
+  const allClinicsList = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(clinics) ? clinics : []).forEach((c) => {
+      if (c?.id) map.set(c.id, c);
+    });
+    (Array.isArray(nearbyClinics) ? nearbyClinics : []).forEach((c) => {
+      if (c?.id && !map.has(c.id)) map.set(c.id, c);
+    });
+    return Array.from(map.values()).sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "")
+    );
+  }, [clinics, nearbyClinics]);
+
   const selectedClinicObj = useMemo(
-    () => clinics.find((c) => c.id === formData.clinic_id),
-    [clinics, formData.clinic_id]
+    () => allClinicsList.find((c) => c.id === formData.clinic_id),
+    [allClinicsList, formData.clinic_id]
   );
 
   const selectedFamilyMemberObj = useMemo(
@@ -731,7 +849,7 @@ export default function BookAppointment() {
               
               {/* Clinic Searchable Dropdown */}
               <ClinicSearchSelect
-                clinics={clinics}
+                clinics={allClinicsList}
                 value={formData.clinic_id}
                 language={language}
                 onChange={(clinicId) => {
@@ -875,7 +993,7 @@ export default function BookAppointment() {
                 disabled={!formData.clinic_id || !formData.doctor_id}
                 className="w-full sm:w-auto px-7 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-extrabold text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2 transition-all"
               >
-                <span>{language === "bn" ? "পরবর্তী: সময় স্লট বেছে নিন" : "Next: Schedule & Time Slot"}</span>
+                <span>{language === "bn" ? "পরবর্তী: চেম্বার তারিখ ও শিফট" : "Next: Chamber Date & Shift"}</span>
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -890,7 +1008,7 @@ export default function BookAppointment() {
             <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                  {language === "bn" ? "২. চেম্বার সময় ও স্লট নির্বাচন" : "2. Select Chamber Schedule & Slot"}
+                  {language === "bn" ? "২. চেম্বার তারিখ ও শিফট নির্বাচন" : "2. Select Chamber Date & Shift"}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {formatDocName(selectedDoctorObj?.full_name)} · {selectedClinicObj?.name}
@@ -1143,130 +1261,129 @@ export default function BookAppointment() {
                 </div>
               )}
 
-              {availability?.message && (!availability.slots || availability.slots.length === 0) ? (
-                <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl text-xs sm:text-sm space-y-1">
-                  <div className="font-extrabold flex items-center gap-1.5">
-                    <AlertCircle size={15} className="text-amber-600" />
-                    <span>{language === "bn" ? "এই তারিখে ডাক্তারের চেম্বার নেই" : "Doctor not available on this date"}</span>
+              {sessionRanges.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Clock size={15} className="text-emerald-700" />
+                      <span>
+                        {sessionRanges.length > 1
+                          ? (language === "bn" ? "চেম্বার শিফট নির্বাচন করুন (সকাল / দুপুর / সন্ধ্যা)" : "Select Chamber Shift (Morning / Afternoon / Evening)")
+                          : (language === "bn" ? "নির্ধারিত চেম্বার শিফট" : "Scheduled Chamber Shift")}
+                      </span>
+                    </label>
+                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <Sparkles size={11} className="text-emerald-600" />
+                      <span>{language === "bn" ? "স্বয়ংক্রিয় সিরিয়াল বরাদ্দ" : "Auto-Assigned Serial Queue"}</span>
+                    </span>
                   </div>
-                  <div className="text-amber-800">{availability.message}</div>
+
+                  {/* Session Range Selectable Cards */}
+                  <div className={`grid gap-3 ${sessionRanges.length > 2 ? "grid-cols-1 sm:grid-cols-3" : sessionRanges.length === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+                    {sessionRanges.map((session) => {
+                      const isSelected = selectedSessionId === session.id;
+                      const isAvailable = session.available_count > 0;
+                      return (
+                        <button
+                          key={session.id}
+                          type="button"
+                          disabled={!isAvailable}
+                          onClick={() => handleSelectSession(session)}
+                          className={`p-4 rounded-2xl border-2 text-left transition-all relative overflow-hidden ${
+                            isSelected
+                              ? "border-emerald-600 bg-emerald-50/70 shadow-2xs ring-2 ring-emerald-500/20"
+                              : isAvailable
+                              ? "border-slate-200 bg-white hover:border-emerald-400 hover:bg-slate-50 cursor-pointer"
+                              : "border-slate-100 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                                isSelected ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {session.id === "morning" && <Sun size={17} />}
+                                {session.id === "afternoon" && <Sunset size={17} />}
+                                {session.id === "evening" && <Moon size={17} />}
+                              </div>
+                              <div>
+                                <div className="font-extrabold text-sm text-slate-900 leading-tight">
+                                  {session.displayName || session.name}
+                                </div>
+                                <div className="text-xs text-slate-500 font-semibold mt-0.5">
+                                  {formatTime(session.start_time)} – {formatTime(session.end_time)}
+                                </div>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-700 text-white flex items-center gap-1 shrink-0">
+                                <CheckCircle2 size={11} /> {language === "bn" ? "নির্বাচিত" : "Selected"}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className={`font-bold flex items-center gap-1 ${isAvailable ? "text-emerald-700" : "text-rose-600"}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isAvailable ? "bg-emerald-500" : "bg-rose-500"}`}></span>
+                              {isAvailable
+                                ? `${session.available_count} ${language === "bn" ? "টি সিরিয়াল বাকি" : "slots available"}`
+                                : (language === "bn" ? "সেশন পূর্ণ" : "Fully Booked")}
+                            </span>
+                            {isAvailable && (
+                              <span className="text-[11px] font-extrabold text-slate-600">
+                                {language === "bn" ? "প্রত্যাশিত সিরিয়াল" : "Next Token"}: #{predictedSerial}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Prominent Auto-Assigned Serial Token Card */}
+                  {formData.appointment_time && (
+                    <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 rounded-2xl border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-13 h-13 rounded-2xl bg-emerald-700 text-white flex flex-col items-center justify-center shrink-0 shadow-sm ring-4 ring-emerald-100">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-200">SERIAL</span>
+                          <span className="text-lg font-black leading-none">#{predictedSerial}</span>
+                        </div>
+                        <div>
+                          <div className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                            <span>{language === "bn" ? "টোকেন সিরিয়াল স্বয়ংক্রিয়ভাবে বরাদ্দ করা হয়েছে" : "Serial Token Auto-Assigned"}</span>
+                            <span className="text-emerald-700 font-bold">✓</span>
+                          </div>
+                          <div className="text-xs text-slate-600 font-medium mt-0.5">
+                            {language === "bn"
+                              ? `সম্ভাব্য ডাকবার সময়: ~${formatTime(formData.appointment_time)} (${selectedSessionObj?.displayName || selectedSessionObj?.name || "চেম্বার"})`
+                              : `Estimated consultation slot: ~${formatTime(formData.appointment_time)} (${selectedSessionObj?.displayName || selectedSessionObj?.name || "Chamber"})`}
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {language === "bn"
+                              ? "রোগীদের সিরিয়াল ক্রমানুসারে ডাকা হবে। চেম্বার শুরুর ১৫ মিনিট আগে পৌঁছানোর অনুরোধ করা হচ্ছে।"
+                              : "Consultations follow sequential serial order. Please arrive 15 minutes before your estimated time."}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="sm:self-center shrink-0">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+                          <CheckCircle2 size={13} className="text-emerald-600" />
+                          <span>{language === "bn" ? "সিরিয়াল সংরক্ষিত" : "Token Reserved"}</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {/* Morning Slots */}
-                  {groupedSlots.morning.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                        <Sun size={13} className="text-amber-500" />
-                        <span>{language === "bn" ? "সকালের অধিবেশন (১২:০০ পূর্ব)" : "Morning Session (Before 12:00 PM)"}</span>
-                      </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                        {groupedSlots.morning.map((slot) => {
-                          const isSelected = formData.appointment_time === slot.time;
-                          const hasShift = slot.estimated_time && slot.estimated_time !== slot.time;
-                          return (
-                            <button
-                              key={slot.time}
-                              type="button"
-                              disabled={!slot.available}
-                              onClick={() => setFormData({ ...formData, appointment_time: slot.time })}
-                              className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border text-center ${
-                                isSelected
-                                  ? "border-emerald-700 bg-emerald-700 text-white shadow-2xs"
-                                  : slot.available
-                                  ? "border-slate-200 bg-white text-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50"
-                                  : "border-slate-100 bg-slate-100 text-slate-400 line-through cursor-not-allowed"
-                              }`}
-                            >
-                              <div>{slot.time}</div>
-                              {hasShift && slot.available && (
-                                <div className={`text-[10px] font-medium ${isSelected ? "text-emerald-100" : "text-amber-700"}`}>
-                                  ~{slot.estimated_time}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
+                availability?.message && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl text-xs sm:text-sm space-y-1">
+                    <div className="font-extrabold flex items-center gap-1.5">
+                      <AlertCircle size={15} className="text-amber-600" />
+                      <span>{language === "bn" ? "এই তারিখে ডাক্তারের চেম্বার নেই" : "Doctor not available on this date"}</span>
                     </div>
-                  )}
-
-                  {/* Afternoon Slots */}
-                  {groupedSlots.afternoon.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                        <Sunset size={13} className="text-orange-500" />
-                        <span>{language === "bn" ? "দুপুরের অধিবেশন (১২:০০ – ৫:০০)" : "Afternoon Session (12:00 PM – 05:00 PM)"}</span>
-                      </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                        {groupedSlots.afternoon.map((slot) => {
-                          const isSelected = formData.appointment_time === slot.time;
-                          const hasShift = slot.estimated_time && slot.estimated_time !== slot.time;
-                          return (
-                            <button
-                              key={slot.time}
-                              type="button"
-                              disabled={!slot.available}
-                              onClick={() => setFormData({ ...formData, appointment_time: slot.time })}
-                              className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border text-center ${
-                                isSelected
-                                  ? "border-emerald-700 bg-emerald-700 text-white shadow-2xs"
-                                  : slot.available
-                                  ? "border-slate-200 bg-white text-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50"
-                                  : "border-slate-100 bg-slate-100 text-slate-400 line-through cursor-not-allowed"
-                              }`}
-                            >
-                              <div>{slot.time}</div>
-                              {hasShift && slot.available && (
-                                <div className={`text-[10px] font-medium ${isSelected ? "text-emerald-100" : "text-amber-700"}`}>
-                                  ~{slot.estimated_time}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Evening Slots */}
-                  {groupedSlots.evening.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                        <Moon size={13} className="text-indigo-500" />
-                        <span>{language === "bn" ? "সন্ধ্যার অধিবেশন (৫:০০ এর পর)" : "Evening Session (05:00 PM onwards)"}</span>
-                      </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                        {groupedSlots.evening.map((slot) => {
-                          const isSelected = formData.appointment_time === slot.time;
-                          const hasShift = slot.estimated_time && slot.estimated_time !== slot.time;
-                          return (
-                            <button
-                              key={slot.time}
-                              type="button"
-                              disabled={!slot.available}
-                              onClick={() => setFormData({ ...formData, appointment_time: slot.time })}
-                              className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border text-center ${
-                                isSelected
-                                  ? "border-emerald-700 bg-emerald-700 text-white shadow-2xs"
-                                  : slot.available
-                                  ? "border-slate-200 bg-white text-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50"
-                                  : "border-slate-100 bg-slate-100 text-slate-400 line-through cursor-not-allowed"
-                              }`}
-                            >
-                              <div>{slot.time}</div>
-                              {hasShift && slot.available && (
-                                <div className={`text-[10px] font-medium ${isSelected ? "text-emerald-100" : "text-amber-700"}`}>
-                                  ~{slot.estimated_time}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    <div className="text-amber-800">{availability.message}</div>
+                  </div>
+                )
               )}
             </div>
 
@@ -1478,8 +1595,13 @@ export default function BookAppointment() {
                   <Calendar size={15} className="text-emerald-700 shrink-0" />
                   <span>{formData.appointment_date}</span>
                 </div>
-                <div className="text-emerald-700 font-extrabold flex items-center gap-1">
-                  <Clock size={13} /> {formData.appointment_time}
+                <div className="text-emerald-700 font-extrabold flex items-center gap-2">
+                  <Clock size={13} />
+                  <span>{formatTime(formData.appointment_time)}</span>
+                  <span className="text-slate-300">·</span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-black">
+                    {language === "bn" ? "টোকেন সিরিয়াল" : "Token Serial"} #{predictedSerial}
+                  </span>
                 </div>
               </div>
 

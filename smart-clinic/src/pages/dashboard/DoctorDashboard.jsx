@@ -5,6 +5,7 @@ import {
   Clock,
   User,
   CheckCircle2,
+  CheckCheck,
   XCircle,
   AlertCircle,
   Stethoscope,
@@ -32,6 +33,7 @@ import {
   AlertTriangle,
   Printer,
   Sparkles,
+  Lock,
   Volume2,
   RefreshCw,
   Search,
@@ -369,6 +371,7 @@ export default function DoctorDashboard() {
   const [delayMinutes, setDelayMinutes] = useState(15);
   const [announcementNote, setAnnouncementNote] = useState("");
   const [broadcastingDelay, setBroadcastingDelay] = useState(false);
+  const [rollingOver, setRollingOver] = useState(false);
 
   // Rx Print Modal
   const [rxPrintModalOpen, setRxPrintModalOpen] = useState(false);
@@ -411,6 +414,66 @@ export default function DoctorDashboard() {
     max_patients: 20,
   });
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [toastWarning, setToastWarning] = useState("");
+
+  const showWarningToast = (msg) => {
+    setToastWarning(msg);
+    setTimeout(() => setToastWarning(""), 7000);
+  };
+
+  const timeToMins = (tStr) => {
+    if (!tStr) return 0;
+    const [h, m] = tStr.split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const formatTimeSlotDisplay = (t) => {
+    if (!t) return "";
+    const [h, m] = t.split(":");
+    const H = parseInt(h, 10);
+    const ampm = H >= 12 ? "PM" : "AM";
+    const h12 = H % 12 || 12;
+    return `${h12}:${m} ${ampm}`;
+  };
+
+  const getScheduleClash = (dayOfWeek, startTime, endTime, targetClinicId, schedulesList) => {
+    if (!startTime || !endTime) return null;
+    const startMins = timeToMins(startTime);
+    const endMins = timeToMins(endTime);
+
+    if (endMins <= startMins) {
+      return {
+        type: "invalid_time",
+        message: "End time must be strictly after start time.",
+      };
+    }
+
+    const dayNum = parseInt(dayOfWeek, 10);
+    for (const s of schedulesList) {
+      if (s.is_active === false) continue;
+      // If same clinic and same day, doctor is updating this clinic's own schedule
+      if (String(s.clinic) === String(targetClinicId)) continue;
+
+      if (parseInt(s.day_of_week, 10) === dayNum) {
+        const sStart = timeToMins(s.start_time);
+        const sEnd = timeToMins(s.end_time);
+
+        // Overlap condition: startMins < sEnd && sStart < endMins
+        if (startMins < sEnd && sStart < endMins) {
+          const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+          const dayLabel = dayNames[dayNum] || "selected day";
+          const clinicName = s.clinic_name || "another affiliated clinic";
+          const timeRange = `${formatTimeSlotDisplay(s.start_time)} - ${formatTimeSlotDisplay(s.end_time)}`;
+          return {
+            type: "clash",
+            conflicting: s,
+            message: `Time clash on ${dayLabel}! You already have an active chamber at ${clinicName} (${timeRange}). Doctors cannot hold overlapping chamber hours on the same day.`,
+          };
+        }
+      }
+    }
+    return null;
+  };
 
   // Patient Medical Reports Modal State (for Doctors)
   const [vaultModalOpen, setVaultModalOpen] = useState(false);
@@ -433,6 +496,20 @@ export default function DoctorDashboard() {
     const targetClinic = scheduleForm.clinic_id || selectedClinicId;
     if (!targetClinic) return showErr("Please choose a clinic for this schedule.");
 
+    const clash = getScheduleClash(
+      scheduleForm.day_of_week,
+      scheduleForm.start_time,
+      scheduleForm.end_time,
+      targetClinic,
+      schedules
+    );
+
+    if (clash) {
+      showWarningToast(clash.message);
+      showErr(clash.message);
+      return;
+    }
+
     setSavingSchedule(true);
     try {
       await apiClient.post("/doctors/schedule/", {
@@ -446,8 +523,16 @@ export default function DoctorDashboard() {
       });
       showMsg("Chamber schedule updated successfully!");
       fetchSchedules();
-    } catch {
-      showErr("Failed to save chamber schedule.");
+    } catch (err) {
+      const errMsg =
+        err?.response?.data?.detail ||
+        (Array.isArray(err?.response?.data?.detail) ? err.response.data.detail[0] : null) ||
+        err?.response?.data?.non_field_errors?.[0] ||
+        err?.response?.data?.end_time?.[0] ||
+        err?.detail ||
+        "Failed to save chamber schedule.";
+      showWarningToast(errMsg);
+      showErr(errMsg);
     } finally {
       setSavingSchedule(false);
     }
@@ -507,8 +592,8 @@ export default function DoctorDashboard() {
     setLoading(true);
     setError("");
     try {
-      const res = await apiClient.get("/appointments/");
-      const list = res.results || res || [];
+      const res = await apiClient.get("/appointments/?all=true");
+      const list = Array.isArray(res) ? res : res.results || [];
       setAppointments(list);
     } catch {
       setError("Failed to load patient schedule.");
@@ -541,7 +626,7 @@ export default function DoctorDashboard() {
     try {
       const [reqRes, cRes] = await Promise.all([
         apiClient.get("/doctors/requests/").catch(() => []),
-        apiClient.get("/clinics/").catch(() => []),
+        apiClient.get("/clinics/?all=true").catch(() => []),
       ]);
       const reqList = reqRes.results || reqRes || [];
       setRequests(reqList);
@@ -581,6 +666,24 @@ export default function DoctorDashboard() {
     }
   }, [profile, selectedClinicId]);
 
+  // Real-time synchronization: Poll chamber session & appointments every 5s when tab is visible
+  useEffect(() => {
+    if (!profile || !selectedClinicId) return;
+    const interval = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        fetchChamberSession();
+        apiClient
+          .get("/appointments/?all=true")
+          .then((res) => {
+            const list = Array.isArray(res) ? res : res.results || [];
+            setAppointments(list);
+          })
+          .catch(() => {});
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [profile, selectedClinicId]);
+
   // Live Patient Consultation Stopwatch Timer
   useEffect(() => {
     let timer;
@@ -596,6 +699,68 @@ export default function DoctorDashboard() {
     }
     return () => clearInterval(timer);
   }, [chamberSession?.status, chamberSession?.current_serial]);
+
+  // Reset selected patient view whenever current serial changes so workspace syncs with chamber
+  useEffect(() => {
+    setSelectedPatientId(null);
+  }, [chamberSession?.current_serial]);
+
+  // Active Calling Patient in Chamber
+  const currentServingPatient = useMemo(() => {
+    const s = chamberSession?.current_serial;
+    const skipped = chamberSession?.skipped_serials || [];
+    if (!s || skipped.includes(s)) return null;
+    return appointments.find(
+      (a) => a.serial_number === s && a.status !== "COMPLETED" && a.status !== "CANCELLED"
+    );
+  }, [chamberSession, appointments]);
+
+  const nextSerialCandidate = useMemo(() => {
+    if (chamberSession?.next_serials && chamberSession.next_serials.length > 0) {
+      return chamberSession.next_serials[0];
+    }
+    const curr = chamberSession?.current_serial || 0;
+    const skipped = chamberSession?.skipped_serials || [];
+    const waiting = appointments
+      .filter(
+        (a) =>
+          !a.is_emergency &&
+          a.serial_number > curr &&
+          ["CONFIRMED", "PENDING"].includes(a.status) &&
+          !skipped.includes(a.serial_number)
+      )
+      .sort((a, b) => a.serial_number - b.serial_number);
+    return waiting.length > 0 ? waiting[0].serial_number : null;
+  }, [chamberSession, appointments]);
+
+  const isSlotStarted = useMemo(() => {
+    if (chamberSession?.is_slot_started !== undefined) {
+      return chamberSession.is_slot_started;
+    }
+    if (!schedules || schedules.length === 0) return true;
+    const now = new Date();
+    const currentDay = (now.getDay() + 6) % 7;
+    const todaySchedules = schedules.filter(
+      (s) => s.is_active !== false && String(s.clinic) === String(selectedClinicId) && s.day_of_week === currentDay
+    );
+    if (todaySchedules.length === 0) return true;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const earliestMins = Math.min(...todaySchedules.map((s) => timeToMins(s.start_time)));
+    return nowMins >= earliestMins;
+  }, [chamberSession, schedules, selectedClinicId]);
+
+  const slotLockReason = useMemo(() => {
+    if (chamberSession?.slot_lock_reason) return chamberSession.slot_lock_reason;
+    if (!isSlotStarted) {
+      const todaySched = schedules?.find(
+        (s) => s.is_active !== false && String(s.clinic) === String(selectedClinicId) && s.day_of_week === ((new Date().getDay() + 6) % 7)
+      );
+      return todaySched?.start_time
+        ? `Chamber slot starts at ${todaySched.start_time.substring(0, 5)}.`
+        : "Chamber slot has not started yet.";
+    }
+    return null;
+  }, [chamberSession, isSlotStarted, schedules, selectedClinicId]);
 
   // Keyboard Hotkeys: [N] Next, [S] Skip, [P] Pause
   useEffect(() => {
@@ -614,15 +779,27 @@ export default function DoctorDashboard() {
         e.preventDefault();
         if (
           chamberSession?.status !== "PRAYER_BREAK" &&
-          chamberSession?.status !== "ENDED"
+          chamberSession?.status !== "ENDED" &&
+          !updatingChamber
         ) {
-          handleChamberAction("NEXT_SERIAL");
+          if (currentServingPatient && !currentServingPatient.has_prescription) {
+            showErr(`Please issue digital prescription for Serial #${currentServingPatient.serial_number} first.`);
+            return;
+          }
+          if (nextSerialCandidate) {
+            handleChamberAction("NEXT_SERIAL");
+          } else if (currentServingPatient) {
+            handleChamberAction("COMPLETE_CURRENT");
+          }
         }
       } else if (e.key === "s" || e.key === "S") {
         e.preventDefault();
         if (
           chamberSession?.status !== "PRAYER_BREAK" &&
-          chamberSession?.status !== "ENDED"
+          chamberSession?.status !== "ENDED" &&
+          isSlotStarted &&
+          nextSerialCandidate &&
+          !updatingChamber
         ) {
           handleChamberAction("SKIP_SERIAL");
         }
@@ -646,6 +823,9 @@ export default function DoctorDashboard() {
     delayModalOpen,
     rxPrintModalOpen,
     tab,
+    nextSerialCandidate,
+    currentServingPatient,
+    updatingChamber,
   ]);
 
   const showMsg = (m) => {
@@ -691,6 +871,14 @@ export default function DoctorDashboard() {
     extraPayload = {}
   ) => {
     if (!profile || !selectedClinicId) return;
+    if (["NEXT_SERIAL", "COMPLETE_CURRENT", "SKIP_SERIAL", "RECALL_SERIAL", "SET_SERIAL"].includes(action) && !isSlotStarted) {
+      showErr(slotLockReason || "Chamber slot has not started yet.");
+      return;
+    }
+    if (["NEXT_SERIAL", "COMPLETE_CURRENT"].includes(action) && currentServingPatient && !currentServingPatient.has_prescription) {
+      showErr(`Please issue digital prescription for Serial #${currentServingPatient.serial_number} before proceeding.`);
+      return;
+    }
     setUpdatingChamber(true);
     try {
       const payload = {
@@ -702,11 +890,13 @@ export default function DoctorDashboard() {
       if (newStatus) payload.status = newStatus;
       if (targetSerial !== null) payload.current_serial = targetSerial;
 
+      const prevSerial = chamberSession?.current_serial;
       const res = await apiClient.post("/doctors/chamber-session/", payload);
       setChamberSession(res);
 
       if (
         action === "NEXT_SERIAL" ||
+        action === "COMPLETE_CURRENT" ||
         action === "RECALL_SERIAL" ||
         action === "SKIP_SERIAL" ||
         action === "ADMIT_EMERGENCY" ||
@@ -714,14 +904,21 @@ export default function DoctorDashboard() {
         action === "RESUME_HELD" ||
         action === "RESET"
       ) {
-        setPatientSeconds(0);
-        resetClinicalState();
+        // Only reset clinical form if patient actually changed or completed
+        if (res.current_serial !== prevSerial || action === "COMPLETE_CURRENT") {
+          setPatientSeconds(0);
+          resetClinicalState();
+        }
         fetchAppointments();
       }
 
       showMsg(
         action === "NEXT_SERIAL"
-          ? `Called Serial #${res.current_serial}!`
+          ? (res.current_serial === prevSerial && (!res.next_serials || res.next_serials.length === 0)
+              ? "All patients have been called. Queue is complete!"
+              : `Called Serial #${res.current_serial}!`)
+          : action === "COMPLETE_CURRENT"
+          ? "Consultation completed!"
           : action === "SKIP_SERIAL"
           ? `Skipped Serial. Advanced to #${res.current_serial}!`
           : action === "RECALL_SERIAL"
@@ -798,6 +995,28 @@ export default function DoctorDashboard() {
       showErr("Failed to broadcast delay notice.");
     } finally {
       setBroadcastingDelay(false);
+    }
+  };
+
+  const handleDoctorRollover = async () => {
+    if (!profile?.id || !selectedClinicId) return;
+    setRollingOver(true);
+    try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const res = await apiClient.post("/appointments/rollover/", {
+        doctor_id: profile.id,
+        clinic_id: selectedClinicId,
+        session_date: todayStr,
+      });
+      showMsg(
+        res.message ||
+          `Successfully rolled over ${res.count} unserved patients to next session!`
+      );
+      fetchAppointments();
+    } catch (err) {
+      showErr(err?.detail || "Failed to rollover unserved appointments.");
+    } finally {
+      setRollingOver(false);
     }
   };
 
@@ -961,8 +1180,22 @@ export default function DoctorDashboard() {
 
   const handleSavePrescription = async (e) => {
     e.preventDefault();
-    const aptToUse = selectedRxApt || currentActivePatient;
-    if (!aptToUse) return;
+    const aptToUse =
+      currentServingPatient ||
+      (chamberSession?.current_serial > 0
+        ? appointments.find(
+            (a) =>
+              a.serial_number === chamberSession.current_serial &&
+              a.status !== "COMPLETED" &&
+              a.status !== "CANCELLED"
+          )
+        : null) ||
+      selectedRxApt ||
+      currentActivePatient;
+    if (!aptToUse) {
+      showErr("No active patient in chamber to prescribe for.");
+      return;
+    }
     setSubmittingRx(true);
     setError("");
     try {
@@ -978,7 +1211,30 @@ export default function DoctorDashboard() {
       });
       showMsg("Digital E-Prescription issued successfully!");
       setRxModalOpen(false);
-      fetchAppointments();
+
+      // Auto-complete appointment upon prescription issuance
+      try {
+        await apiClient.post(`/appointments/${aptToUse.id}/complete/`);
+      } catch (err) {
+        try {
+          await apiClient.patch(`/appointments/${aptToUse.id}/`, { status: "COMPLETED" });
+        } catch {}
+      }
+
+      // If this was the final active patient in chamber, finalize current serial
+      if (!nextSerialCandidate && currentServingPatient?.id === aptToUse.id) {
+        try {
+          await apiClient.post("/doctors/chamber-session/", {
+            doctor_id: profile.id,
+            clinic_id: selectedClinicId,
+            action: "COMPLETE_CURRENT",
+          });
+        } catch {}
+      }
+
+      await fetchAppointments();
+      await fetchChamberSession();
+      setSelectedPatientId(null);
       setPrintRxData({ ...res, appointment: aptToUse });
       setRxPrintModalOpen(true);
     } catch {
@@ -1151,13 +1407,6 @@ export default function DoctorDashboard() {
     });
   }, [appointments, queueSearchQuery, queueFilterTab, chamberSession]);
 
-  // Active Calling Patient in Chamber
-  const currentServingPatient = useMemo(() => {
-    const s = chamberSession?.current_serial;
-    if (!s) return null;
-    return appointments.find((a) => a.serial_number === s);
-  }, [chamberSession, appointments]);
-
   // Selected Active Patient (defaults to current called patient if none explicitly clicked)
   const currentActivePatient = useMemo(() => {
     if (selectedPatientId) {
@@ -1230,11 +1479,18 @@ export default function DoctorDashboard() {
     };
   }, [currentActivePatient?.id, clinicalTab]);
 
-  const nextSerialCandidate = (chamberSession?.current_serial || 0) + 1;
   const isSessionEnded = chamberSession?.status === "ENDED";
   const isPrayerBreak = chamberSession?.status === "PRAYER_BREAK";
   const hasActiveEmergency = !!chamberSession?.active_emergency;
   const hasHeldPatient = !!chamberSession?.held_patient;
+
+  const unservedDoctorAppointments = useMemo(() => {
+    return appointments.filter(
+      (a) =>
+        ["SCHEDULED", "CONFIRMED", "PENDING"].includes(a.status) &&
+        String(a.clinic?.id || a.clinic_id || "") === String(selectedClinicId)
+    );
+  }, [appointments, selectedClinicId]);
 
   return (
     <div className="space-y-6 max-w-full pb-12 font-sans">
@@ -1458,7 +1714,58 @@ export default function DoctorDashboard() {
         </button>
       </div>
 
-      {/* Action / Error Alerts */}
+      {/* Floating Toast Notification for Warnings / Errors */}
+      {(toastWarning || error || actionMsg) && (
+        <div className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm sm:max-w-md pointer-events-none">
+          {toastWarning && (
+            <div className="pointer-events-auto bg-amber-500 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl flex items-start gap-3 border border-amber-600 animate-in fade-in slide-in-from-top-4 duration-200">
+              <AlertTriangle className="size-5 shrink-0 text-amber-100 mt-0.5" />
+              <div className="flex-1 text-xs">
+                <div className="font-extrabold text-sm mb-0.5">Time Clash Warning</div>
+                <p className="font-medium text-amber-50 leading-relaxed">{toastWarning}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToastWarning("")}
+                className="text-amber-200 hover:text-white p-0.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {error && (
+            <div className="pointer-events-auto bg-rose-600 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl flex items-start gap-3 border border-rose-700 animate-in fade-in slide-in-from-top-4 duration-200">
+              <AlertCircle className="size-5 shrink-0 text-rose-100 mt-0.5" />
+              <div className="flex-1 text-xs">
+                <div className="font-extrabold text-sm mb-0.5">Error</div>
+                <p className="font-medium text-rose-50 leading-relaxed">{error}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setError("")}
+                className="text-rose-200 hover:text-white p-0.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {actionMsg && (
+            <div className="pointer-events-auto bg-emerald-600 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl flex items-start gap-3 border border-emerald-700 animate-in fade-in slide-in-from-top-4 duration-200">
+              <CheckCircle2 className="size-5 shrink-0 text-emerald-100 mt-0.5" />
+              <div className="flex-1 text-xs font-bold leading-relaxed">{actionMsg}</div>
+              <button
+                type="button"
+                onClick={() => setActionMsg("")}
+                className="text-emerald-200 hover:text-white p-0.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Action / Error Alerts (Inline) */}
       {actionMsg && (
         <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-800 flex items-center gap-2 shadow-2xs">
           <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
@@ -1556,7 +1863,13 @@ export default function DoctorDashboard() {
                     variant="success"
                     size="sm"
                     icon={CheckCircle2}
-                    onClick={() => handleComplete(currentActivePatient.id)}
+                    onClick={() => {
+                      if (!currentActivePatient.has_prescription) {
+                        showErr(`Please issue digital prescription for Serial #${currentActivePatient.serial_number} before completing the visit.`);
+                        return;
+                      }
+                      handleComplete(currentActivePatient.id);
+                    }}
                   >
                     Complete Visit
                   </ActionButton>
@@ -1832,46 +2145,121 @@ export default function DoctorDashboard() {
                 )}
 
                 {isSessionEnded && (
-                  <div className="p-3 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-between gap-2 text-xs text-slate-800 font-bold shadow-2xs">
-                    <span>⏹ Session Ended (Queue Locked)</span>
-                    <ActionButton
-                      variant="secondary"
-                      size="xs"
-                      onClick={() =>
-                        handleChamberAction("UPDATE_STATUS", "IN_CHAMBER")
-                      }
-                    >
-                      Reopen
-                    </ActionButton>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-between gap-2 text-xs text-slate-800 font-bold shadow-2xs">
+                      <span>⏹ Session Ended (Queue Locked)</span>
+                      <ActionButton
+                        variant="secondary"
+                        size="xs"
+                        onClick={() =>
+                          handleChamberAction("UPDATE_STATUS", "IN_CHAMBER")
+                        }
+                      >
+                        Reopen
+                      </ActionButton>
+                    </div>
+
+                    {unservedDoctorAppointments.length > 0 && (
+                      <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-900 shadow-2xs">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                          <span>{unservedDoctorAppointments.length} unserved patient(s) remaining</span>
+                        </div>
+                        <ActionButton
+                          variant="primary"
+                          size="xs"
+                          icon={RotateCcw}
+                          loading={rollingOver}
+                          onClick={handleDoctorRollover}
+                        >
+                          Roll Over
+                        </ActionButton>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Primary Calling Action */}
+                {/* Slot Not Started Warning Banner */}
+                {!isSlotStarted && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold">
+                    <Clock size={16} className="text-amber-600 shrink-0" />
+                    <span>{slotLockReason || "Chamber slot has not started yet. Patient calling is locked until chamber starts."}</span>
+                  </div>
+                )}
+
+                {/* Primary Calling / Completion Action */}
                 <button
                   type="button"
                   disabled={
                     updatingChamber ||
+                    !isSlotStarted ||
                     hasActiveEmergency ||
                     hasHeldPatient ||
                     isPrayerBreak ||
-                    isSessionEnded
+                    isSessionEnded ||
+                    (!nextSerialCandidate && !currentServingPatient)
                   }
-                  onClick={() => handleChamberAction("NEXT_SERIAL")}
+                  onClick={() => {
+                    if (!isSlotStarted) {
+                      showErr(slotLockReason || "Chamber slot has not started yet.");
+                      return;
+                    }
+                    if (currentServingPatient && !currentServingPatient.has_prescription) {
+                      showErr(`Please issue digital prescription for Serial #${currentServingPatient.serial_number} using the Rx form below before proceeding.`);
+                      return;
+                    }
+                    if (nextSerialCandidate) {
+                      handleChamberAction("NEXT_SERIAL");
+                    } else if (currentServingPatient) {
+                      handleChamberAction("COMPLETE_CURRENT");
+                    }
+                  }}
                   className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer ${
-                    hasActiveEmergency || hasHeldPatient || isPrayerBreak || isSessionEnded
+                    !isSlotStarted
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none"
+                      : hasActiveEmergency || hasHeldPatient || isPrayerBreak || isSessionEnded || (!nextSerialCandidate && !currentServingPatient)
                       ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                      : "bg-[#1e3a8a] hover:bg-[#172554] text-white hover:shadow-md active:scale-[0.99]"
+                      : currentServingPatient && !currentServingPatient.has_prescription
+                      ? "bg-amber-600 hover:bg-amber-700 text-white shadow-amber-500/20 active:scale-[0.99]"
+                      : nextSerialCandidate
+                      ? "bg-[#1e3a8a] hover:bg-[#172554] text-white hover:shadow-md active:scale-[0.99]"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20 active:scale-[0.99]"
                   }`}
+                  title={!isSlotStarted ? (slotLockReason || "Chamber slot has not started yet.") : ""}
                 >
                   {updatingChamber ? (
                     <Loader size={16} className="animate-spin text-white" />
-                  ) : (
+                  ) : !isSlotStarted ? (
+                    <Lock size={16} />
+                  ) : currentServingPatient && !currentServingPatient.has_prescription ? (
+                    <FileText size={16} />
+                  ) : nextSerialCandidate ? (
                     <FastForward size={16} />
+                  ) : currentServingPatient ? (
+                    <CheckCircle2 size={16} />
+                  ) : (
+                    <CheckCheck size={16} />
                   )}
-                  <span>CALL NEXT SERIAL (#{nextSerialCandidate})</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20 ml-1 text-white">
-                    N
+                  <span>
+                    {!isSlotStarted
+                      ? `CHAMBER NOT STARTED (${chamberSession?.schedule_start_time ? `STARTS ${chamberSession.schedule_start_time}` : "LOCKED"})`
+                      : currentServingPatient && !currentServingPatient.has_prescription
+                      ? (nextSerialCandidate
+                          ? `PRESCRIBE SERIAL #${currentServingPatient.serial_number} FIRST`
+                          : `FINAL PATIENT: PRESCRIBE TO COMPLETE (#${currentServingPatient.serial_number})`)
+                      : nextSerialCandidate
+                      ? `CALL NEXT SERIAL (#${nextSerialCandidate})`
+                      : currentServingPatient
+                      ? `COMPLETE FINAL CONSULTATION (#${currentServingPatient.serial_number})`
+                      : (chamberSession?.skipped_serials && chamberSession.skipped_serials.length > 0)
+                      ? `QUEUE FINISHED (${chamberSession.skipped_serials.length} SKIPPED - RECALL BELOW)`
+                      : "ALL PATIENTS SERVED (QUEUE COMPLETE)"}
                   </span>
+                  {isSlotStarted && (nextSerialCandidate || currentServingPatient) && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20 ml-1 text-white">
+                      N
+                    </span>
+                  )}
                 </button>
 
                 {/* Secondary Actions: Skip, Prev */}
@@ -1881,7 +2269,8 @@ export default function DoctorDashboard() {
                     size="sm"
                     disabled={
                       updatingChamber ||
-                      (chamberSession?.current_serial || 0) === 0 ||
+                      !isSlotStarted ||
+                      !nextSerialCandidate ||
                       hasActiveEmergency ||
                       hasHeldPatient ||
                       isPrayerBreak ||
@@ -1890,6 +2279,11 @@ export default function DoctorDashboard() {
                     loading={updatingChamber}
                     onClick={() => handleChamberAction("SKIP_SERIAL")}
                     icon={Pause}
+                    title={
+                      !nextSerialCandidate
+                        ? "No waiting patients left to skip"
+                        : "Skip current serial (advances to next waiting patient)"
+                    }
                   >
                     Skip Serial
                   </ActionButton>
@@ -1899,13 +2293,20 @@ export default function DoctorDashboard() {
                     size="sm"
                     disabled={
                       updatingChamber ||
-                      (chamberSession?.current_serial || 0) === 0 ||
+                      !isSlotStarted ||
+                      (chamberSession?.current_serial || 0) <= 1 ||
+                      (!nextSerialCandidate && !currentServingPatient) ||
                       hasActiveEmergency ||
                       isSessionEnded
                     }
                     loading={updatingChamber}
                     onClick={() => handleChamberAction("PREV_SERIAL")}
                     icon={RotateCcw}
+                    title={
+                      (!nextSerialCandidate && !currentServingPatient)
+                        ? "All patients served (Queue complete)"
+                        : "Go to previous serial"
+                    }
                   >
                     Prev Serial
                   </ActionButton>
@@ -1977,7 +2378,11 @@ export default function DoctorDashboard() {
                 badge={
                   <StatusBadge
                     status="WAITING"
-                    customLabel={`${filteredAppointments.length} Booked`}
+                    customLabel={
+                      queueSearchQuery
+                        ? `${filteredAppointments.length} of ${appointments.length} Booked`
+                        : `${filteredAppointments.length} Booked`
+                    }
                   />
                 }
                 actions={
@@ -3360,6 +3765,29 @@ export default function DoctorDashboard() {
                   />
                 </div>
               </div>
+
+              {(() => {
+                const targetCln = scheduleForm.clinic_id || selectedClinicId;
+                const clash = getScheduleClash(
+                  scheduleForm.day_of_week,
+                  scheduleForm.start_time,
+                  scheduleForm.end_time,
+                  targetCln,
+                  schedules
+                );
+                if (!clash) return null;
+                return (
+                  <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-amber-900 shadow-2xs animate-in fade-in duration-200">
+                    <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <span className="font-extrabold uppercase tracking-wide text-amber-800 mr-1.5">
+                        Schedule Time Clash:
+                      </span>
+                      <span className="font-medium leading-relaxed">{clash.message}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex justify-end pt-2">
                 <ActionButton

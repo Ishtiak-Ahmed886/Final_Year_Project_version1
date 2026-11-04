@@ -14,6 +14,7 @@ import { useAuth } from "../../Provider/AuthProvider";
 import { useLanguage } from "../../context/LanguageContext";
 import LanguageToggle from "./LanguageToggle";
 import NotificationBell from "./NotificationBell";
+import Logo from "./Logo";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -48,7 +49,7 @@ export default function Navbar() {
 
   const navLinkClass = ({ isActive }) =>
     isActive
-      ? "bg-[#283891] text-white px-3.5 py-1.5 rounded-lg font-bold text-sm shadow-sm"
+      ? "bg-[#1e3a8a] text-white px-3.5 py-1.5 rounded-lg font-bold text-sm shadow-sm"
       : "text-slate-600 hover:text-slate-900 px-3 py-1.5 font-medium text-sm transition-colors";
 
   const navItems = (
@@ -97,7 +98,7 @@ export default function Navbar() {
                       onClick={() => setShowMobileMenu(false)}
                       className={({ isActive }) =>
                         isActive
-                          ? "block bg-[#283891] text-white px-4 py-2.5 rounded-xl font-bold text-sm"
+                          ? "block bg-[#1e3a8a] text-white px-4 py-2.5 rounded-xl font-bold text-sm"
                           : "block text-slate-700 hover:bg-slate-50 px-4 py-2.5 rounded-xl font-medium text-sm transition-colors"
                       }
                     >
@@ -111,14 +112,7 @@ export default function Navbar() {
           )}
         </div>
 
-        <NavLink to="/" className="flex items-center gap-2 text-xl font-black tracking-tight text-[#1e3a8a]">
-          <div className="bg-indigo-50 p-1.5 rounded-xl text-[#1e3a8a] border border-indigo-100">
-            <Hospital className="w-5 h-5" />
-          </div>
-          <span>
-            Smart<span className="text-[#0d9488]">Clinic</span>
-          </span>
-        </NavLink>
+        <Logo />
       </div>
 
       <div className="navbar-center hidden lg:flex">

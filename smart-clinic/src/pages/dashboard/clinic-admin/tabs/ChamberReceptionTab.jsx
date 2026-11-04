@@ -16,6 +16,7 @@ import {
   Printer,
   CheckCircle2,
   Clock,
+  Lock,
   Sparkles,
   RefreshCw,
   Send,
@@ -937,22 +938,35 @@ export default function ChamberReceptionTab({
                 )}
 
                 {/* Primary Action Button (Call Next Serial) */}
+                {/* Slot Not Started Warning */}
+                {chamberSession?.is_slot_started === false && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold">
+                    <Clock size={16} className="text-amber-600 shrink-0" />
+                    <span>{chamberSession?.slot_lock_reason || "Doctor's chamber slot has not started yet."}</span>
+                  </div>
+                )}
+
                 <ActionButton
                   variant="primary"
                   size="lg"
                   className="w-full shadow-sm"
-                  icon={FastForward}
+                  icon={chamberSession?.is_slot_started === false ? Lock : FastForward}
                   loading={updatingChamber}
                   disabled={
                     updatingChamber ||
+                    chamberSession?.is_slot_started === false ||
                     !!chamberSession.active_emergency ||
                     !!chamberSession.held_patient ||
                     chamberSession.status === "PRAYER_BREAK" ||
                     chamberSession.status === "ENDED"
                   }
-                  onClick={() =>
-                    handleReceptionChamberAction("NEXT_SERIAL")
-                  }
+                  onClick={() => {
+                    if (chamberSession?.is_slot_started === false) {
+                      showMsg(chamberSession?.slot_lock_reason || "Chamber slot has not started yet.");
+                      return;
+                    }
+                    handleReceptionChamberAction("NEXT_SERIAL");
+                  }}
                   title={
                     chamberSession.status === "ENDED"
                       ? "Chamber session has ended. Reopen session before calling next serial"
@@ -976,7 +990,7 @@ export default function ChamberReceptionTab({
                     icon={Pause}
                     disabled={
                       updatingChamber ||
-                      !chamberSession.current_serial ||
+                      !chamberSession?.next_serials?.length ||
                       !!chamberSession.active_emergency ||
                       !!chamberSession.held_patient ||
                       chamberSession.status === "PRAYER_BREAK" ||

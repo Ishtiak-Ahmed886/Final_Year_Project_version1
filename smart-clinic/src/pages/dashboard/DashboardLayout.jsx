@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import LanguageToggle from "../../components/shared/LanguageToggle";
 import NotificationBell from "../../components/shared/NotificationBell";
+import Logo from "../../components/shared/Logo";
 import { useLanguage } from "../../context/LanguageContext";
 
 const PatientDashboard = lazy(() => import("./PatientDashboard"));
@@ -106,7 +107,7 @@ export default function DashboardLayout() {
     switch (role) {
       case "ADMIN":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-[#1e3a8a] border border-blue-200">
             Super Admin
           </span>
         );
@@ -215,18 +216,7 @@ export default function DashboardLayout() {
           </button>
 
           {/* Brand & Title / Role Context */}
-          <NavLink
-            to="/"
-            className="flex items-center gap-2 text-[#1e3a8a] hover:opacity-90 transition-opacity shrink-0"
-            title="Return to Public Homepage"
-          >
-            <div className="bg-blue-50 p-2 rounded-xl text-[#1e3a8a] border border-blue-100">
-              <Hospital className="w-4 h-4" />
-            </div>
-            <span className="font-black text-sm tracking-tight text-[#1e3a8a] hidden sm:inline">
-              Smart<span className="text-[#0d9488]">Clinic</span>
-            </span>
-          </NavLink>
+          <Logo to="/" showTextOnMobile={false} />
           <span className="text-slate-300 hidden sm:inline">•</span>
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <span className="text-xs text-slate-800 font-bold truncate max-w-[130px] sm:max-w-xs">

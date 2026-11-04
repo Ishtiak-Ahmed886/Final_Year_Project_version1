@@ -5,6 +5,7 @@ import {
   Info,
   Send,
   DoorOpen,
+  AlertTriangle,
 } from "lucide-react";
 
 
@@ -22,7 +23,61 @@ export default function DoctorsTab({
   inviteForm,
   setInviteForm,
   handleSendInvite,
+  requests = [],
 }) {
+  const roomConflict = React.useMemo(() => {
+    const raw = (inviteForm?.room_number || "").trim();
+    if (!raw) return null;
+    const norm = raw
+      .toLowerCase()
+      .replace(/^(room|chamber|rm)[\s\-_.:]*/i, "")
+      .trim();
+    if (!norm) return null;
+
+    // Check active assignedDoctors
+    const conflictDoc = assignedDoctors.find((d) => {
+      if (String(d.id) === String(inviteForm.doctor_id)) return false;
+      const docRoom = (d.room_number || "").trim();
+      const normDocRoom = docRoom
+        .toLowerCase()
+        .replace(/^(room|chamber|rm)[\s\-_.:]*/i, "")
+        .trim();
+      return normDocRoom && normDocRoom === norm;
+    });
+
+    if (conflictDoc) {
+      return {
+        doctorName: conflictDoc.full_name?.startsWith("Dr.")
+          ? conflictDoc.full_name
+          : `Dr. ${conflictDoc.full_name || conflictDoc.name}`,
+        room: raw,
+      };
+    }
+
+    // Check active requests
+    const conflictReq = requests.find((r) => {
+      if (r.status === "REJECTED") return false;
+      const reqDocId = r.doctor?.id || r.doctor;
+      if (String(reqDocId) === String(inviteForm.doctor_id)) return false;
+      const reqRoom = (r.room_number || "").trim();
+      const normReqRoom = reqRoom
+        .toLowerCase()
+        .replace(/^(room|chamber|rm)[\s\-_.:]*/i, "")
+        .trim();
+      return normReqRoom && normReqRoom === norm;
+    });
+
+    if (conflictReq) {
+      return {
+        doctorName: conflictReq.doctor?.full_name?.startsWith("Dr.")
+          ? conflictReq.doctor?.full_name
+          : `Dr. ${conflictReq.doctor?.full_name || "Specialist"}`,
+        room: raw,
+      };
+    }
+
+    return null;
+  }, [inviteForm?.room_number, inviteForm?.doctor_id, assignedDoctors, requests]);
   return (
     <div className="space-y-6">
       {/* Medical Workforce & Affiliated Doctors */}
@@ -252,8 +307,13 @@ export default function DoctorsTab({
                 </select>
               </div>
               <div>
-                <label className="label text-xs font-semibold">
-                  Room Number (optional)
+                <label className="label text-xs font-semibold flex items-center justify-between">
+                  <span>Room Number (optional)</span>
+                  {roomConflict && (
+                    <span className="text-rose-600 font-bold text-[11px] flex items-center gap-1">
+                      <AlertTriangle size={12} /> Conflict Detected
+                    </span>
+                  )}
                 </label>
                 <input
                   type="text"
@@ -265,8 +325,21 @@ export default function DoctorsTab({
                       room_number: e.target.value,
                     })
                   }
-                  className="input input-bordered w-full"
+                  className={`input input-bordered w-full transition-colors ${
+                    roomConflict
+                      ? "input-error border-rose-500 bg-rose-50/40 text-rose-900"
+                      : ""
+                  }`}
                 />
+                {roomConflict && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <AlertTriangle size={13} className="shrink-0" />
+                    <span>
+                      Room <strong>&quot;{inviteForm.room_number}&quot;</strong> is
+                      already allocated to {roomConflict.doctorName}
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
             <button

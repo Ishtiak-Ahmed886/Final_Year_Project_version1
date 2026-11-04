@@ -12,12 +12,13 @@
 [![Database](https://img.shields.io/badge/Database-SQLite_/_PostgreSQL-4479A1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Status](https://img.shields.io/badge/Status-Production_Grade_Hardened-success?style=for-the-badge)]()
 [![Tests](https://img.shields.io/badge/Tests-325%2F325_Passing_(100%25)-brightgreen?style=for-the-badge)]()
-[![System Audit](https://img.shields.io/badge/Audit_Report-README__AUDIT.md-blueviolet?style=for-the-badge)](file:///d:/Projects/README_AUDIT.md)
-[![Deployment Guide](https://img.shields.io/badge/Deployment-DEPLOYMENT.md-success?style=for-the-badge&logo=vercel&logoColor=white)](file:///d:/Projects/DEPLOYMENT.md)
+[![System Audit](https://img.shields.io/badge/Audit_Report-README__AUDIT.md-blueviolet?style=for-the-badge)](file:///c:/Users/Istiak/OneDrive/New%20folder/FYDP_Project_Folder_Backup/Projects/README_AUDIT.md)
+[![Work Plan](https://img.shields.io/badge/Work_Plan-WORK__PLAN.md-orange?style=for-the-badge)](file:///c:/Users/Istiak/OneDrive/New%20folder/FYDP_Project_Folder_Backup/Projects/WORK_PLAN.md)
+[![Deployment Guide](https://img.shields.io/badge/Deployment-DEPLOYMENT.md-success?style=for-the-badge&logo=vercel&logoColor=white)](file:///c:/Users/Istiak/OneDrive/New%20folder/FYDP_Project_Folder_Backup/Projects/DEPLOYMENT.md)
 
 **An enterprise-grade, distributed clinical ecosystem bridging Clinics, Specialist Doctors, Receptionists, Patients, and Platform Administrators across Bangladesh.**
 
-[Explore Features](#-key-features) • [System Architecture](#-system-architecture) • [Queue State Machine](#-digital-queue-engine--emergency-priority) • [Clinical Innovation Matrix](#-clinical-innovation--ai-architecture) • [Deployment Guide (DEPLOYMENT.md)](file:///d:/Projects/DEPLOYMENT.md) • [Audit Report (README_AUDIT.md)](file:///d:/Projects/README_AUDIT.md) • [Quick Start](#-quick-start-guide) • [Default Credentials](#-default-credentials-development) • [API Documentation](#-api-documentation)
+[Explore Features](#-key-features) • [System Architecture](#-system-architecture) • [Queue State Machine](#-digital-queue-engine--emergency-priority) • [Clinical Innovation Matrix](#-clinical-innovation--ai-architecture) • [Work Plan (WORK_PLAN.md)](file:///c:/Users/Istiak/OneDrive/New%20folder/FYDP_Project_Folder_Backup/Projects/WORK_PLAN.md) • [Deployment Guide (DEPLOYMENT.md)](file:///c:/Users/Istiak/OneDrive/New%20folder/FYDP_Project_Folder_Backup/Projects/DEPLOYMENT.md) • [Audit Report (README_AUDIT.md)](file:///c:/Users/Istiak/OneDrive/New%20folder/FYDP_Project_Folder_Backup/Projects/README_AUDIT.md) • [Quick Start](#-quick-start-guide) • [Default Credentials](#-default-credentials-development) • [API Documentation](#-api-documentation)
 
 </div>
 

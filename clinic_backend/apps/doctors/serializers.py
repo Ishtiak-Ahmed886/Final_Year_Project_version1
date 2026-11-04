@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 from .models import Specialization, Doctor, DoctorClinic, DoctorSchedule, DayOfWeek
 from apps.clinics.serializers import ClinicSerializer, DepartmentSerializer, LightweightClinicSerializer
 
@@ -117,6 +118,12 @@ class ChamberSessionSerializer(serializers.ModelSerializer):
     active_emergency_details = serializers.SerializerMethodField()
     held_patient_details = serializers.SerializerMethodField()
     next_serials = serializers.SerializerMethodField()
+    is_queue_exhausted = serializers.SerializerMethodField()
+    is_slot_started = serializers.SerializerMethodField()
+    can_call_patient = serializers.SerializerMethodField()
+    schedule_start_time = serializers.SerializerMethodField()
+    schedule_end_time = serializers.SerializerMethodField()
+    slot_lock_reason = serializers.SerializerMethodField()
 
     class Meta:
         model = ChamberSession
@@ -125,6 +132,8 @@ class ChamberSessionSerializer(serializers.ModelSerializer):
             'session_date', 'status', 'current_serial',
             'estimated_mins_per_patient', 'delay_minutes', 'announcement_note', 'room_number', 'skipped_serials',
             'active_emergency', 'active_emergency_details', 'held_patient', 'held_patient_details', 'next_serials',
+            'is_queue_exhausted',
+            'is_slot_started', 'can_call_patient', 'schedule_start_time', 'schedule_end_time', 'slot_lock_reason',
             'started_at', 'ended_at', 'created_at'
         )
         read_only_fields = ('id', 'created_at')
@@ -171,6 +180,115 @@ class ChamberSessionSerializer(serializers.ModelSerializer):
         ).exclude(serial_number__in=skipped).order_by('serial_number').values_list('serial_number', flat=True)[:3]
         return list(qs)
 
+    def get_is_queue_exhausted(self, obj):
+        return len(self.get_next_serials(obj)) == 0
+
+    def _get_slot_status(self, obj):
+        if hasattr(obj, '_slot_status_cache'):
+            return obj._slot_status_cache
+
+        try:
+            from zoneinfo import ZoneInfo
+            bd_now = timezone.now().astimezone(ZoneInfo('Asia/Dhaka'))
+        except Exception:
+            bd_now = timezone.localtime()
+
+        bd_today = bd_now.date()
+        bd_time = bd_now.time()
+
+        if obj.session_date < bd_today:
+            res = {
+                'is_slot_started': True,
+                'can_call_patient': False,
+                'schedule_start_time': None,
+                'schedule_end_time': None,
+                'slot_lock_reason': 'Chamber date has passed.'
+            }
+            obj._slot_status_cache = res
+            return res
+
+        if obj.session_date > bd_today:
+            res = {
+                'is_slot_started': False,
+                'can_call_patient': False,
+                'schedule_start_time': None,
+                'schedule_end_time': None,
+                'slot_lock_reason': f'Chamber date is {obj.session_date}.'
+            }
+            obj._slot_status_cache = res
+            return res
+
+        from .models import DoctorSchedule
+        doc_scheds = DoctorSchedule.objects.filter(
+            doctor_id=obj.doctor_id,
+            clinic_id=obj.clinic_id,
+            is_active=True
+        )
+        if not doc_scheds.exists():
+            res = {
+                'is_slot_started': True,
+                'can_call_patient': True,
+                'schedule_start_time': None,
+                'schedule_end_time': None,
+                'slot_lock_reason': None
+            }
+            obj._slot_status_cache = res
+            return res
+
+        today_scheds = doc_scheds.filter(day_of_week=bd_today.weekday()).order_by('start_time')
+        if not today_scheds.exists():
+            res = {
+                'is_slot_started': False,
+                'can_call_patient': False,
+                'schedule_start_time': None,
+                'schedule_end_time': None,
+                'slot_lock_reason': f'No chamber scheduled for today ({bd_now.strftime("%A")}).'
+            }
+            obj._slot_status_cache = res
+            return res
+
+        earliest_start = today_scheds.first().start_time
+        latest_end = today_scheds.last().end_time
+        start_str = earliest_start.strftime('%I:%M %p')
+        end_str = latest_end.strftime('%I:%M %p')
+
+        if bd_time < earliest_start:
+            res = {
+                'is_slot_started': False,
+                'can_call_patient': False,
+                'schedule_start_time': start_str,
+                'schedule_end_time': end_str,
+                'slot_lock_reason': f'Chamber slot starts at {start_str}.'
+            }
+            obj._slot_status_cache = res
+            return res
+
+        # Once earliest start has passed, chamber is open even if delayed past end_time
+        res = {
+            'is_slot_started': True,
+            'can_call_patient': True,
+            'schedule_start_time': start_str,
+            'schedule_end_time': end_str,
+            'slot_lock_reason': None
+        }
+        obj._slot_status_cache = res
+        return res
+
+    def get_is_slot_started(self, obj):
+        return self._get_slot_status(obj)['is_slot_started']
+
+    def get_can_call_patient(self, obj):
+        return self._get_slot_status(obj)['can_call_patient']
+
+    def get_schedule_start_time(self, obj):
+        return self._get_slot_status(obj)['schedule_start_time']
+
+    def get_schedule_end_time(self, obj):
+        return self._get_slot_status(obj)['schedule_end_time']
+
+    def get_slot_lock_reason(self, obj):
+        return self._get_slot_status(obj)['slot_lock_reason']
+
 class ChamberSessionUpdateSerializer(serializers.Serializer):
     doctor_id = serializers.UUIDField(required=True)
     clinic_id = serializers.UUIDField(required=True)
@@ -189,7 +307,8 @@ class ChamberSessionUpdateSerializer(serializers.Serializer):
             'NEXT_SERIAL', 'PREV_SERIAL', 'SET_SERIAL',
             'SKIP_SERIAL', 'RECALL_SERIAL',
             'UPDATE_STATUS', 'UPDATE_DELAY', 'RESET',
-            'ADMIT_EMERGENCY', 'COMPLETE_EMERGENCY', 'RESUME_HELD'
+            'ADMIT_EMERGENCY', 'COMPLETE_EMERGENCY', 'RESUME_HELD',
+            'COMPLETE_CURRENT'
         ],
         required=False
     )
@@ -208,6 +327,51 @@ class DoctorScheduleSerializer(serializers.ModelSerializer):
             'is_active', 'created_at'
         )
         read_only_fields = ('id', 'created_at', 'day_of_week_display', 'clinic_name')
+        validators = []
+
+    def validate(self, attrs):
+        start_time = attrs.get('start_time') or (self.instance.start_time if self.instance else None)
+        end_time = attrs.get('end_time') or (self.instance.end_time if self.instance else None)
+        if start_time and end_time and start_time >= end_time:
+            raise serializers.ValidationError({
+                "detail": "End time must be strictly after start time."
+            })
+
+        doctor = attrs.get('doctor') or (self.instance.doctor if self.instance else None)
+        clinic = attrs.get('clinic') or (self.instance.clinic if self.instance else None)
+        day_of_week = attrs.get('day_of_week') if 'day_of_week' in attrs else (self.instance.day_of_week if self.instance else None)
+
+        if doctor and day_of_week is not None and start_time and end_time:
+            clash_qs = DoctorSchedule.objects.filter(
+                doctor=doctor,
+                day_of_week=day_of_week,
+                is_active=True,
+                start_time__lt=end_time,
+                end_time__gt=start_time,
+            )
+            if self.instance:
+                clash_qs = clash_qs.exclude(pk=self.instance.pk)
+            if clinic:
+                same_clinic_sched = DoctorSchedule.objects.filter(
+                    doctor=doctor,
+                    clinic=clinic,
+                    day_of_week=day_of_week,
+                    is_active=True,
+                ).first()
+                if same_clinic_sched:
+                    clash_qs = clash_qs.exclude(pk=same_clinic_sched.pk)
+
+            conflict = clash_qs.select_related('clinic').first()
+            if conflict:
+                day_name = conflict.get_day_of_week_display()
+                c_start = conflict.start_time.strftime('%I:%M %p')
+                c_end = conflict.end_time.strftime('%I:%M %p')
+                c_clinic = conflict.clinic.name if conflict.clinic else 'another clinic'
+                raise serializers.ValidationError({
+                    "detail": f"Schedule time clash! You already have an active chamber on {day_name} at {c_clinic} ({c_start} - {c_end}). Please select a non-overlapping time slot."
+                })
+
+        return attrs
 
 
 from .models import DoctorLeave

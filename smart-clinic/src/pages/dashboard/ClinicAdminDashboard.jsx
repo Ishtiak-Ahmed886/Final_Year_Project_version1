@@ -256,7 +256,7 @@ export default function ClinicAdminDashboard() {
             apiClient.get("/doctors/"),
             apiClient.get("/clinics/departments/"),
             apiClient.get("/doctors/specializations/"),
-            apiClient.get("/appointments/"),
+            apiClient.get("/appointments/?all=true"),
             apiClient.get("/doctors/requests/").catch(() => []),
             apiClient.get(`/clinics/${owned.id}/services/`).catch(() => []),
           ]);
@@ -278,15 +278,39 @@ export default function ClinicAdminDashboard() {
           .filter((r) => r.clinic?.id === owned.id && r.status === "ACCEPTED")
           .map((r) => r.doctor?.id || r.doctor);
 
-        const myDoctors = dList.filter(
-          (d) =>
-            acceptedDoctorIds.includes(d.id) ||
-            d.doctor_clinics?.some(
-              (dc) =>
-                (dc.clinic?.id === owned.id || dc.clinic_id === owned.id) &&
-                dc.status === "ACCEPTED"
-            )
-        );
+        const myDoctors = dList
+          .filter(
+            (d) =>
+              acceptedDoctorIds.includes(d.id) ||
+              d.doctor_clinics?.some(
+                (dc) =>
+                  (dc.clinic?.id === owned.id || dc.clinic_id === owned.id) &&
+                  dc.status === "ACCEPTED"
+              )
+          )
+          .map((d) => {
+            const dc = d.doctor_clinics?.find(
+              (c) =>
+                (c.clinic?.id === owned.id ||
+                  c.clinic_id === owned.id ||
+                  c.clinic === owned.id) &&
+                c.status === "ACCEPTED"
+            );
+            const req = reqList.find(
+              (r) =>
+                (r.doctor?.id === d.id || r.doctor === d.id) &&
+                (r.clinic?.id === owned.id || r.clinic === owned.id) &&
+                r.status === "ACCEPTED"
+            );
+            const room = dc?.room_number || req?.room_number || d.room_number || "";
+            return {
+              ...d,
+              room_number: room,
+              department_name: dc?.department?.name || d.department_name,
+              consultation_fee:
+                dc?.consultation_fee || req?.consultation_fee || d.consultation_fee,
+            };
+          });
         setAssignedDoctors(myDoctors);
         setAppointments(aptList);
         if (myDoctors.length > 0) {
@@ -988,7 +1012,7 @@ export default function ClinicAdminDashboard() {
       }
       promises.push(
         apiClient
-          .get("/appointments/")
+          .get("/appointments/?all=true")
           .then((res) => {
             const aptList = res.results || res || [];
             setAppointments(aptList);
@@ -1212,7 +1236,42 @@ export default function ClinicAdminDashboard() {
     if (!clinic) return showErr("You must create a clinic first.");
     if (clinic.verification_status !== "VERIFIED")
       return showErr("Your clinic registration is pending Admin approval.");
-    if (!inviteForm.doctor_id || !inviteForm.consultation_fee) return;
+    if (!inviteForm.doctor_id || !inviteForm.consultation_fee) {
+      return showErr("Please select a doctor and specify consultation fee.");
+    }
+
+    // Room conflict protection with immediate toast alert
+    const rawRoom = (inviteForm.room_number || "").trim();
+    if (rawRoom) {
+      const normInput = rawRoom.toLowerCase().replace(/^(room|chamber|rm)[\s\-_.:]*/i, "").trim();
+      if (normInput) {
+        // Check active assignedDoctors
+        const conflictDoc = assignedDoctors.find((d) => {
+          if (String(d.id) === String(inviteForm.doctor_id)) return false;
+          const docRoom = (d.room_number || "").trim();
+          const normDocRoom = docRoom.toLowerCase().replace(/^(room|chamber|rm)[\s\-_.:]*/i, "").trim();
+          return normDocRoom && normDocRoom === normInput;
+        });
+
+        // Also check pending un-rejected requests for this clinic
+        const conflictReq = !conflictDoc && requests.find((r) => {
+          if (r.status === "REJECTED") return false;
+          const reqDocId = r.doctor?.id || r.doctor;
+          if (String(reqDocId) === String(inviteForm.doctor_id)) return false;
+          const reqRoom = (r.room_number || "").trim();
+          const normReqRoom = reqRoom.toLowerCase().replace(/^(room|chamber|rm)[\s\-_.:]*/i, "").trim();
+          return normReqRoom && normReqRoom === normInput;
+        });
+
+        if (conflictDoc || conflictReq) {
+          const conflictingName = conflictDoc
+            ? (conflictDoc.full_name?.startsWith("Dr.") ? conflictDoc.full_name : `Dr. ${conflictDoc.full_name || conflictDoc.name}`)
+            : (conflictReq.doctor?.full_name?.startsWith("Dr.") ? conflictReq.doctor?.full_name : `Dr. ${conflictReq.doctor?.full_name || "Specialist"}`);
+          showErr(`Room Conflict: Room '${rawRoom}' is already allocated to ${conflictingName} at this clinic. Please allocate a different room.`);
+          return;
+        }
+      }
+    }
 
     setMsg("");
     setError("");
@@ -1234,9 +1293,8 @@ export default function ClinicAdminDashboard() {
       });
       loadData();
     } catch (err) {
-      if (typeof err === "object")
-        showErr(err.detail || Object.values(err).flat().join(" "));
-      else showErr("Failed to send request to doctor.");
+      const msg = err.detail || (err.data && (err.data.room_number || err.data.detail)) || err.message || "Failed to send request to doctor.";
+      showErr(Array.isArray(msg) ? msg.join(" ") : String(msg));
     }
   };
 
@@ -1244,13 +1302,35 @@ export default function ClinicAdminDashboard() {
     setMsg("");
     setError("");
     try {
+      if (action === "ACCEPT") {
+        const targetReq = requests.find((r) => r.id === requestId);
+        const reqRoom = (targetReq?.room_number || "").trim();
+        if (reqRoom) {
+          const normInput = reqRoom.toLowerCase().replace(/^(room|chamber|rm)[\s\-_.:]*/i, "").trim();
+          if (normInput) {
+            const conflictDoc = assignedDoctors.find((d) => {
+              const targetDocId = targetReq?.doctor?.id || targetReq?.doctor;
+              if (String(d.id) === String(targetDocId)) return false;
+              const docRoom = (d.room_number || "").trim();
+              const normDocRoom = docRoom.toLowerCase().replace(/^(room|chamber|rm)[\s\-_.:]*/i, "").trim();
+              return normDocRoom && normDocRoom === normInput;
+            });
+            if (conflictDoc) {
+              const conflictingName = conflictDoc.full_name?.startsWith("Dr.") ? conflictDoc.full_name : `Dr. ${conflictDoc.full_name || conflictDoc.name}`;
+              showErr(`Room Conflict: Cannot accept request. Room '${reqRoom}' is already allocated to ${conflictingName} at this clinic.`);
+              return;
+            }
+          }
+        }
+      }
       await apiClient.patch(`/doctors/requests/${requestId}/respond/`, {
         action,
       });
       showMsg(`Request ${action === "ACCEPT" ? "accepted" : "rejected"}.`);
       loadData();
-    } catch {
-      showErr("Failed to respond to request.");
+    } catch (err) {
+      const msg = err.detail || (err.data && (err.data.room_number || err.data.detail)) || err.message || "Failed to respond to request.";
+      showErr(Array.isArray(msg) ? msg.join(" ") : String(msg));
     }
   };
 
@@ -1714,6 +1794,7 @@ export default function ClinicAdminDashboard() {
           inviteForm={inviteForm}
           setInviteForm={setInviteForm}
           handleSendInvite={handleSendInvite}
+          requests={requests}
         />
       )}
 

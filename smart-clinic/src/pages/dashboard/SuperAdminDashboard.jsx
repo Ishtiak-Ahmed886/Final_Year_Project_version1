@@ -3,7 +3,8 @@ import apiClient from "../../api/axios";
 import {
   Building2, Stethoscope, Layers, Plus, CheckCircle2, AlertCircle,
   Award, ShieldCheck, Users, Calendar, TrendingUp, Globe,
-  Link as LinkIcon, Info, MapPin, Clock, Activity, FileCheck, XCircle, ExternalLink
+  Link as LinkIcon, Info, MapPin, Clock, Activity, FileCheck, XCircle, ExternalLink,
+  Loader2, RefreshCw
 } from "lucide-react";
 import { formatDoctorName } from "../../utils/formatters";
 
@@ -15,41 +16,74 @@ export default function SuperAdminDashboard() {
   const [departments, setDepartments] = useState([]);
   const [specializations, setSpecializations] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [totalAppointmentsCount, setTotalAppointmentsCount] = useState(0);
+  const [appointmentStats, setAppointmentStats] = useState({
+    PENDING: 0,
+    CONFIRMED: 0,
+    COMPLETED: 0,
+    CANCELLED: 0,
+  });
 
   const [loading, setLoading] = useState(true);
+  const [verifyingId, setVerifyingId] = useState(null);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
   // Forms
   const [newDept, setNewDept] = useState({ name: "", description: "" });
   const [newSpec, setNewSpec] = useState({ name: "", description: "" });
-  const [assignForm, setAssignForm] = useState({
-    doctor_id: "", clinic_id: "", department_id: "", consultation_fee: "", room_number: "",
-  });
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
-      const [cRes, dRes, deptRes, specRes, aptRes] = await Promise.all([
+      const [cRes, dRes, deptRes, specRes, aptRes, statsRes] = await Promise.all([
         apiClient.get("/clinics/"),
         apiClient.get("/doctors/"),
         apiClient.get("/clinics/departments/"),
         apiClient.get("/doctors/specializations/"),
-        apiClient.get("/appointments/"),
+        apiClient.get("/appointments/?all=true"),
+        apiClient.get("/appointments/stats/summary/").catch(() => null),
       ]);
-      setClinics(cRes.results || cRes || []);
-      setDoctors(dRes.results || dRes || []);
-      setDepartments(deptRes.results || deptRes || []);
-      setSpecializations(specRes.results || specRes || []);
-      setAppointments(aptRes.results || aptRes || []);
+      const clinicsList = cRes.results || cRes || [];
+      const doctorsList = dRes.results || dRes || [];
+      const deptsList = deptRes.results || deptRes || [];
+      const specsList = specRes.results || specRes || [];
+      const aptsList = aptRes.results || aptRes || [];
+
+      setClinics(clinicsList);
+      setDoctors(doctorsList);
+      setDepartments(deptsList);
+      setSpecializations(specsList);
+      setAppointments(aptsList);
+
+      const stats = statsRes?.breakdown ? statsRes : statsRes?.data;
+      if (stats?.breakdown) {
+        setTotalAppointmentsCount(stats.total ?? (aptRes.count || aptsList.length));
+        setAppointmentStats(stats.breakdown);
+      } else {
+        setTotalAppointmentsCount(aptRes.count || aptsList.length);
+        const fallbackCounts = aptsList.reduce((acc, apt) => {
+          acc[apt.status] = (acc[apt.status] || 0) + 1;
+          return acc;
+        }, { PENDING: 0, CONFIRMED: 0, COMPLETED: 0, CANCELLED: 0 });
+        setAppointmentStats(fallbackCounts);
+      }
     } catch {
-      setError("Failed to load data.");
+      if (!isBackground) setError("Failed to load data.");
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        loadData(true);
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
   const showErr = (e) => { setError(e); setTimeout(() => setError(""), 5000); };
@@ -59,12 +93,22 @@ export default function SuperAdminDashboard() {
       const confirmed = window.confirm("Are you sure you want to reject/suspend this clinic? They will lose ability to accept new appointments.");
       if (!confirmed) return;
     }
+    const actionKey = `clinic-${clinicId}-${verification_status}`;
+    setVerifyingId(actionKey);
+
+    // Optimistic UI update: immediately set status in state for instant responsiveness
+    const prevClinics = [...clinics];
+    setClinics(prev => prev.map(c => c.id === clinicId ? { ...c, verification_status } : c));
+
     try {
       await apiClient.patch(`/clinics/${clinicId}/verify/`, { verification_status });
       showMsg(`Clinic ${verification_status === "VERIFIED" ? "approved" : "status updated"} successfully! Notification sent.`);
-      loadData();
-    } catch {
-      showErr("Failed to update clinic status.");
+      loadData(true);
+    } catch (err) {
+      setClinics(prevClinics);
+      showErr(err?.response?.data?.detail || "Failed to update clinic status.");
+    } finally {
+      setVerifyingId(null);
     }
   };
 
@@ -73,12 +117,22 @@ export default function SuperAdminDashboard() {
       const confirmed = window.confirm("Are you sure you want to reject/suspend this doctor profile? They will not appear in the active doctors directory.");
       if (!confirmed) return;
     }
+    const actionKey = `doctor-${doctorId}-${verification_status}`;
+    setVerifyingId(actionKey);
+
+    // Optimistic UI update: immediately set status in state for instant responsiveness
+    const prevDoctors = [...doctors];
+    setDoctors(prev => prev.map(d => d.id === doctorId ? { ...d, verification_status } : d));
+
     try {
       await apiClient.patch(`/doctors/${doctorId}/verify/`, { verification_status });
       showMsg(`Doctor ${verification_status === "VERIFIED" ? "approved" : "status updated"} successfully! Notification sent.`);
-      loadData();
-    } catch {
-      showErr("Failed to update doctor status.");
+      loadData(true);
+    } catch (err) {
+      setDoctors(prevDoctors);
+      showErr(err?.response?.data?.detail || "Failed to update doctor status.");
+    } finally {
+      setVerifyingId(null);
     }
   };
 
@@ -108,20 +162,6 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleAssignDoctor = async (e) => {
-    e.preventDefault();
-    try {
-      await apiClient.post(`/doctors/${assignForm.doctor_id}/assign-clinic/`, {
-        clinic_id: assignForm.clinic_id,
-        department_id: assignForm.department_id || null,
-        consultation_fee: parseFloat(assignForm.consultation_fee),
-        room_number: assignForm.room_number || "",
-      });
-      showMsg("Doctor assigned to clinic.");
-      setAssignForm({ doctor_id: "", clinic_id: "", department_id: "", consultation_fee: "", room_number: "" });
-      loadData();
-    } catch { showErr("Failed to assign doctor."); }
-  };
 
   const pendingClinics = clinics.filter(c => c.verification_status === "PENDING");
   const pendingDoctors = doctors.filter(d => d.verification_status === "PENDING");
@@ -136,10 +176,7 @@ export default function SuperAdminDashboard() {
     { key: "taxonomy", label: "Depts & Specializations", icon: <Award size={16} /> },
   ];
 
-  const statusCounts = appointments.reduce((acc, apt) => {
-    acc[apt.status] = (acc[apt.status] || 0) + 1;
-    return acc;
-  }, {});
+  const statusCounts = appointmentStats;
 
   return (
     <div className="space-y-6">
@@ -151,7 +188,21 @@ export default function SuperAdminDashboard() {
           </h1>
           <p className="text-sm text-base-content/60 mt-1">Full system overview — verify clinics/doctors, manage platform data</p>
         </div>
-        <div className="badge badge-error badge-lg">SUPER ADMIN</div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => loadData(false)}
+            disabled={loading}
+            className="btn btn-sm btn-outline gap-1.5 rounded-xl border-base-300 hover:bg-base-200 cursor-pointer shadow-2xs"
+            title="Refresh platform data"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            <span>{loading ? "Refreshing..." : "Refresh"}</span>
+          </button>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black tracking-wider bg-[#1e3a8a] text-white shadow-sm">
+            SUPER ADMIN
+          </div>
+        </div>
       </div>
 
       {/* Alerts */}
@@ -203,7 +254,7 @@ export default function SuperAdminDashboard() {
             {[
               { label: "Total Clinics", value: clinics.length, icon: <Building2 size={24} />, color: "primary" },
               { label: "Registered Doctors", value: doctors.length, icon: <Stethoscope size={24} />, color: "secondary" },
-              { label: "Total Appointments", value: appointments.length, icon: <Calendar size={24} />, color: "accent" },
+              { label: "Total Appointments", value: totalAppointmentsCount || appointments.length, icon: <Calendar size={24} />, color: "accent" },
               { label: "Specializations", value: specializations.length, icon: <Award size={24} />, color: "info" },
             ].map((s) => (
               <div key={s.label} className="p-5 bg-base-100 border border-base-200 rounded-2xl shadow-sm flex items-center gap-3">
@@ -271,11 +322,41 @@ export default function SuperAdminDashboard() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => handleVerifyClinic(c.id, "VERIFIED")} className="btn btn-success btn-sm gap-1 text-white">
-                        <CheckCircle2 size={16} /> Approve
+                      <button
+                        type="button"
+                        disabled={verifyingId === `clinic-${c.id}-VERIFIED` || verifyingId === `clinic-${c.id}-REJECTED`}
+                        onClick={() => handleVerifyClinic(c.id, "VERIFIED")}
+                        className="btn btn-success btn-sm gap-1.5 text-white cursor-pointer disabled:opacity-50"
+                      >
+                        {verifyingId === `clinic-${c.id}-VERIFIED` ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" />
+                            <span>Approving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={15} />
+                            <span>Approve</span>
+                          </>
+                        )}
                       </button>
-                      <button onClick={() => handleVerifyClinic(c.id, "REJECTED")} className="btn btn-error btn-sm gap-1 text-white">
-                        <XCircle size={16} /> Reject
+                      <button
+                        type="button"
+                        disabled={verifyingId === `clinic-${c.id}-VERIFIED` || verifyingId === `clinic-${c.id}-REJECTED`}
+                        onClick={() => handleVerifyClinic(c.id, "REJECTED")}
+                        className="btn btn-error btn-sm gap-1.5 text-white cursor-pointer disabled:opacity-50"
+                      >
+                        {verifyingId === `clinic-${c.id}-REJECTED` ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" />
+                            <span>Rejecting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={15} />
+                            <span>Reject</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -314,11 +395,41 @@ export default function SuperAdminDashboard() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => handleVerifyDoctor(d.id, "VERIFIED")} className="btn btn-success btn-sm gap-1 text-white">
-                        <CheckCircle2 size={16} /> Approve
+                      <button
+                        type="button"
+                        disabled={verifyingId === `doctor-${d.id}-VERIFIED` || verifyingId === `doctor-${d.id}-REJECTED`}
+                        onClick={() => handleVerifyDoctor(d.id, "VERIFIED")}
+                        className="btn btn-success btn-sm gap-1.5 text-white cursor-pointer disabled:opacity-50"
+                      >
+                        {verifyingId === `doctor-${d.id}-VERIFIED` ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" />
+                            <span>Approving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={15} />
+                            <span>Approve</span>
+                          </>
+                        )}
                       </button>
-                      <button onClick={() => handleVerifyDoctor(d.id, "REJECTED")} className="btn btn-error btn-sm gap-1 text-white">
-                        <XCircle size={16} /> Reject
+                      <button
+                        type="button"
+                        disabled={verifyingId === `doctor-${d.id}-VERIFIED` || verifyingId === `doctor-${d.id}-REJECTED`}
+                        onClick={() => handleVerifyDoctor(d.id, "REJECTED")}
+                        className="btn btn-error btn-sm gap-1.5 text-white cursor-pointer disabled:opacity-50"
+                      >
+                        {verifyingId === `doctor-${d.id}-REJECTED` ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" />
+                            <span>Rejecting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={15} />
+                            <span>Reject</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -369,23 +480,45 @@ export default function SuperAdminDashboard() {
                   <div className="flex gap-2 pt-2 border-t border-base-200">
                     {c.verification_status === "VERIFIED" ? (
                       <button
+                        type="button"
+                        disabled={verifyingId === `clinic-${c.id}-REJECTED`}
                         onClick={() => handleVerifyClinic(c.id, "REJECTED")}
-                        className="btn btn-ghost hover:btn-error btn-xs text-slate-500 hover:text-white"
+                        className="btn btn-ghost hover:btn-error btn-xs text-slate-500 hover:text-white gap-1 cursor-pointer disabled:opacity-50"
                         title="Suspend active clinic verification"
                       >
-                        Suspend / Revoke
+                        {verifyingId === `clinic-${c.id}-REJECTED` && <Loader2 size={12} className="animate-spin" />}
+                        <span>Suspend / Revoke</span>
                       </button>
                     ) : c.verification_status === "REJECTED" ? (
                       <button
+                        type="button"
+                        disabled={verifyingId === `clinic-${c.id}-VERIFIED`}
                         onClick={() => handleVerifyClinic(c.id, "VERIFIED")}
-                        className="btn btn-success btn-xs text-white"
+                        className="btn btn-success btn-xs text-white gap-1 cursor-pointer disabled:opacity-50"
                       >
-                        Re-activate / Approve
+                        {verifyingId === `clinic-${c.id}-VERIFIED` && <Loader2 size={12} className="animate-spin" />}
+                        <span>Re-activate / Approve</span>
                       </button>
                     ) : (
                       <>
-                        <button onClick={() => handleVerifyClinic(c.id, "VERIFIED")} className="btn btn-success btn-xs text-white">Approve</button>
-                        <button onClick={() => handleVerifyClinic(c.id, "REJECTED")} className="btn btn-error btn-xs text-white">Reject</button>
+                        <button
+                          type="button"
+                          disabled={verifyingId === `clinic-${c.id}-VERIFIED` || verifyingId === `clinic-${c.id}-REJECTED`}
+                          onClick={() => handleVerifyClinic(c.id, "VERIFIED")}
+                          className="btn btn-success btn-xs text-white gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          {verifyingId === `clinic-${c.id}-VERIFIED` && <Loader2 size={12} className="animate-spin" />}
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={verifyingId === `clinic-${c.id}-VERIFIED` || verifyingId === `clinic-${c.id}-REJECTED`}
+                          onClick={() => handleVerifyClinic(c.id, "REJECTED")}
+                          className="btn btn-error btn-xs text-white gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          {verifyingId === `clinic-${c.id}-REJECTED` && <Loader2 size={12} className="animate-spin" />}
+                          <span>Reject</span>
+                        </button>
                       </>
                     )}
                   </div>
@@ -426,23 +559,45 @@ export default function SuperAdminDashboard() {
                     <div className="flex gap-2 pt-2 border-t border-base-200">
                       {d.verification_status === "VERIFIED" ? (
                         <button
+                          type="button"
+                          disabled={verifyingId === `doctor-${d.id}-REJECTED`}
                           onClick={() => handleVerifyDoctor(d.id, "REJECTED")}
-                          className="btn btn-ghost hover:btn-error btn-xs text-slate-500 hover:text-white"
+                          className="btn btn-ghost hover:btn-error btn-xs text-slate-500 hover:text-white gap-1 cursor-pointer disabled:opacity-50"
                           title="Suspend doctor account"
                         >
-                          Suspend / Revoke
+                          {verifyingId === `doctor-${d.id}-REJECTED` && <Loader2 size={12} className="animate-spin" />}
+                          <span>Suspend / Revoke</span>
                         </button>
                       ) : d.verification_status === "REJECTED" ? (
                         <button
+                          type="button"
+                          disabled={verifyingId === `doctor-${d.id}-VERIFIED`}
                           onClick={() => handleVerifyDoctor(d.id, "VERIFIED")}
-                          className="btn btn-success btn-xs text-white"
+                          className="btn btn-success btn-xs text-white gap-1 cursor-pointer disabled:opacity-50"
                         >
-                          Re-activate / Approve
+                          {verifyingId === `doctor-${d.id}-VERIFIED` && <Loader2 size={12} className="animate-spin" />}
+                          <span>Re-activate / Approve</span>
                         </button>
                       ) : (
                         <>
-                          <button onClick={() => handleVerifyDoctor(d.id, "VERIFIED")} className="btn btn-success btn-xs text-white">Approve</button>
-                          <button onClick={() => handleVerifyDoctor(d.id, "REJECTED")} className="btn btn-error btn-xs text-white">Reject</button>
+                          <button
+                            type="button"
+                            disabled={verifyingId === `doctor-${d.id}-VERIFIED` || verifyingId === `doctor-${d.id}-REJECTED`}
+                            onClick={() => handleVerifyDoctor(d.id, "VERIFIED")}
+                            className="btn btn-success btn-xs text-white gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            {verifyingId === `doctor-${d.id}-VERIFIED` && <Loader2 size={12} className="animate-spin" />}
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={verifyingId === `doctor-${d.id}-VERIFIED` || verifyingId === `doctor-${d.id}-REJECTED`}
+                            onClick={() => handleVerifyDoctor(d.id, "REJECTED")}
+                            className="btn btn-error btn-xs text-white gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            {verifyingId === `doctor-${d.id}-REJECTED` && <Loader2 size={12} className="animate-spin" />}
+                            <span>Reject</span>
+                          </button>
                         </>
                       )}
                     </div>
@@ -459,7 +614,7 @@ export default function SuperAdminDashboard() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-base-content flex items-center gap-2">
-              <Calendar className="text-primary" /> All Appointments ({appointments.length})
+              <Calendar className="text-primary" /> All Appointments ({totalAppointmentsCount || appointments.length})
             </h2>
           </div>
           {appointments.length === 0 ? (
@@ -487,7 +642,10 @@ export default function SuperAdminDashboard() {
                         <span className="flex items-center gap-1"><Clock size={13} className="text-primary" /> {apt.appointment_time}</span>
                       </div>
                     </div>
-                    <div className="text-primary font-extrabold text-lg shrink-0">${apt.amount}</div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[#1e3a8a] font-black text-base">৳{apt.amount || 0}</div>
+                      <span className="text-[10px] text-slate-400 font-medium">EMR Confidential</span>
+                    </div>
                   </div>
                 </div>
               ))}

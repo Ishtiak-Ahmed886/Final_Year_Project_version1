@@ -295,6 +295,13 @@ class AppointmentCompleteView(generics.GenericAPIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        if not appointment.is_emergency:
+            from apps.prescriptions.models import Prescription
+            if not Prescription.objects.filter(appointment=appointment).exists():
+                return Response({
+                    'detail': f'Cannot complete appointment. Please issue a digital prescription for Serial #{appointment.serial_number} first.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         appointment = complete_appointment(appointment=appointment)
         return Response(AppointmentSerializer(appointment).data, status=status.HTTP_200_OK)
 
@@ -377,144 +384,10 @@ class PublicLiveQueueTrackView(APIView):
         except Appointment.DoesNotExist:
             return Response({'detail': 'Token record not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.doctors.models import ChamberSession, ChamberSessionStatus
-        from datetime import date
-
-        # Fetch today's chamber session for this doctor at this clinic
-        session = ChamberSession.objects.filter(
-            doctor=appointment.doctor,
-            clinic=appointment.clinic,
-            session_date=appointment.appointment_date
-        ).first()
-
-        current_serving_serial = session.current_serial if session else 0
-        chamber_status = session.status if session else ChamberSessionStatus.NOT_STARTED
-        delay_minutes = session.delay_minutes if session else 0
-        announcement_note = session.announcement_note if session else ''
-        room_number = session.room_number if session and session.room_number else 'Chamber Room'
-        est_mins_per_patient = session.estimated_mins_per_patient if session else 12
+        from apps.appointments.services import calculate_dynamic_patient_eta
+        live_queue_data = calculate_dynamic_patient_eta(appointment)
 
         patient_serial = appointment.serial_number or 1
-
-        has_active_emergency = bool(session and session.active_emergency_id)
-        is_active_emergency = bool(session and session.active_emergency_id == appointment.id)
-        is_held = bool(session and session.held_patient_id == appointment.id)
-        is_prayer_break = bool(session and session.status == ChamberSessionStatus.PRAYER_BREAK)
-        is_session_ended = bool(session and session.status == ChamberSessionStatus.ENDED)
-
-        # Queue position calculation
-        if appointment.is_emergency:
-            if is_active_emergency:
-                patients_ahead = 0
-                is_turn_now = True
-                is_passed = False
-                estimated_wait_mins = 0
-            elif appointment.status == AppointmentStatus.COMPLETED:
-                patients_ahead = 0
-                is_turn_now = False
-                is_passed = False
-                estimated_wait_mins = 0
-            elif appointment.status == AppointmentStatus.CANCELLED:
-                patients_ahead = 0
-                is_turn_now = False
-                is_passed = False
-                estimated_wait_mins = 0
-            else:
-                # Waiting emergency
-                is_turn_now = False
-                is_passed = False
-                prior_emergencies = Appointment.objects.filter(
-                    doctor=appointment.doctor,
-                    clinic=appointment.clinic,
-                    appointment_date=appointment.appointment_date,
-                    is_emergency=True,
-                    status=AppointmentStatus.CONFIRMED,
-                    created_at__lt=appointment.created_at
-                ).count()
-                patients_ahead = prior_emergencies + (1 if has_active_emergency else 0)
-                estimated_wait_mins = None if is_prayer_break else (patients_ahead * 10)
-
-        elif is_held:
-            patients_ahead = 0
-            is_turn_now = False
-            is_passed = False
-            estimated_wait_mins = None if is_prayer_break else 5
-
-        elif appointment.status == AppointmentStatus.COMPLETED:
-            patients_ahead = 0
-            is_turn_now = False
-            is_passed = True
-            estimated_wait_mins = 0
-
-        elif appointment.status == AppointmentStatus.CANCELLED:
-            patients_ahead = 0
-            is_turn_now = False
-            is_passed = False
-            estimated_wait_mins = 0
-
-        elif patient_serial == current_serving_serial:
-            if has_active_emergency:
-                patients_ahead = 0
-                is_turn_now = False
-                is_passed = False
-                estimated_wait_mins = 10
-            elif is_prayer_break:
-                patients_ahead = 0
-                is_turn_now = False
-                is_passed = False
-                estimated_wait_mins = None
-            else:
-                patients_ahead = 0
-                is_turn_now = True
-                is_passed = False
-                estimated_wait_mins = 0
-
-        elif patient_serial < current_serving_serial:
-            patients_ahead = 0
-            is_turn_now = False
-            is_passed = True
-            estimated_wait_mins = 0
-
-        else:
-            # patient_serial > current_serving_serial
-            normal_ahead_count = Appointment.objects.filter(
-                doctor=appointment.doctor,
-                clinic=appointment.clinic,
-                appointment_date=appointment.appointment_date,
-                serial_number__gt=current_serving_serial,
-                serial_number__lt=patient_serial,
-                is_emergency=False,
-                status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING]
-            ).count()
-
-            active_normal_count = 1 if (session and session.current_serial > 0 and Appointment.objects.filter(
-                doctor=appointment.doctor,
-                clinic=appointment.clinic,
-                appointment_date=appointment.appointment_date,
-                serial_number=session.current_serial,
-                is_emergency=False,
-                status=AppointmentStatus.CONFIRMED
-            ).exists()) else 0
-
-            emergencies_ahead = Appointment.objects.filter(
-                doctor=appointment.doctor,
-                clinic=appointment.clinic,
-                appointment_date=appointment.appointment_date,
-                is_emergency=True,
-                status=AppointmentStatus.CONFIRMED
-            ).count()
-
-            patients_ahead = normal_ahead_count + active_normal_count + emergencies_ahead
-            is_turn_now = False
-            is_passed = False
-            if is_prayer_break:
-                estimated_wait_mins = None
-            else:
-                estimated_wait_mins = (patients_ahead * est_mins_per_patient) + delay_minutes
-
-        if is_session_ended:
-            is_turn_now = False
-            estimated_wait_mins = None
 
         patient_display_name = (
             appointment.family_member.full_name if appointment.family_member
@@ -553,25 +426,7 @@ class PublicLiveQueueTrackView(APIView):
                 },
                 'department_name': appointment.department.name if appointment.department else None,
             },
-            'live_queue': {
-                'current_serving_serial': current_serving_serial,
-                'chamber_status': chamber_status,
-                'is_prayer_break': is_prayer_break,
-                'is_session_ended': is_session_ended,
-                'room_number': room_number,
-                'delay_minutes': delay_minutes,
-                'announcement_note': announcement_note,
-                'patients_ahead': patients_ahead,
-                'estimated_wait_mins': estimated_wait_mins,
-                'is_turn_now': is_turn_now,
-                'is_passed': is_passed,
-                'is_held': is_held,
-                'has_active_emergency': has_active_emergency,
-                'is_active_emergency': is_active_emergency,
-                'active_emergency_serial': session.active_emergency.serial_number if (session and session.active_emergency) else None,
-                'held_patient_serial': session.held_patient.serial_number if (session and session.held_patient) else None,
-                'skipped_serials': session.skipped_serials if session else [],
-            }
+            'live_queue': live_queue_data
         }, status=status.HTTP_200_OK)
 
 
@@ -641,3 +496,169 @@ class PublicWaitingRoomQueueView(APIView):
 
 
 
+
+
+class AppointmentStatsSummaryView(APIView):
+    """
+    Returns accurate aggregate breakdown of appointments across the platform for Admin.
+    Or scoped to clinic/doctor if requested.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        from django.db.models import Count
+        queryset = Appointment.objects.all()
+
+        if user.role == 'CLINIC_ADMIN':
+            queryset = queryset.filter(clinic__owner=user)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if staff:
+                queryset = queryset.filter(clinic=staff.clinic)
+            else:
+                queryset = queryset.none()
+        elif user.role == 'DOCTOR':
+            doctor_profile = getattr(user, 'doctor_profile', None)
+            if doctor_profile:
+                queryset = queryset.filter(doctor=doctor_profile)
+            else:
+                queryset = queryset.filter(doctor__email=user.email)
+        elif user.role == 'PATIENT':
+            queryset = queryset.filter(patient=user)
+        # ADMIN sees all platform appointments
+
+        breakdown = queryset.values('status').annotate(count=Count('id'))
+        status_map = {
+            'PENDING': 0,
+            'CONFIRMED': 0,
+            'COMPLETED': 0,
+            'CANCELLED': 0,
+        }
+        total = 0
+        for b in breakdown:
+            st = b['status']
+            cnt = b['count']
+            status_map[st] = cnt
+            total += cnt
+
+        return Response({
+            'total': total,
+            'breakdown': status_map,
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Appointments'])
+class AppointmentRescheduleView(generics.GenericAPIView):
+    """
+    POST /api/v1/appointments/<id>/reschedule/
+    Reschedules an individual appointment to a new date and time slot.
+    Allowed for: Patient (own booking), Doctor (assigned doctor), Clinic Admin, Receptionist.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = AppointmentSerializer
+
+    def post(self, request, pk, *args, **kwargs):
+        try:
+            appointment = Appointment.objects.select_related('clinic', 'doctor', 'patient').get(pk=pk)
+        except Appointment.DoesNotExist:
+            return Response({'detail': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        if user.role == 'PATIENT' and appointment.patient != user:
+            return Response({'detail': 'You can only reschedule your own appointments.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'CLINIC_ADMIN' and appointment.clinic.owner != user:
+            return Response({'detail': 'You do not own the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if not staff or str(staff.clinic_id) != str(appointment.clinic_id):
+                return Response({'detail': 'You do not belong to the clinic for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'DOCTOR':
+            doc = getattr(user, 'doctor_profile', None)
+            if not doc or str(doc.id) != str(appointment.doctor_id):
+                return Response({'detail': 'You are not the assigned doctor for this appointment.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role not in ['ADMIN', 'SUPER_ADMIN', 'DOCTOR', 'PATIENT', 'CLINIC_ADMIN', 'RECEPTIONIST']:
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        new_date_str = request.data.get('new_date')
+        new_time_str = request.data.get('new_time')
+        if not new_date_str or not new_time_str:
+            return Response({'detail': 'new_date and new_time are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from datetime import datetime
+        try:
+            target_date = datetime.strptime(new_date_str, '%Y-%m-%d').date()
+            if len(new_time_str) == 5:
+                target_time = datetime.strptime(new_time_str, '%H:%M').time()
+            else:
+                target_time = datetime.strptime(new_time_str, '%H:%M:%S').time()
+        except ValueError:
+            return Response({'detail': 'Invalid date or time format. Use YYYY-MM-DD and HH:MM.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.appointments.services import reschedule_appointment
+        apt = reschedule_appointment(
+            appointment=appointment,
+            new_date=target_date,
+            new_time=target_time,
+            requested_by_user=user,
+            reason=request.data.get('reason', '')
+        )
+        return Response(AppointmentSerializer(apt).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(tags=['Appointments'])
+class AppointmentRolloverView(generics.GenericAPIView):
+    """
+    POST /api/v1/appointments/rollover/
+    Bulk rolls over remaining unserved patients from an ended session to the doctor's next available chamber session.
+    Allowed for: Doctor, Clinic Admin, Receptionist.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        doctor_id = request.data.get('doctor_id')
+        clinic_id = request.data.get('clinic_id')
+        session_date_str = request.data.get('session_date')
+        target_date_str = request.data.get('target_date')
+
+        if not doctor_id or not clinic_id or not session_date_str:
+            return Response({'detail': 'doctor_id, clinic_id, and session_date are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from datetime import datetime
+        try:
+            s_date = datetime.strptime(session_date_str, '%Y-%m-%d').date()
+            t_date = datetime.strptime(target_date_str, '%Y-%m-%d').date() if target_date_str else None
+        except ValueError:
+            return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if user.role == 'CLINIC_ADMIN':
+            from apps.clinics.models import Clinic
+            if not Clinic.objects.filter(id=clinic_id, owner=user).exists():
+                return Response({'detail': 'You do not own this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'RECEPTIONIST':
+            staff = getattr(user, 'staff_profile', None)
+            if not staff or str(staff.clinic_id) != str(clinic_id):
+                return Response({'detail': 'You do not belong to this clinic.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role == 'DOCTOR':
+            doc = getattr(user, 'doctor_profile', None)
+            if not doc or str(doc.id) != str(doctor_id):
+                return Response({'detail': 'You are not this doctor.'}, status=status.HTTP_403_FORBIDDEN)
+        elif user.role != 'ADMIN':
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from apps.appointments.services import rollover_unserved_appointments
+        rescheduled = rollover_unserved_appointments(
+            doctor_id=doctor_id,
+            clinic_id=clinic_id,
+            session_date=s_date,
+            target_date=t_date,
+            requested_by_user=user
+        )
+
+        return Response({
+            'success': True,
+            'message': f'Successfully rolled over {len(rescheduled)} unserved appointment(s) to the next chamber session.',
+            'count': len(rescheduled),
+            'appointments': AppointmentSerializer(rescheduled, many=True).data
+        }, status=status.HTTP_200_OK)

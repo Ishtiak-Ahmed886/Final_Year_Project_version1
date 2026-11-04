@@ -69,8 +69,13 @@ export default function Login() {
     } catch (err) {
       if (typeof err === "string") {
         setError(err);
+      } else if (err?.detail) {
+        setError(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
       } else if (typeof err === "object" && err !== null) {
-        setError(Object.values(err).flat().join(" ") || t("loginErrorInvalid"));
+        const msg = Object.values(err)
+          .map((v) => (typeof v === "object" ? (v?.detail || JSON.stringify(v)) : String(v)))
+          .join(" ");
+        setError(msg || t("loginErrorInvalid"));
       } else {
         setError(t("loginErrorInvalid"));
       }

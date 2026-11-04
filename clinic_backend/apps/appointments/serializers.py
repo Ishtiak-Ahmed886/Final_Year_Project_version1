@@ -56,6 +56,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
     patient_email       = serializers.EmailField(source='patient.email',           read_only=True, default='')
 
     department_name     = serializers.CharField(source='department.name',          read_only=True, default=None)
+    has_prescription    = serializers.SerializerMethodField()
 
     # ── Nested objects (used by waiting room / live trackers) ────────────────
     doctor              = LightweightDoctorSerializer(read_only=True)
@@ -81,9 +82,14 @@ class AppointmentSerializer(serializers.ModelSerializer):
             # Core appointment fields
             'appointment_date', 'appointment_time', 'serial_number', 'status',
             'problem_description', 'amount', 'is_arrived', 'arrived_at',
-            'is_emergency', 'emergency_reason', 'created_at', 'updated_at',
+            'is_emergency', 'emergency_reason', 'has_prescription',
+            'rolled_over_from_date', 'original_serial_number',
+            'created_at', 'updated_at',
         )
         read_only_fields = ('id', 'serial_number', 'status', 'amount', 'created_at', 'updated_at')
+
+    def get_has_prescription(self, obj):
+        return hasattr(obj, 'prescription') and obj.prescription is not None
 
     def get_patient_name(self, obj):
         """Return family member name if booked for family, else patient full name."""

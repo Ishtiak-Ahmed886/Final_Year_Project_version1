@@ -49,6 +49,9 @@ class Appointment(BaseModel):
     arrived_at = models.DateTimeField(null=True, blank=True)
     is_emergency = models.BooleanField(default=False, db_index=True)
     emergency_reason = models.CharField(max_length=255, blank=True, default='')
+    rolled_over_from_date = models.DateField(null=True, blank=True, db_index=True)
+    original_serial_number = models.PositiveIntegerField(null=True, blank=True)
+    original_appointment_time = models.TimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-appointment_date', '-appointment_time']

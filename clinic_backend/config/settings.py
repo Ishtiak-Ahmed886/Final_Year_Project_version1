@@ -237,12 +237,12 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.ScopedRateThrottle',
     ),
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '120/min',
-        'user': '1200/min',
-        'auth_login': '20/min',
-        'sms_broadcast': '10/min',
-        'password_reset': '5/min',
-        'password_reset_confirm': '10/min',
+        'anon': '1000/min',
+        'user': '10000/min',
+        'auth_login': '30/min',
+        'sms_broadcast': '30/min',
+        'password_reset': '15/min',
+        'password_reset_confirm': '20/min',
     },
 }
 

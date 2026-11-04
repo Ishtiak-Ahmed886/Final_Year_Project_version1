@@ -1,3 +1,37 @@
+import re
+
+def normalize_room_number(room_number) -> str:
+    if not room_number:
+        return ""
+    return re.sub(r'^(?:room|chamber|rm)[\s\-_.:]*', '', str(room_number).strip(), flags=re.IGNORECASE).strip().lower()
+
+
+def check_room_number_conflict(
+    *,
+    clinic_id,
+    room_number: str,
+    exclude_doctor_id=None,
+    exclude_mapping_id=None
+):
+    norm = normalize_room_number(room_number)
+    if not norm:
+        return None
+
+    qs = DoctorClinic.objects.filter(
+        clinic_id=clinic_id,
+        is_active=True
+    ).exclude(status=DoctorClinicStatus.REJECTED).select_related('doctor')
+
+    if exclude_doctor_id:
+        qs = qs.exclude(doctor_id=exclude_doctor_id)
+    if exclude_mapping_id:
+        qs = qs.exclude(id=exclude_mapping_id)
+
+    for mapping in qs:
+        if normalize_room_number(mapping.room_number) == norm:
+            return mapping
+    return None
+
 from django.db import models
 from datetime import datetime, date, time, timedelta
 from typing import List, Dict, Any, Optional
@@ -79,6 +113,19 @@ def request_doctor_clinic_service(
     else:
         initial_status = DoctorClinicStatus.ACCEPTED
 
+    cleaned_room = (room_number or "").strip()
+    if cleaned_room:
+        conflict = check_room_number_conflict(
+            clinic_id=clinic.id,
+            room_number=cleaned_room,
+            exclude_doctor_id=doctor.id
+        )
+        if conflict:
+            doc_name = getattr(conflict.doctor, 'full_name', None) or "another doctor"
+            raise ValidationError({
+                "room_number": f"Room '{cleaned_room}' is already allocated to Dr. {doc_name} at this clinic. Please allocate a different room."
+            })
+
     department = None
     if department_id:
         try:
@@ -115,6 +162,19 @@ def assign_doctor_to_clinic(
         clinic = Clinic.objects.get(id=clinic_id, is_active=True)
     except Clinic.DoesNotExist:
         raise ValidationError({"clinic_id": "Valid active clinic not found."})
+
+    cleaned_room = (room_number or "").strip()
+    if cleaned_room:
+        conflict = check_room_number_conflict(
+            clinic_id=clinic.id,
+            room_number=cleaned_room,
+            exclude_doctor_id=doctor.id
+        )
+        if conflict:
+            doc_name = getattr(conflict.doctor, 'full_name', None) or "another doctor"
+            raise ValidationError({
+                "room_number": f"Room '{cleaned_room}' is already allocated to Dr. {doc_name} at this clinic. Please allocate a different room."
+            })
 
     department = None
     if department_id:

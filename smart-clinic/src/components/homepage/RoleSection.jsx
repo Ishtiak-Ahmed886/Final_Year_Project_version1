@@ -52,15 +52,15 @@ export default function RoleSection() {
           {/* Clinic Owner Card */}
           <div className="relative bg-white rounded-3xl p-8 sm:p-10 border border-slate-200/80 shadow-md hover:shadow-2xl transition-all duration-300 flex flex-col justify-between overflow-hidden group">
             {/* Top highlight bar */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 to-indigo-600" />
+            <div className="absolute top-0 left-0 right-0 h-2 bg-[#283891]" />
 
             <div>
               {/* Header */}
               <div className="flex items-center justify-between">
-                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                <div className="w-14 h-14 rounded-2xl bg-[#283891]/10 text-[#283891] border border-[#283891]/20 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
                   <Building2 className="w-7 h-7" />
                 </div>
-                <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
+                <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#283891]/10 text-[#283891] border border-[#283891]/20">
                   {t("forProviders")}
                 </span>
               </div>
@@ -77,7 +77,7 @@ export default function RoleSection() {
               <ul className="mt-7 space-y-3.5">
                 {clinicFeatures.map((item) => (
                   <li key={item} className="flex items-center gap-3 text-sm sm:text-base font-semibold text-slate-700">
-                    <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 fill-blue-50" />
+                    <CheckCircle2 className="w-5 h-5 text-[#283891] shrink-0 fill-blue-50" />
                     <span>{item}</span>
                   </li>
                 ))}
@@ -88,7 +88,7 @@ export default function RoleSection() {
             <div className="mt-10">
               <Link
                 to={user ? "/dashboard" : "/register"}
-                className="w-full inline-flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-bold text-white bg-[#2534a5] hover:bg-[#1a2578] shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all text-base group cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-bold text-white bg-[#283891] hover:bg-[#1e2b70] shadow-lg shadow-[#283891]/25 active:scale-[0.98] transition-all text-base group cursor-pointer"
               >
                 <span>{t("openClinicBtn")}</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />

@@ -79,9 +79,15 @@ export default function TokenPrintModal({ printTokenData, clinic, onClose }) {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Time:</span>
+              <span className="text-slate-500">Scheduled:</span>
               <span className="font-bold">{apptTime}</span>
             </div>
+            {printTokenData.estimated_consultation_time && (
+              <div className="flex justify-between text-emerald-700 font-bold border-t border-dashed border-slate-200 pt-1 mt-1">
+                <span>Est. Call Time:</span>
+                <span>{printTokenData.estimated_consultation_time}</span>
+              </div>
+            )}
           </div>
 
           {/* Scannable Live Queue QR Code */}

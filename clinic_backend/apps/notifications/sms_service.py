@@ -1,4 +1,5 @@
 import logging
+import threading
 import urllib.request
 import urllib.parse
 from typing import Optional
@@ -25,6 +26,21 @@ def normalize_bd_phone(phone: Optional[str]) -> str:
         return f"880{cleaned}"
     return cleaned or "8801700000000"
 
+
+def _async_gateway_dispatch(full_url: str, normalized_phone: str, title: str, message: str):
+    """
+    Background worker thread for external SMS gateway dispatch (GAP-ASYNC-01).
+    Prevents web workers from blocking during telco network latency.
+    """
+    try:
+        req = urllib.request.Request(full_url, headers={'User-Agent': 'SmartClinic-SMS/1.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            resp_text = response.read().decode('utf-8', errors='ignore')
+            logger.info(f"[BD SMS DISPATCH -> +{normalized_phone}] LIVE_SENT: {resp_text[:50]} | Title: {title}")
+    except Exception as e:
+        logger.warning(f"[BD SMS GATEWAY ERR -> +{normalized_phone}] {e}")
+
+
 def send_sms_notification(
     *,
     recipient,
@@ -40,33 +56,27 @@ def send_sms_notification(
     raw_phone = phone or getattr(recipient, 'phone', None) or '01700000000'
     normalized_phone = normalize_bd_phone(raw_phone)
 
-    # 1. Attempt Gateway HTTP Dispatch if token is configured
+    # 1. Non-blocking HTTPS gateway dispatch if token is configured (GAP-SEC-01 & GAP-ASYNC-01)
     sms_api_key = getattr(settings, 'SMS_API_KEY', '')
-    sms_endpoint = getattr(settings, 'SMS_ENDPOINT_URL', 'http://api.greenweb.com.bd/api.php')
+    sms_endpoint = getattr(settings, 'SMS_ENDPOINT_URL', 'https://api.greenweb.com.bd/api.php')
+    if sms_endpoint.startswith('http://'):
+        sms_endpoint = sms_endpoint.replace('http://', 'https://', 1)
 
-    gateway_status = "SIMULATED_DISPATCH"
     if sms_api_key and sms_api_key != 'demo_greenweb_token':
-        try:
-            params = {
-                'token': sms_api_key,
-                'to': normalized_phone,
-                'message': f"[{title}] {message}"
-            }
-            query_str = urllib.parse.urlencode(params)
-            full_url = f"{sms_endpoint}?{query_str}"
-            req = urllib.request.Request(full_url, headers={'User-Agent': 'SmartClinic-SMS/1.0'})
-            with urllib.request.urlopen(req, timeout=4) as response:
-                resp_text = response.read().decode('utf-8', errors='ignore')
-                gateway_status = f"LIVE_SENT: {resp_text[:50]}"
-        except Exception as e:
-            gateway_status = f"GATEWAY_ERR: {str(e)[:50]}"
-            logger.warning(f"Live SMS dispatch error: {e}")
-
-    # Log clean formatted output to logger
-    try:
-        logger.info(f"[BD SMS DISPATCH -> +{normalized_phone}] ({gateway_status}) Title: {title} | Body: {message}")
-    except Exception:
-        pass
+        params = {
+            'token': sms_api_key,
+            'to': normalized_phone,
+            'message': f"[{title}] {message}"
+        }
+        query_str = urllib.parse.urlencode(params)
+        full_url = f"{sms_endpoint}?{query_str}"
+        threading.Thread(
+            target=_async_gateway_dispatch,
+            args=(full_url, normalized_phone, title, message),
+            daemon=True
+        ).start()
+    else:
+        logger.info(f"[SIMULATED BD SMS -> +{normalized_phone}] Title: {title} | Body: {message}")
 
     # 2. Persist in database
     notification = Notification.objects.create(

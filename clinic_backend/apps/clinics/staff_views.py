@@ -397,6 +397,13 @@ class ReceptionWalkInCreateView(APIView):
         today = timezone.now().date()
         current_time = timezone.now().time()
 
+        from apps.doctors.models import ChamberSession, ChamberSessionStatus
+        session = ChamberSession.objects.filter(doctor=doctor, clinic=clinic, session_date=today).first()
+        if session and session.status == ChamberSessionStatus.ENDED:
+            return Response({
+                'detail': f"Dr. {doctor.full_name}'s chamber session has ended for today. Cannot register new walk-in patients."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Resolve fee fallback
         if raw_fee is not None and str(raw_fee).strip() != '':
             try:
@@ -539,6 +546,33 @@ class ReceptionCashPaymentView(APIView):
                 payment.payment_status = PaymentStatus.COMPLETED
                 payment.received_by = request.user
                 payment.save()
+
+            # Confirm appointment and record arrival at counter
+            appointment.status = AppointmentStatus.CONFIRMED
+            appointment.is_arrived = True
+            if not appointment.arrived_at:
+                appointment.arrived_at = timezone.now()
+            appointment.amount = amount
+            appointment.save(update_fields=['status', 'is_arrived', 'arrived_at', 'amount'])
+
+            if appointment.patient and appointment.patient.phone:
+                try:
+                    from apps.notifications.sms_service import send_sms_notification
+                    from apps.notifications.models import NotificationType
+                    doc_name = (getattr(appointment.doctor, 'full_name', '') or str(appointment.doctor)).strip()
+                    if not (doc_name.lower().startswith('dr.') or doc_name.lower().startswith('dr ')):
+                        doc_name = f"Dr. {doc_name}"
+                    send_sms_notification(
+                        recipient=appointment.patient,
+                        title="Counter Payment Received ✅",
+                        message=(
+                            f"Dear {appointment.patient.get_full_name() or 'Patient'}, cash payment of ৳{float(amount):.0f} BDT "
+                            f"for {doc_name} at {clinic.name} has been received. Token Serial: #{appointment.serial_number} is Confirmed."
+                        ),
+                        notification_type=NotificationType.APPOINTMENT_CONFIRMED
+                    )
+                except Exception:
+                    pass
 
         return Response({
             'detail': f'Cash payment of BDT {amount} recorded by {request.user.full_name}.',

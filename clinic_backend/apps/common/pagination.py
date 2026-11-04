@@ -2,9 +2,17 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 class StandardPageNumberPagination(PageNumberPagination):
-    page_size = 10
+    page_size = 200
     page_size_query_param = 'page_size'
-    max_page_size = 100
+    max_page_size = 500
+
+    def paginate_queryset(self, queryset, request, view=None):
+        qp = getattr(request, 'query_params', None)
+        if qp is None:
+            qp = getattr(request, 'GET', {})
+        if qp.get('all') == 'true' or qp.get('pagination') == 'false':
+            return None
+        return super().paginate_queryset(queryset, request, view=view)
 
     def get_paginated_response(self, data):
         return Response({

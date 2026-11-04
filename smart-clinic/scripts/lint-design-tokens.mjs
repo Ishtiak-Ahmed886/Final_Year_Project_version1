@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ALLOWED_HEXES = new Set([
+  '#283891', // clinic owner primary brand
+  '#1e2b70', // clinic owner hover
   '#1e3a8a', // brand-primary
   '#172554', // brand-primary-hover
   '#0d9488', // brand-teal

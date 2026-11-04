@@ -71,9 +71,17 @@ class DoctorListView(generics.ListAPIView):
 
         from django.db.models import Q
         if division_id:
-            qs = qs.filter(clinics__division_id=division_id).distinct()
+            qs = qs.filter(
+                doctor_clinics__clinic__division_id=division_id,
+                doctor_clinics__status='ACCEPTED',
+                doctor_clinics__is_active=True
+            ).distinct()
         if district_id:
-            qs = qs.filter(clinics__district_id=district_id).distinct()
+            qs = qs.filter(
+                doctor_clinics__clinic__district_id=district_id,
+                doctor_clinics__status='ACCEPTED',
+                doctor_clinics__is_active=True
+            ).distinct()
         if search:
             qs = qs.filter(
                 Q(full_name__icontains=search) | Q(qualification__icontains=search)
@@ -304,6 +312,20 @@ class DoctorClinicRequestRespondView(APIView):
             return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
         if action == 'ACCEPT':
+            cleaned_room = (mapping.room_number or "").strip()
+            if cleaned_room:
+                from .services import check_room_number_conflict
+                conflict = check_room_number_conflict(
+                    clinic_id=mapping.clinic_id,
+                    room_number=cleaned_room,
+                    exclude_doctor_id=mapping.doctor_id,
+                    exclude_mapping_id=mapping.id
+                )
+                if conflict:
+                    doc_name = getattr(conflict.doctor, 'full_name', None) or "another doctor"
+                    return Response({
+                        'room_number': [f"Room '{cleaned_room}' is already allocated to Dr. {doc_name} at this clinic. Please allocate a different room."]
+                    }, status=status.HTTP_400_BAD_REQUEST)
             mapping.status = DoctorClinicStatus.ACCEPTED
         else:
             mapping.status = DoctorClinicStatus.REJECTED
@@ -376,7 +398,6 @@ from .serializers import ChamberSessionSerializer, ChamberSessionUpdateSerialize
 @extend_schema(tags=['Chamber Sessions'])
 class ChamberSessionView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    throttle_scope = 'sms_broadcast'
 
     def get(self, request, *args, **kwargs):
         doctor_id = request.query_params.get('doctor_id')
@@ -449,6 +470,63 @@ class ChamberSessionView(APIView):
                 session_date=session_date,
                 defaults={'status': ChamberSessionStatus.NOT_STARTED, 'current_serial': 0}
             )
+            initial_status = session.status
+            initial_delay = session.delay_minutes or 0
+
+            # Guard against calling patients before chamber slot has started today
+            RESTRICTED_CALL_ACTIONS = [
+                'NEXT_SERIAL',
+                'COMPLETE_CURRENT',
+                'SKIP_SERIAL',
+                'RECALL_SERIAL',
+                'SET_SERIAL',
+            ]
+            req_status = data.get('status')
+            is_calling_or_starting = (
+                action in RESTRICTED_CALL_ACTIONS or
+                (req_status == ChamberSessionStatus.IN_CHAMBER and session.status == ChamberSessionStatus.NOT_STARTED)
+            )
+
+            if is_calling_or_starting:
+                try:
+                    from zoneinfo import ZoneInfo
+                    bd_now = timezone.now().astimezone(ZoneInfo('Asia/Dhaka'))
+                except Exception:
+                    bd_now = timezone.localtime()
+
+                bd_today = bd_now.date()
+                bd_current_time = bd_now.time()
+
+                if session.session_date < bd_today:
+                    return Response({
+                        'detail': 'Cannot conduct chamber session for a past date.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                if session.session_date > bd_today:
+                    return Response({
+                        'detail': f'Chamber session is scheduled for {session.session_date}. Patient calling is not permitted before that date.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                from .models import DoctorSchedule
+                doc_schedules = DoctorSchedule.objects.filter(
+                    doctor_id=session.doctor_id,
+                    clinic_id=session.clinic_id,
+                    is_active=True
+                )
+                if doc_schedules.exists():
+                    today_schedules = doc_schedules.filter(day_of_week=session.session_date.weekday()).order_by('start_time')
+                    if not today_schedules.exists():
+                        day_name = session.session_date.strftime("%A")
+                        return Response({
+                            'detail': f'Doctor has no scheduled chamber at this clinic on {day_name}.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+
+                    earliest_start = today_schedules.first().start_time
+                    if bd_current_time < earliest_start:
+                        formatted_start = earliest_start.strftime("%I:%M %p")
+                        return Response({
+                            'detail': f"Chamber hours have not started yet. Doctor's schedule starts at {formatted_start}."
+                        }, status=status.HTTP_400_BAD_REQUEST)
 
             if action == 'ADMIT_EMERGENCY':
                 if session.status == ChamberSessionStatus.ENDED:
@@ -540,6 +618,95 @@ class ChamberSessionView(APIView):
                 if session.held_patient_id:
                     return Response({'detail': f'Patient #{session.held_patient.serial_number} is currently held. Please resume held patient before advancing.'}, status=status.HTTP_400_BAD_REQUEST)
 
+                # Clinical safety: Current serving patient must have a digital prescription before advancing
+                if session.current_serial > 0:
+                    curr_serving_apt = Appointment.objects.filter(
+                        doctor_id=session.doctor_id,
+                        clinic_id=session.clinic_id,
+                        appointment_date=session.session_date,
+                        serial_number=session.current_serial,
+                        is_emergency=False,
+                    ).first()
+                    if curr_serving_apt and curr_serving_apt.status not in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+                        from apps.prescriptions.models import Prescription
+                        if not Prescription.objects.filter(appointment=curr_serving_apt).exists():
+                            p_name = getattr(curr_serving_apt.patient, "full_name", None) or f"{curr_serving_apt.patient.first_name} {curr_serving_apt.patient.last_name}".strip() or f"Patient #{curr_serving_apt.serial_number}"
+                            return Response({
+                                'detail': f"Please issue a digital prescription for Serial #{session.current_serial} ({p_name}) before calling the next patient."
+                            }, status=status.HTTP_400_BAD_REQUEST)
+
+                skipped = list(session.skipped_serials or [])
+                next_apt = Appointment.objects.filter(
+                    doctor_id=session.doctor_id,
+                    clinic_id=session.clinic_id,
+                    appointment_date=session.session_date,
+                    serial_number__gt=session.current_serial,
+                    is_emergency=False,
+                    status__in=[AppointmentStatus.CONFIRMED, AppointmentStatus.PENDING]
+                ).exclude(
+                    serial_number__in=skipped
+                ).order_by('serial_number').first()
+
+                if next_apt:
+                    # Auto-complete previous normal appointment if it was in chamber and confirmed
+                    if session.current_serial > 0 and session.current_serial != next_apt.serial_number:
+                        from apps.appointments.services import complete_appointment
+                        prev_serving_apt = Appointment.objects.filter(
+                            doctor_id=session.doctor_id,
+                            clinic_id=session.clinic_id,
+                            appointment_date=session.session_date,
+                            serial_number=session.current_serial,
+                            is_emergency=False,
+                        ).exclude(status__in=[AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]).first()
+                        if prev_serving_apt:
+                            try:
+                                complete_appointment(appointment=prev_serving_apt)
+                            except Exception:
+                                prev_serving_apt.status = AppointmentStatus.COMPLETED
+                                prev_serving_apt.save(update_fields=['status'])
+
+                    session.current_serial = next_apt.serial_number
+                    if session.status in [ChamberSessionStatus.NOT_STARTED, ChamberSessionStatus.PAUSED]:
+                        session.status = ChamberSessionStatus.IN_CHAMBER
+                    if not session.started_at:
+                        session.started_at = timezone.now()
+                else:
+                    # Do NOT use current_serial += 1
+                    # No eligible normal next patient
+                    pass
+
+            elif action == 'COMPLETE_CURRENT':
+                if session.status == ChamberSessionStatus.ENDED:
+                    return Response({'detail': 'Chamber session has ended. Reopen the session before performing queue actions.'}, status=status.HTTP_400_BAD_REQUEST)
+                if session.active_emergency_id:
+                    return Response({'detail': 'Cannot complete normal patient while emergency consultation is active. Use COMPLETE_EMERGENCY.'}, status=status.HTTP_400_BAD_REQUEST)
+                if session.held_patient_id:
+                    return Response({'detail': 'A patient is currently held. Please resume held patient before completing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                if session.current_serial > 0:
+                    curr_apt = Appointment.objects.filter(
+                        doctor_id=session.doctor_id,
+                        clinic_id=session.clinic_id,
+                        appointment_date=session.session_date,
+                        serial_number=session.current_serial,
+                        is_emergency=False,
+                    ).first()
+                    if curr_apt and curr_apt.status not in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+                        from apps.prescriptions.models import Prescription
+                        if not Prescription.objects.filter(appointment=curr_apt).exists():
+                            p_name = getattr(curr_apt.patient, "full_name", None) or f"{curr_apt.patient.first_name} {curr_apt.patient.last_name}".strip() or f"Patient #{curr_apt.serial_number}"
+                            return Response({
+                                'detail': f"Please issue a digital prescription for Serial #{session.current_serial} ({p_name}) before completing consultation."
+                            }, status=status.HTTP_400_BAD_REQUEST)
+
+                    from apps.appointments.services import complete_appointment
+                    if curr_apt and curr_apt.status not in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+                        try:
+                            complete_appointment(appointment=curr_apt)
+                        except Exception:
+                            curr_apt.status = AppointmentStatus.COMPLETED
+                            curr_apt.save(update_fields=['status'])
+
                 skipped = list(session.skipped_serials or [])
                 next_apt = Appointment.objects.filter(
                     doctor_id=session.doctor_id,
@@ -558,10 +725,6 @@ class ChamberSessionView(APIView):
                         session.status = ChamberSessionStatus.IN_CHAMBER
                     if not session.started_at:
                         session.started_at = timezone.now()
-                else:
-                    # Do NOT use current_serial += 1
-                    # No eligible normal next patient
-                    pass
 
             elif action == 'PREV_SERIAL':
                 if session.status == ChamberSessionStatus.ENDED:
@@ -595,10 +758,6 @@ class ChamberSessionView(APIView):
                     return Response({'detail': 'Cannot skip serial while a patient is currently held.'}, status=status.HTTP_400_BAD_REQUEST)
 
                 skipped = list(session.skipped_serials or [])
-                if session.current_serial > 0 and session.current_serial not in skipped:
-                    skipped.append(session.current_serial)
-                session.skipped_serials = skipped
-
                 next_apt = Appointment.objects.filter(
                     doctor_id=session.doctor_id,
                     clinic_id=session.clinic_id,
@@ -610,17 +769,55 @@ class ChamberSessionView(APIView):
                     serial_number__in=skipped
                 ).order_by('serial_number').first()
 
-                if next_apt:
-                    session.current_serial = next_apt.serial_number
+                if not next_apt:
+                    return Response({'detail': 'No waiting patients left in queue to skip to.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                if session.current_serial > 0 and session.current_serial not in skipped:
+                    skipped.append(session.current_serial)
+                session.skipped_serials = skipped
+                session.current_serial = next_apt.serial_number
 
             elif action == 'RECALL_SERIAL':
                 if session.status == ChamberSessionStatus.ENDED:
                     return Response({'detail': 'Chamber session has ended. Reopen the session before recalling serials.'}, status=status.HTTP_400_BAD_REQUEST)
+                if session.active_emergency_id:
+                    return Response({'detail': 'Cannot recall serial while emergency consultation is active.'}, status=status.HTTP_400_BAD_REQUEST)
+                if session.held_patient_id:
+                    return Response({'detail': 'A patient is currently held. Please resume held patient before recalling.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Clinical safety: Ensure active patient is completed, prescribed, or skipped before recalling
+                if session.current_serial > 0:
+                    curr_apt = Appointment.objects.filter(
+                        doctor_id=session.doctor_id,
+                        clinic_id=session.clinic_id,
+                        appointment_date=session.session_date,
+                        serial_number=session.current_serial,
+                        is_emergency=False,
+                    ).first()
+                    if curr_apt and curr_apt.status not in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED] and curr_apt.serial_number not in (session.skipped_serials or []):
+                        from apps.prescriptions.models import Prescription
+                        if not Prescription.objects.filter(appointment=curr_apt).exists():
+                            p_name = getattr(curr_apt.patient, 'full_name', None) or f"{curr_apt.patient.first_name} {curr_apt.patient.last_name}".strip() or f"Patient #{curr_apt.serial_number}"
+                            return Response({
+                                'detail': f"Serial #{session.current_serial} ({p_name}) is currently in chamber. Please prescribe or skip them before recalling another serial."
+                            }, status=status.HTTP_400_BAD_REQUEST)
+                        else:
+                            from apps.appointments.services import complete_appointment
+                            try:
+                                complete_appointment(appointment=curr_apt)
+                            except Exception:
+                                curr_apt.status = AppointmentStatus.COMPLETED
+                                curr_apt.save(update_fields=['status'])
+
                 target = data.get('current_serial')
                 if target is not None:
                     session.current_serial = target
                     skipped = [s for s in (session.skipped_serials or []) if s != target]
                     session.skipped_serials = skipped
+                    if session.status in [ChamberSessionStatus.NOT_STARTED, ChamberSessionStatus.PAUSED]:
+                        session.status = ChamberSessionStatus.IN_CHAMBER
+                    if not session.started_at:
+                        session.started_at = timezone.now()
 
             elif action == 'RESET':
                 if session.status == ChamberSessionStatus.ENDED:
@@ -661,7 +858,22 @@ class ChamberSessionView(APIView):
                 session.announcement_note = data['announcement_note']
 
             if 'room_number' in data and data['room_number']:
-                session.room_number = data['room_number']
+                cleaned_room = str(data['room_number']).strip()
+                if cleaned_room:
+                    from .services import normalize_room_number
+                    norm_room = normalize_room_number(cleaned_room)
+                    clashing_sess = ChamberSession.objects.filter(
+                        clinic_id=session.clinic_id,
+                        session_date=session.session_date,
+                        is_active=True
+                    ).exclude(id=session.id).exclude(status=ChamberSessionStatus.ENDED).select_related('doctor')
+                    for cs in clashing_sess:
+                        if normalize_room_number(cs.room_number) == norm_room:
+                            doc_name = getattr(cs.doctor, 'full_name', None) or "another doctor"
+                            raise ValidationError({
+                                'room_number': f"Room '{cleaned_room}' is currently occupied by Dr. {doc_name} today."
+                            })
+                session.room_number = cleaned_room
 
             if 'estimated_mins_per_patient' in data:
                 session.estimated_mins_per_patient = data['estimated_mins_per_patient']
@@ -713,9 +925,9 @@ class ChamberSessionView(APIView):
                 import logging
                 logging.getLogger(__name__).warning(f"Proximity SMS dispatch error: {e}")
 
-        # Delay Broadcast Trigger: Only when delay_minutes is newly increased (> 0 and changed from old_delay)
+        # Delay Broadcast Trigger: Only when delay_minutes is newly increased (> 0 and changed from initial_delay)
         new_delay = session.delay_minutes or 0
-        if new_delay > 0 and new_delay != old_delay and ('delay_minutes' in data or action in ['UPDATE_STATUS', 'UPDATE_DELAY']):
+        if new_delay > 0 and new_delay != initial_delay and ('delay_minutes' in data or action in ['UPDATE_STATUS', 'UPDATE_DELAY']):
             try:
                 from apps.appointments.models import Appointment, AppointmentStatus
                 from apps.appointments.services import format_doctor_display_name
@@ -747,6 +959,33 @@ class ChamberSessionView(APIView):
                     )
             except Exception:
                 pass  # Non-blocking SMS dispatch
+
+        # Early Chamber End: Auto-rollover unserved patients to next chamber day
+        if session.status == ChamberSessionStatus.ENDED and initial_status != ChamberSessionStatus.ENDED:
+            try:
+                from apps.appointments.services import rollover_unserved_appointments
+                rollover_unserved_appointments(
+                    doctor_id=session.doctor_id,
+                    clinic_id=session.clinic_id,
+                    session_date=session.session_date,
+                    requested_by_user=request.user
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Chamber end auto-rollover: {e}")
+
+        # Chamber Reopen: Revert rolled over patients back to today and re-align target day serials
+        if initial_status == ChamberSessionStatus.ENDED and session.status == ChamberSessionStatus.IN_CHAMBER:
+            try:
+                from apps.appointments.services import revert_session_rollover
+                revert_session_rollover(
+                    doctor_id=session.doctor_id,
+                    clinic_id=session.clinic_id,
+                    session_date=session.session_date
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Chamber reopen auto-revert: {e}")
 
         return Response(ChamberSessionSerializer(session).data, status=status.HTTP_200_OK)
 
@@ -783,18 +1022,34 @@ class DoctorScheduleView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        schedule, created = DoctorSchedule.objects.update_or_create(
+        schedule = DoctorSchedule.all_objects.filter(
             doctor=data['doctor'],
             clinic=data['clinic'],
-            day_of_week=data['day_of_week'],
-            defaults={
-                'start_time': data['start_time'],
-                'end_time': data['end_time'],
-                'slot_duration_minutes': data.get('slot_duration_minutes', 15),
-                'max_patients': data.get('max_patients', 20),
-                'is_active': data.get('is_active', True),
-            }
-        )
+            day_of_week=data['day_of_week']
+        ).first()
+
+        if schedule:
+            schedule.start_time = data['start_time']
+            schedule.end_time = data['end_time']
+            schedule.slot_duration_minutes = data.get('slot_duration_minutes', 15)
+            schedule.max_patients = data.get('max_patients', 20)
+            schedule.is_active = data.get('is_active', True)
+            schedule.is_deleted = False
+            schedule.save()
+            created = False
+        else:
+            schedule = DoctorSchedule.objects.create(
+                doctor=data['doctor'],
+                clinic=data['clinic'],
+                day_of_week=data['day_of_week'],
+                start_time=data['start_time'],
+                end_time=data['end_time'],
+                slot_duration_minutes=data.get('slot_duration_minutes', 15),
+                max_patients=data.get('max_patients', 20),
+                is_active=data.get('is_active', True),
+            )
+            created = True
+
         return Response(
             DoctorScheduleSerializer(schedule).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
@@ -1101,6 +1356,55 @@ class DoctorAvailabilityView(APIView):
                 'reason': unavail_reason
             })
 
+        # Next serial preview
+        from django.db.models import Max
+        max_serial = Appointment.objects.filter(
+            doctor_id=doctor_id,
+            clinic_id=clinic_id,
+            appointment_date=target_date
+        ).exclude(status=AppointmentStatus.CANCELLED).aggregate(m=Max('serial_number'))['m'] or 0
+        next_serial = max_serial + 1
+
+        # Build session ranges (Morning < 12:00, Afternoon 12:00-17:00, Evening >= 17:00)
+        morning_slots = [s for s in slot_data if int(s['time'].split(':')[0]) < 12]
+        afternoon_slots = [s for s in slot_data if 12 <= int(s['time'].split(':')[0]) < 17]
+        evening_slots = [s for s in slot_data if int(s['time'].split(':')[0]) >= 17]
+
+        sessions_data = []
+        if morning_slots:
+            sessions_data.append({
+                'id': 'morning',
+                'name': 'Morning Shift',
+                'name_bn': 'সকালের শিফট',
+                'start_time': morning_slots[0]['time'],
+                'end_time': morning_slots[-1]['time'],
+                'total_slots': len(morning_slots),
+                'available_count': sum(1 for s in morning_slots if s['available']),
+                'first_available_time': next((s['time'] for s in morning_slots if s['available']), None),
+            })
+        if afternoon_slots:
+            sessions_data.append({
+                'id': 'afternoon',
+                'name': 'Afternoon Shift',
+                'name_bn': 'দুপুরের শিফট',
+                'start_time': afternoon_slots[0]['time'],
+                'end_time': afternoon_slots[-1]['time'],
+                'total_slots': len(afternoon_slots),
+                'available_count': sum(1 for s in afternoon_slots if s['available']),
+                'first_available_time': next((s['time'] for s in afternoon_slots if s['available']), None),
+            })
+        if evening_slots:
+            sessions_data.append({
+                'id': 'evening',
+                'name': 'Evening Shift',
+                'name_bn': 'সন্ধ্যার শিফট',
+                'start_time': evening_slots[0]['time'],
+                'end_time': evening_slots[-1]['time'],
+                'total_slots': len(evening_slots),
+                'available_count': sum(1 for s in evening_slots if s['available']),
+                'first_available_time': next((s['time'] for s in evening_slots if s['available']), None),
+            })
+
         return Response({
             'available_days': available_days,
             'weekly_schedules': weekly_schedules,
@@ -1108,6 +1412,8 @@ class DoctorAvailabilityView(APIView):
             'next_available_date': next_available_date,
             'schedule': DoctorScheduleSerializer(schedule).data,
             'slots': slot_data,
+            'sessions': sessions_data,
+            'next_serial': next_serial,
             'total_slots': len(slots),
             'booked_count': len(booked_time_strs),
             'available_count': sum(1 for s in slot_data if s['available']),

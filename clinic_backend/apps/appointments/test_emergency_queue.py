@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import UserRole
 from apps.clinics.models import Clinic, ClinicStaff, StaffRole
+from apps.prescriptions.models import Prescription
 from apps.doctors.models import Doctor, DoctorClinic, ChamberSession, ChamberSessionStatus
 from apps.appointments.models import Appointment, AppointmentStatus
 from apps.notifications.models import Notification, NotificationType
@@ -215,6 +216,7 @@ class EmergencyQueueComprehensiveTestCase(TestCase):
             appointment_date=self.today, appointment_time=time(10, 0),
             serial_number=24, status=AppointmentStatus.CONFIRMED, amount=1200, is_emergency=False
         )
+        Prescription.objects.create(appointment=apt24, doctor=self.doctor, patient=self.patient, diagnosis="Treated")
         apt25 = Appointment.objects.create(
             patient=self.patient, clinic=self.clinic, doctor=self.doctor,
             appointment_date=self.today, appointment_time=time(10, 15),
@@ -254,6 +256,7 @@ class EmergencyQueueComprehensiveTestCase(TestCase):
             appointment_date=self.today, appointment_time=time(10, 0),
             serial_number=24, status=AppointmentStatus.CONFIRMED, amount=1200, is_emergency=False
         )
+        Prescription.objects.create(appointment=apt24, doctor=self.doctor, patient=self.patient, diagnosis="Treated")
         apt25 = Appointment.objects.create(
             patient=self.patient, clinic=self.clinic, doctor=self.doctor,
             appointment_date=self.today, appointment_time=time(10, 15),
@@ -505,7 +508,7 @@ class EmergencyQueueComprehensiveTestCase(TestCase):
             doctor=self.doctor, clinic=self.clinic, session_date=self.today,
             current_serial=24, status=ChamberSessionStatus.IN_CHAMBER
         )
-        # Tracker for #26
+                # Tracker for #26
         res = self.client.get(f"/api/v1/appointments/{norm26.id}/track/")
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         live_queue = res.data["live_queue"]
@@ -539,6 +542,8 @@ class EmergencyQueueComprehensiveTestCase(TestCase):
             doctor=self.doctor, clinic=self.clinic, session_date=self.today,
             current_serial=10, status=ChamberSessionStatus.IN_CHAMBER
         )
+        apt10 = Appointment.objects.get(doctor=self.doctor, clinic=self.clinic, appointment_date=self.today, serial_number=10)
+        Prescription.objects.create(appointment=apt10, doctor=self.doctor, patient=self.patient, diagnosis="Treated")
         # Call NEXT_SERIAL -> advances to 11.
         # Waiting normal serials ahead of 11: 12, 14 (only 2, not 3 yet).
         res1 = self.doc_client.post(

@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import UserRole
 from apps.clinics.models import Clinic, ClinicStaff, StaffRole
+from apps.prescriptions.models import Prescription
 from apps.doctors.models import Doctor, DoctorClinic, ChamberSession, ChamberSessionStatus
 from apps.appointments.models import Appointment, AppointmentStatus
 
@@ -474,6 +475,7 @@ class SessionLifecycleTestCase(TestCase):
             "action": "UPDATE_STATUS",
             "status": ChamberSessionStatus.IN_CHAMBER,
         })
+        Prescription.objects.create(appointment=apt1, doctor=self.doctor1, patient=self.patient1, diagnosis="Treated")
         # Advance NEXT_SERIAL
         res = self.client.post("/api/v1/doctors/chamber-session/", {
             "doctor_id": str(self.doctor1.id),

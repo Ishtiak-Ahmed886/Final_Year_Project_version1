@@ -92,7 +92,11 @@ apiClient.interceptors.response.use(
         .join(" | ");
     }
 
-    return Promise.reject(errorMessage || "An unexpected error occurred.");
+    const customError = new Error(errorMessage || "An unexpected error occurred.");
+    customError.detail = errorMessage;
+    customError.data = error.response?.data;
+    customError.status = error.response?.status;
+    return Promise.reject(customError);
   }
 );
 
